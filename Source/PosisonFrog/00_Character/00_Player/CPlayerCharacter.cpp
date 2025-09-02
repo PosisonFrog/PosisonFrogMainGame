@@ -16,47 +16,37 @@
 
 ACPlayerCharacter::ACPlayerCharacter()
 {
-	// Set size for collision capsule
 	GetCapsuleComponent()->InitCapsuleSize(42.f, 96.0f);
 
 	DashComponent = CreateDefaultSubobject<UCDashComponent>(TEXT("DashComponent"));
 	check(DashComponent);  // 생성 후 즉시 검증
 		
-	// Don't rotate when the controller rotates. Let that just affect the camera.
 	bUseControllerRotationPitch = false;
 	bUseControllerRotationYaw = false;
 	bUseControllerRotationRoll = false;
 
-	// Configure character movement
-	GetCharacterMovement()->bOrientRotationToMovement = true; // Character moves in the direction of input...	
-	GetCharacterMovement()->RotationRate = FRotator(0.0f, 500.0f, 0.0f); // ...at this rotation rate
+	GetCharacterMovement()->bOrientRotationToMovement = true; 
+	GetCharacterMovement()->RotationRate = FRotator(0.0f, 500.0f, 0.0f); 
 
-	// Note: For faster iteration times these variables, and many more, can be tweaked in the Character Blueprint
-
-	GetCharacterMovement()->MaxWalkSpeed = 500.f;
+	//가속 및 정지
 	GetCharacterMovement()->MinAnalogWalkSpeed = 20.f;
 	GetCharacterMovement()->BrakingDecelerationWalking = 2000.f;
 	GetCharacterMovement()->BrakingDecelerationFalling = 1500.0f;
 
-	// Create a camera boom (pulls in towards the player if there is a collision)
 	SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
 	SpringArm->SetupAttachment(RootComponent);
-	SpringArm->TargetArmLength = 400.0f; // The camera follows at this distance behind the character	
-	SpringArm->bUsePawnControlRotation = true; // Rotate the arm based on the controller
+	SpringArm->TargetArmLength = 400.0f; 
+	SpringArm->bUsePawnControlRotation = true; 
 
-	// Create a follow camera
 	PlayerCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
-	PlayerCamera->SetupAttachment(SpringArm, USpringArmComponent::SocketName); // Attach the camera to the end of the boom and let the boom adjust to match the controller orientation
-	PlayerCamera->bUsePawnControlRotation = false; // Camera does not rotate relative to arm
-
-	// Note: The skeletal mesh and anim blueprint references on the Mesh component (inherited from Character) 
-	// are set in the derived blueprint asset named ThirdPersonCharacter (to avoid direct content references in C++)
+	PlayerCamera->SetupAttachment(SpringArm, USpringArmComponent::SocketName); 
+	PlayerCamera->bUsePawnControlRotation = false; 
 }
 
 void ACPlayerCharacter::BeginPlay()
 {
-	// Call the base class  
 	Super::BeginPlay();
+	GetCharacterMovement()->MaxWalkSpeed = WalkingSpeed;
 
 	// 컴포넌트가 없으면 지연 생성 시도
 	if (!DashComponent)
@@ -85,19 +75,15 @@ void ACPlayerCharacter::SetupPlayerInputComponent(class UInputComponent* PlayerI
 
 void ACPlayerCharacter::Move(const FInputActionValue& Value)
 {
-	// input is a Vector2D
 	FVector2D MovementVector = Value.Get<FVector2D>();
 
 	if (Controller != nullptr)
 	{
-		// find out which way is forward
 		const FRotator Rotation = Controller->GetControlRotation();
 		const FRotator YawRotation(0, Rotation.Yaw, 0);
 
-		// get forward vector
 		const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
 	
-		// get right vector 
 		const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
 
 		// add movement 
@@ -108,12 +94,10 @@ void ACPlayerCharacter::Move(const FInputActionValue& Value)
 
 void ACPlayerCharacter::Look(const FInputActionValue& Value)
 {
-	// input is a Vector2D
 	FVector2D LookAxisVector = Value.Get<FVector2D>();
 
 	if (Controller != nullptr)
 	{
-		// add yaw and pitch input to controller
 		AddControllerYawInput(LookAxisVector.X);
 		AddControllerPitchInput(LookAxisVector.Y);
 	}
