@@ -10,6 +10,7 @@
 #include "00_Character/02_Component/CDashComponent.h"
 #include "00_Character/02_Component/CEnhancedInputComponent.h"
 #include "00_Character/02_Component/CGameplayTags.h"
+#include "00_Character/02_Component/CWeaponComponent.h"
 
 #include "Global.h"
 
@@ -20,6 +21,9 @@ ACPlayerCharacter::ACPlayerCharacter()
 
 	DashComponent = CreateDefaultSubobject<UCDashComponent>(TEXT("DashComponent"));
 	check(DashComponent);  // 생성 후 즉시 검증
+
+	WeaponComponent = CreateDefaultSubobject<UCWeaponComponent>(TEXT("WeaponComponent"));
+	check(WeaponComponent);  // 생성 후 즉시 검증
 		
 	bUseControllerRotationPitch = false;
 	bUseControllerRotationYaw = false;
@@ -55,6 +59,13 @@ void ACPlayerCharacter::BeginPlay()
 		DashComponent = NewObject<UCDashComponent>(this, UCDashComponent::StaticClass(), TEXT("DashComponent"));
 		DashComponent->RegisterComponent();
 	}
+
+	if (!WeaponComponent)
+	{
+		CLog::Log("무기 컴포넌트 없음 - 지연 생성 시도");
+		WeaponComponent = NewObject<UCWeaponComponent>(this, UCWeaponComponent::StaticClass(), TEXT("WeaponComponent"));
+		WeaponComponent->RegisterComponent();
+	}
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -70,7 +81,7 @@ void ACPlayerCharacter::SetupPlayerInputComponent(class UInputComponent* PlayerI
 	CEnhancedInputComponent->BindActionByTag(InputConfig, CGameplayTags::InputTag_Move, ETriggerEvent::Triggered, this, &ACPlayerCharacter::Move);
 	CEnhancedInputComponent->BindActionByTag(InputConfig, CGameplayTags::InputTag_Look, ETriggerEvent::Triggered, this, &ACPlayerCharacter::Look);
 	CEnhancedInputComponent->BindActionByTag(InputConfig, CGameplayTags::InputTag_Dash, ETriggerEvent::Started, this, &ACPlayerCharacter::DashStart);
-
+	CEnhancedInputComponent->BindActionByTag(InputConfig, CGameplayTags::InputTag_Attack, ETriggerEvent::Started, this, &ACPlayerCharacter::Attack);
 }
 
 void ACPlayerCharacter::Move(const FInputActionValue& Value)
@@ -122,5 +133,14 @@ void ACPlayerCharacter::DashStart()
 			DashComponent = FoundComponent;
 			DashComponent->StartDash();
 		}*/
+	}
+}
+
+void ACPlayerCharacter::Attack()
+{
+	if (IsValid(WeaponComponent))
+	{
+		CLog::Log("공격 시작 - 컴포넌트 사용 가능");
+		WeaponComponent->DoAttack();
 	}
 }

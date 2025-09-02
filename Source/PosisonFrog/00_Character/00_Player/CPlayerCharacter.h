@@ -7,6 +7,7 @@
 #include "00_Character/CBaseCharacter.h"
 #include "CPlayerCharacter.generated.h"
 
+class UCWeaponComponent;
 class USpringArmComponent;
 class UCameraComponent;
 class UCInputConfig;
@@ -36,6 +37,8 @@ protected:
 	void Look(const FInputActionValue& Value);
 
 	void DashStart();
+
+	void Attack();
 	
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	UCInputConfig* InputConfig;
@@ -47,6 +50,10 @@ protected:
 protected:
 	UPROPERTY(VisibleAnywhere, Category = "Component")
 	UCDashComponent* DashComponent;
+
+	UPROPERTY(VisibleAnywhere, Category = "Component")
+	UCWeaponComponent* WeaponComponent;
+	
 	// 카메라 관련
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 	USpringArmComponent* SpringArm;
