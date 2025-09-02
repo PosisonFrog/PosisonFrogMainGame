@@ -1,50 +1,62 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "CPlayerCharacter.h"
+#include "Camera/CameraComponent.h"
+#include "Components/CapsuleComponent.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "GameFramework/SpringArmComponent.h"
+
+
 #include "00_Character/02_Component/CDashComponent.h"
 #include "00_Character/02_Component/CEnhancedInputComponent.h"
 #include "00_Character/02_Component/CGameplayTags.h"
-#include "Camera/CameraComponent.h"
-#include "GameFramework/SpringArmComponent.h"
-#include "GameFramework/CharacterMovementComponent.h"
 
 #include "Global.h"
 
 
-
 ACPlayerCharacter::ACPlayerCharacter()
 {
+	// Set size for collision capsule
+	GetCapsuleComponent()->InitCapsuleSize(42.f, 96.0f);
+
 	DashComponent = CreateDefaultSubobject<UCDashComponent>(TEXT("DashComponent"));
 	check(DashComponent);  // 생성 후 즉시 검증
+		
+	// Don't rotate when the controller rotates. Let that just affect the camera.
+	bUseControllerRotationPitch = false;
+	bUseControllerRotationYaw = false;
+	bUseControllerRotationRoll = false;
 
-	// 카메라 설정
-	SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArm"));
-	SpringArm->SetupAttachment(GetRootComponent());
- 
-	PlayerCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
-	PlayerCamera->SetupAttachment(SpringArm);
+	// Configure character movement
+	GetCharacterMovement()->bOrientRotationToMovement = true; // Character moves in the direction of input...	
+	GetCharacterMovement()->RotationRate = FRotator(0.0f, 500.0f, 0.0f); // ...at this rotation rate
 
-	
-	// 메쉬 및 스프링암 위치/회전 설정
-	GetMesh()->SetRelativeLocation(FVector(0, 0, -90));
-	GetMesh()->SetRelativeRotation(FRotator(0, -90, 0));
-	SpringArm->SetRelativeRotation(FRotator(0, 0, 0));
-	SpringArm->SetRelativeLocation(FVector(-18, 63, 49));
+	// Note: For faster iteration times these variables, and many more, can be tweaked in the Character Blueprint
 
-	// 캐릭터 무브먼트 설정
-	GetCharacterMovement()->bUseControllerDesiredRotation = false;
-	GetCharacterMovement()->bOrientRotationToMovement = false;
+	GetCharacterMovement()->MaxWalkSpeed = 500.f;
+	GetCharacterMovement()->MinAnalogWalkSpeed = 20.f;
+	GetCharacterMovement()->BrakingDecelerationWalking = 2000.f;
+	GetCharacterMovement()->BrakingDecelerationFalling = 1500.0f;
 
+	// Create a camera boom (pulls in towards the player if there is a collision)
+	SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
+	SpringArm->SetupAttachment(RootComponent);
+	SpringArm->TargetArmLength = 400.0f; // The camera follows at this distance behind the character	
+	SpringArm->bUsePawnControlRotation = true; // Rotate the arm based on the controller
 
-	
+	// Create a follow camera
+	PlayerCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
+	PlayerCamera->SetupAttachment(SpringArm, USpringArmComponent::SocketName); // Attach the camera to the end of the boom and let the boom adjust to match the controller orientation
+	PlayerCamera->bUsePawnControlRotation = false; // Camera does not rotate relative to arm
+
+	// Note: The skeletal mesh and anim blueprint references on the Mesh component (inherited from Character) 
+	// are set in the derived blueprint asset named ThirdPersonCharacter (to avoid direct content references in C++)
 }
+
 void ACPlayerCharacter::BeginPlay()
 {
+	// Call the base class  
 	Super::BeginPlay();
-	// 초기 설정
-	DefaultFOV = PlayerCamera->FieldOfView;
-	GetCharacterMovement()->MaxWalkSpeed = WalkingSpeed;
 
 	// 컴포넌트가 없으면 지연 생성 시도
 	if (!DashComponent)
@@ -53,13 +65,10 @@ void ACPlayerCharacter::BeginPlay()
 		DashComponent = NewObject<UCDashComponent>(this, UCDashComponent::StaticClass(), TEXT("DashComponent"));
 		DashComponent->RegisterComponent();
 	}
-	SpringArm->bEnableCameraLag = true;
+}
 
-}
-void ACPlayerCharacter::Tick(float DeltaTime)
-{
-	Super::Tick(DeltaTime);
-}
+//////////////////////////////////////////////////////////////////////////
+// Input
 
 void ACPlayerCharacter::SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent)
 {
@@ -68,16 +77,16 @@ void ACPlayerCharacter::SetupPlayerInputComponent(class UInputComponent* PlayerI
 	UCEnhancedInputComponent* CEnhancedInputComponent = Cast<UCEnhancedInputComponent>(PlayerInputComponent);
 	check(CEnhancedInputComponent);
 	// 기본 이동 및 시야 입력
-	CEnhancedInputComponent->BindActionByTag(InputConfig, CGameplayTags::InputTag_Move, ETriggerEvent::Triggered, this, &ACPlayerCharacter::Input_Move);
-	CEnhancedInputComponent->BindActionByTag(InputConfig, CGameplayTags::InputTag_Look, ETriggerEvent::Triggered, this, &ACPlayerCharacter::Input_Look);
+	CEnhancedInputComponent->BindActionByTag(InputConfig, CGameplayTags::InputTag_Move, ETriggerEvent::Triggered, this, &ACPlayerCharacter::Move);
+	CEnhancedInputComponent->BindActionByTag(InputConfig, CGameplayTags::InputTag_Look, ETriggerEvent::Triggered, this, &ACPlayerCharacter::Look);
 	CEnhancedInputComponent->BindActionByTag(InputConfig, CGameplayTags::InputTag_Dash, ETriggerEvent::Started, this, &ACPlayerCharacter::DashStart);
 
 }
 
-void ACPlayerCharacter::Input_Move(const FInputActionValue& InputActionValue)
+void ACPlayerCharacter::Move(const FInputActionValue& Value)
 {
-	// 입력 벡터 추출
-	FVector2D MovementVector = InputActionValue.Get<FVector2D>();
+	// input is a Vector2D
+	FVector2D MovementVector = Value.Get<FVector2D>();
 
 	if (Controller != nullptr)
 	{
@@ -97,22 +106,17 @@ void ACPlayerCharacter::Input_Move(const FInputActionValue& InputActionValue)
 	}
 }
 
-void ACPlayerCharacter::Input_Look(const FInputActionValue& InputActionValue)
+void ACPlayerCharacter::Look(const FInputActionValue& Value)
 {
-	FVector2D LookAxisVector = InputActionValue.Get<FVector2D>();
- 
+	// input is a Vector2D
+	FVector2D LookAxisVector = Value.Get<FVector2D>();
+
 	if (Controller != nullptr)
 	{
-		AddControllerYawInput(LookAxisVector.X / 5);
-		AddControllerPitchInput(LookAxisVector.Y / -5);
+		// add yaw and pitch input to controller
+		AddControllerYawInput(LookAxisVector.X);
+		AddControllerPitchInput(LookAxisVector.Y);
 	}
-}
-
-
-
-FVector ACPlayerCharacter::GetPawnViewLocation() const
-{
-	return Super::GetPawnViewLocation();
 }
 
 void ACPlayerCharacter::DashStart()
@@ -136,5 +140,3 @@ void ACPlayerCharacter::DashStart()
 		}*/
 	}
 }
-
-

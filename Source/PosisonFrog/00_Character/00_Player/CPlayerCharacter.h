@@ -1,68 +1,67 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
 #include "CoreMinimal.h"
+#include "GameFramework/Character.h"
 #include "00_Character/CBaseCharacter.h"
 #include "CPlayerCharacter.generated.h"
 
+class USpringArmComponent;
+class UCameraComponent;
 class UCInputConfig;
 class UCDashComponent;
 struct FInputActionValue;
 
-UCLASS()
+
+UCLASS(config=Game)
 class POSISONFROG_API ACPlayerCharacter : public ACBaseCharacter
 {
 	GENERATED_BODY()
 
+	// 카메라 관련
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
+	USpringArmComponent* SpringArm;
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
+	UCameraComponent* PlayerCamera;
+
+
+
 public:
-	// 생성자 및 기본 함수
 	ACPlayerCharacter();
-	virtual void Tick(float DeltaTime) override;
-	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
-	// 입력 처리 함수
-	void Input_Move(const FInputActionValue& InputActionValue);
-	void Input_Look(const FInputActionValue& InputActionValue);
-	// 기본 오버라이드 함수
-	virtual void BeginPlay() override;
-	virtual FVector GetPawnViewLocation() const override;
 	
-	
-	// 대시 함수
-	void DashStart();
-
-
-	//=========================================================================================
-	// 변수 선언부
-	//=========================================================================================
-public:
-	// 입력 설정
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	UCInputConfig* InputConfig;
-	
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "MovementSpeed")
 	float WalkingSpeed = 400.0f;
+
+protected:
+
+	/** Called for movement input */
+	void Move(const FInputActionValue& Value);
+
+	/** Called for looking input */
+	void Look(const FInputActionValue& Value);
 	
-	// 컴포넌트
 	UPROPERTY(VisibleAnywhere, Category = "Component")
 	UCDashComponent* DashComponent;
+
+	void DashStart();
+
+
+protected:
+	// APawn interface
+	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 	
-	// 카메라 관련
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
-	class USpringArmComponent* SpringArm;
-	
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
-	class UCameraComponent* PlayerCamera;
+	// To add mapping context
+	virtual void BeginPlay();
 
-	float DefaultFOV;
-
-	// 카메라 회전 속도
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera)
-	float BaseTurnRate;
-	
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera)
-	float BaseLookUpRate;
-
-
+public:
+	/** Returns CameraBoom subobject **/
+	FORCEINLINE USpringArmComponent* GetCameraBoom() const { return SpringArm; }
+	/** Returns FollowCamera subobject **/
+	FORCEINLINE UCameraComponent* GetFollowCamera() const { return PlayerCamera; }
 };
+
