@@ -118,9 +118,6 @@ void UCDashComponent::StartDash()
     if (!OwnerCharacter || !MovementComponent)
         return;
 
-    // 현재 지상/공중 상태 저장
-    bWasInAir = MovementComponent->IsFalling();
-
     // 원래 속도 저장
     OriginalMaxSpeed = MovementComponent->MaxWalkSpeed;
     OriginalGravityScale = MovementComponent->GravityScale;
@@ -148,37 +145,17 @@ void UCDashComponent::StartDash()
     float ActualDashDistance = DashDistance;
     float ActualDashSpeed = DashSpeed;
 
-    if (bWasInAir)
+    // 지상 대시 설정
+    MovementComponent->SetMovementMode(MOVE_Flying); // 지상에서는 Flying 모드로 변경하여 마찰 제거
+    
+    // 지상 대시 애니메이션 재생
+    if (GroundDashMontage)
     {
-        // 공중 대시 설정
-        ActualDashDistance *= AirDashDistanceModifier;
-        ActualDashSpeed *= AirDashSpeedModifier;
-        MovementComponent->GravityScale = 0.0f; // 공중에서는 중력 제거
-        
-        // 공중 대시 애니메이션 재생
-        if (AirDashMontage)
-        {
-            OwnerCharacter->PlayAnimMontage(AirDashMontage);
-        }
-        else if (DashMontage)
-        {
-            OwnerCharacter->PlayAnimMontage(DashMontage);
-        }
+        OwnerCharacter->PlayAnimMontage(GroundDashMontage);
     }
-    else
+    else if (DashMontage)
     {
-        // 지상 대시 설정
-        MovementComponent->SetMovementMode(MOVE_Flying); // 지상에서는 Flying 모드로 변경하여 마찰 제거
-        
-        // 지상 대시 애니메이션 재생
-        if (GroundDashMontage)
-        {
-            OwnerCharacter->PlayAnimMontage(GroundDashMontage);
-        }
-        else if (DashMontage)
-        {
-            OwnerCharacter->PlayAnimMontage(DashMontage);
-        }
+        OwnerCharacter->PlayAnimMontage(DashMontage);
     }
 
     // 대시 초기 속도 설정 (커브의 시작 값이나 최대값)
@@ -246,31 +223,25 @@ void UCDashComponent::StopDash()
     if (MovementComponent)
     {
         // 원래 이동 모드로 복원
-        if (!bWasInAir)
-        {
-            MovementComponent->SetMovementMode(MOVE_Walking);
+        MovementComponent->SetMovementMode(MOVE_Walking);
             
-            // 지상에서는 일정 속도를 유지 (현재 속도의 X, Y 값 보존)
-            FVector CurrentVelocity = MovementComponent->Velocity;
-            // 너무 빠른 속도는 제한 (OriginalMaxSpeed의 80%까지만 유지)
-            float MaxHorizontalSpeed = OriginalMaxSpeed * 0.8f;
-            float CurrentHorizontalSpeed = FMath::Min(CurrentVelocity.Size2D(), MaxHorizontalSpeed);
+        // 지상에서는 일정 속도를 유지 (현재 속도의 X, Y 값 보존)
+        FVector CurrentVelocity = MovementComponent->Velocity;
+        // 너무 빠른 속도는 제한 (OriginalMaxSpeed의 80%까지만 유지)
+        float MaxHorizontalSpeed = OriginalMaxSpeed * 0.8f;
+        float CurrentHorizontalSpeed = FMath::Min(CurrentVelocity.Size2D(), MaxHorizontalSpeed);
             
-            if (CurrentHorizontalSpeed > 0.1f)
-            {
-                FVector Direction = CurrentVelocity.GetSafeNormal2D();
-                MovementComponent->Velocity = FVector(
-                    Direction.X * CurrentHorizontalSpeed, 
-                    Direction.Y * CurrentHorizontalSpeed, 
-                    MovementComponent->Velocity.Z
-                );
-            }
-        }
-        else
+        if (CurrentHorizontalSpeed > 0.1f)
         {
-            // 공중에서는 X, Y 속도를 0으로 리셋
-            MovementComponent->Velocity = FVector(0, 0, MovementComponent->Velocity.Z);
+            FVector Direction = CurrentVelocity.GetSafeNormal2D();
+            MovementComponent->Velocity = FVector(
+                Direction.X * CurrentHorizontalSpeed, 
+                Direction.Y * CurrentHorizontalSpeed, 
+                MovementComponent->Velocity.Z
+            );
         }
+
+
 
         // 원래 최대 속도와 중력 복원
         MovementComponent->MaxWalkSpeed = OriginalMaxSpeed;
@@ -282,7 +253,6 @@ void UCDashComponent::StopDash()
     {
         OwnerCharacter->StopAnimMontage(DashMontage);
         OwnerCharacter->StopAnimMontage(GroundDashMontage);
-        OwnerCharacter->StopAnimMontage(AirDashMontage);
     }
 
     // 쿨다운 시작
@@ -307,7 +277,7 @@ bool UCDashComponent::CanDash() const
 	// 대시 가능 조건 확인 - 달리기 중에도 가능하도록 조건 제거
 	bool bHasCharges = CurrentDashCount > 0;
 	bool bNotInCooldown = !bInCooldown;
-	bool bCanAirDashCheck = bCanAirDash || !MovementComponent->IsFalling();
+	bool bCanAirDashCheck = !MovementComponent->IsFalling();
 
 	return bHasCharges && bNotInCooldown && bCanAirDashCheck;
 }
