@@ -34,7 +34,7 @@ ACPlayerCharacter::ACPlayerCharacter()
 
 	// 캐릭터 무브먼트 설정
 	GetCharacterMovement()->bUseControllerDesiredRotation = false;
-	GetCharacterMovement()->bOrientRotationToMovement = true;
+	GetCharacterMovement()->bOrientRotationToMovement = false;
 
 
 	
@@ -64,7 +64,7 @@ void ACPlayerCharacter::Tick(float DeltaTime)
 void ACPlayerCharacter::SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent)
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
-
+	
 	UCEnhancedInputComponent* CEnhancedInputComponent = Cast<UCEnhancedInputComponent>(PlayerInputComponent);
 	check(CEnhancedInputComponent);
 	// 기본 이동 및 시야 입력
