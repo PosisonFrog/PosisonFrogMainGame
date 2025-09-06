@@ -8,7 +8,7 @@
 
 class UCPlayerStatAssetData;
 
-//DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnHealthChanged, float, InCurrentHealth, float, InMaxHealth);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnHealthChanged, float, CurrentHealth, float, MaxHealth);
 
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class POSISONFROG_API UCHealthComponent : public UActorComponent
@@ -27,8 +27,8 @@ protected:
 	virtual void BeginPlay() override;
 
 public:
-	//UPROPERTY(BlueprintAssignable, Category = "Events")
-	//FOnHealthChanged OnHealthChanged;
+	UPROPERTY(BlueprintAssignable, Category = "Events")
+	FOnHealthChanged OnHealthChanged;
 
 	FORCEINLINE bool IsDead() const { return CurrentHealth <= 0.0f; }
 	FORCEINLINE float GetHealth() const { return CurrentHealth; }
@@ -36,7 +36,4 @@ public:
 
 	void Healing(float InAmount);
 	void Damage(float InAmount);
-	
-private:
-	//void BroadcastChanged();
 };

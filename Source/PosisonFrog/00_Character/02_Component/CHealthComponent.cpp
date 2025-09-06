@@ -18,15 +18,12 @@ void UCHealthComponent::BeginPlay()
 
 void UCHealthComponent::Healing(float InAmount)
 {
-	CurrentHealth += InAmount;
+	CurrentHealth = FMath::Clamp(CurrentHealth + InAmount, 0.0f, MaxHealth);
+	OnHealthChanged.Broadcast(CurrentHealth, MaxHealth);
 }
 
 void UCHealthComponent::Damage(float InAmount)
 {
-	
-}
-
-/*void UCHealthComponent::BroadcastChanged()
-{
+	CurrentHealth -= InAmount;
 	OnHealthChanged.Broadcast(CurrentHealth, MaxHealth);
-}*/
+}

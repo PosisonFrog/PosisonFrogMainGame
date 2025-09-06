@@ -56,6 +56,9 @@ protected:
 	UPROPERTY()
 	UCPlayerWidget* PlayerWidget = nullptr;
 
+	UFUNCTION()
+	void HandleHealthChanged(float CurrentHealth, float MaxHealth);
+	
 	void UpdateHpUI() const;
 	
 protected:

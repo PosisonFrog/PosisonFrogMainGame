@@ -93,6 +93,11 @@ void ACPlayerCharacter::BeginPlay()
 		HealthComponent = NewObject<UCHealthComponent>(this, UCHealthComponent::StaticClass(), TEXT("HealthComponent"));
 		HealthComponent->RegisterComponent();
 	}
+
+	if (HealthComponent)
+	{
+		HealthComponent->OnHealthChanged.AddDynamic(this, &ACPlayerCharacter::HandleHealthChanged);
+	}
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -169,6 +174,14 @@ void ACPlayerCharacter::Attack()
 	{
 		CLog::Log("공격 시작 - 컴포넌트 사용 가능");
 		WeaponComponent->DoAttack();
+	}
+}
+
+void ACPlayerCharacter::HandleHealthChanged(float CurrentHealth, float MaxHealth)
+{
+	if (PlayerWidget)
+	{
+		PlayerWidget->UpdateHpBar(CurrentHealth, MaxHealth);
 	}
 }
 
