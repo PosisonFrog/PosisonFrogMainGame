@@ -6,9 +6,7 @@
 #include "GameFramework/Actor.h"
 #include "CHealOrb.generated.h"
 
-// TODO - 힐 오브젝트가 플레이어 추적하는 기능 추가 필요
-//        현재는 간단하게 체력 회복만 구현 했음
-
+class ACPlayerCharacter;
 class USphereComponent;
 class UStaticMeshComponent;
 
@@ -21,22 +19,46 @@ public:
 	// Sets default values for this actor's properties
 	ACHealOrb();
 
+private:
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<AActor> TargetActor = nullptr;
+
+	UPROPERTY(EditAnywhere, Category = "Chase")
+	float SphereRadius = 60.0f;
+	
+	UPROPERTY(EditAnywhere, Category = "Chase")
+	float DetectRadius = 800.0f;
+
+	UPROPERTY(EditAnywhere, Category = "Chase")
+	float Speed = 500.0f;
+	
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
-	UPROPERTY(VisibleAnywhere, Category = "Components")
+	virtual void Tick(float DeltaTime) override;
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<USphereComponent> Sphere;
 
-	UPROPERTY(VisibleAnywhere, Category="Components")
-	TObjectPtr<UStaticMeshComponent> Mesh;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<USphereComponent> DetectSphere;
 
+	// 힐값 확인하기 위해서 큰 값으로 지정
 	UPROPERTY(EditAnywhere, Category = "Heal")
 	float HealAmount = 30.0f;
-
+	
 	UFUNCTION()
 	void OnSphereOverlap(
 		UPrimitiveComponent* OverlappedComponent,
+		AActor* OtherActor,
+		UPrimitiveComponent* OtherComp,
+		int32 OtherBodyIndex,
+		bool bFromSweep,
+		const FHitResult& SweepResult);
+
+	UFUNCTION()
+	void OnDetectOverlap(UPrimitiveComponent* OverlappedComponent,
 		AActor* OtherActor,
 		UPrimitiveComponent* OtherComp,
 		int32 OtherBodyIndex,
