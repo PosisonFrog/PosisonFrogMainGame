@@ -8,6 +8,7 @@
 
 class USphereComponent;
 class UStaticMeshComponent;
+class UCurveFloat;
 class UNiagaraSystem;
 class USoundBase;
 
@@ -17,90 +18,101 @@ class POSISONFROG_API ACHealOrb : public AActor
 	GENERATED_BODY()
 	
 public:	
-	// Sets default values for this actor's properties
 	ACHealOrb();
 
+protected:
+	// 액터가 생성될 때 호출
+	virtual void OnConstruction(const FTransform& Transform) override;
+	virtual void BeginPlay() override;
+	virtual void Tick(float DeltaTime) override;
+	
 private:
-	// 추적 대상 액터(플레이어)
+	// ==== Target ====
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
-	TWeakObjectPtr<AActor> TargetActor = nullptr;
-
-	// === 구슬 궤도 및 스피드 관련 변수 ===
-	// - Components -
+	TWeakObjectPtr<AActor> TargetPlayer = nullptr;
+	
+	// ==== Components ====
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<USphereComponent> Sphere;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<USphereComponent> DetectSphere;
 
-	// - Movement/Detection -
 	UPROPERTY(EditAnywhere, Category="Chase", meta=(ClampMin="0", ForceUnits="cm"))
 	float SphereRadius = 60.0f;
 	
 	UPROPERTY(EditAnywhere, Category="Chase", meta=(ClampMin="0", ForceUnits="cm"))
 	float DetectRadius = 800.0f;
 
-	// 현재 속도 벡터
-	UPROPERTY(VisibleInstanceOnly, Category="State")
-	FVector Velocity = FVector::ZeroVector;
-
-	// 곡선 궤적용 내부 위상
-	UPROPERTY(VisibleInstanceOnly, Category="State")
-	float CurvePhase = 0.f;
-	
-	// 기본 목표 속도
-	UPROPERTY(EditAnywhere, Category="Chase", meta=(ClampMin="0", ForceUnits="cm/s"))
-	float Speed = 500.f;
-
-	// 거리가 가까울수록 속도 부스트
-	UPROPERTY(EditAnywhere, Category="Chase|Homing", meta=(ClampMin="0", ForceUnits="cm/s"))
-	float HomingBoost = 400.0f;
-
-	// 부스트가 최대치가 되는 반경 (안으로 들어오면 선형으로 부스트 증가)
-	UPROPERTY(EditAnywhere, Category="Chase|Homing", meta=(ClampMin="0", ForceUnits="cm"))
-	float HomingBoostRadius = 600.f;
-
-	// 조향 민감도(클수록 날카롭게 방향 전환)
-	UPROPERTY(EditAnywhere, Category="Chase|Homing", meta=(ClampMin="0"))
-	float HomingTurnRate = 6.0f;
-
-	// 오버슈트 방지(스텝을 현재 거리로 클램프)
-	UPROPERTY(EditAnywhere, Category="Chase")
-	bool bClampStepToDistance = true;
-
-	// 벽 차단/슬라이드
-	UPROPERTY(EditAnywhere, Category="Chase|Collision")
-	bool bSlideOnBlock = false;
-
-	UPROPERTY(EditAnywhere, Category="Chase|Collision", meta=(ClampMin="0", ClampMax="1"))
-	float SlideFactor = 0.6f;
-	
 	// ! 전용 채널 : 에디터에서 만든 PlayerBody 채널 할당 !
 	UPROPERTY(EditDefaultsOnly, Category="Chase|Collision")
 	TEnumAsByte<ECollisionChannel> PlayerBodyChannel = ECollisionChannel::ECC_GameTraceChannel1;
 
-	// ─ Curve Trajectory ─
-	// 곡선(지그재그) 궤적 활성화
-	UPROPERTY(EditAnywhere, Category="Chase|Curve")
-	bool bUseSineCurve = false;
-
-	// 횡방향 진폭 (Dir의 법선 방향), 주파수(Hz)
-	UPROPERTY(EditAnywhere, Category="Chase|Curve", meta=(ClampMin="0", ForceUnits="cm"))
-	float CurveAmplitude = 60.f;
-
-	UPROPERTY(EditAnywhere, Category="Chase|Curve", meta=(ClampMin="0"))
-	float CurveFrequency = 2.f;
-
-	// 목표에 가까울수록 곡선 효과를 줄이기
-	UPROPERTY(EditAnywhere, Category="Chase|Curve")
-	bool bCurveDampWithDistance = true;
+	// ==== RunTime State ====
+	UPROPERTY(VisibleInstanceOnly, Category="State")
+	FVector Velocity = FVector::ZeroVector;
 	
-	// === Heal ===
-	// 힐값 확인하기 위해서 큰 값으로 지정
+	// ==== Steering (자연스러운 추적) ====
+	UPROPERTY(EditAnywhere, Category="Chase|Steering", meta=(ClampMin="0"))
+	float MaxSpeed = 800.0f;
+
+	UPROPERTY(EditAnywhere, Category="Chase|Steering", meta=(ClampMin="0"))
+	float Accel = 3000.0f;
+
+	// 근접 시 감속 반경
+	UPROPERTY(EditAnywhere, Category="Chase|Steering", meta=(ClampMin="0"))
+	float ArriveRadius = 120.0f;
+
+	// 방향 전환 보정(0~1): 높을수록 빠르게 보정
+	UPROPERTY(EditAnywhere, Category="Chase|Steering", meta=(ClampMin="0", ClampMax="1"))
+	float TurnAssist = 0.25f;
+
+	// **속도 보간 커브 (선택)** - X: Player까지의 거리(cm), Y: 속도 스케일
+	// 예) 멀리선 1.2, 가까이선 0.2 등으로 설정
+	UPROPERTY(EditAnywhere, Category="Chase|Steering")
+	TObjectPtr<UCurveFloat> SpeedByDistanceCurve = nullptr;
+
+	// ==== Obstacle Avoidance (간단 벽 회피) ====
+	UPROPERTY(EditAnywhere, Category="Chase|Avoid", meta=(ClampMin="0"))
+	float ProbeLength = 300.0f;
+
+	UPROPERTY(EditAnywhere, Category="Chase|Avoid", meta=(ClampMin="0"))
+	float SideProbeOffset = 110.0f;
+
+	// ==== NavMesh Path Follow (시야 끊길 때만) ====
+	UPROPERTY(EditAnywhere, Category="Chase|Nav")
+	bool bUseNavMesh = true;
+
+	UPROPERTY(EditAnywhere, Category="Chase|Nav", meta=(ClampMin="0.05"))
+	float RepathInterval = 0.30f;
+
+	UPROPERTY(EditAnywhere, Category="Chase|Nav", meta=(ClampMin="10"))
+	float WaypointReachRadius = 80.0f;
+
+	// ==== Target Reacquire Policy (재획득 정책) ====
+	// DetectSphere를 벗어난 뒤 계속 추적을 허용하는 유예 시간
+	UPROPERTY(EditAnywhere, Category="Chase|Target", meta=(ClampMin="0"))
+	float LoseTargetGraceTime = 2.0f;
+
+	// DetectSphere 밖 + LOS도 끊겼을 때, 기존 Nav 경로를 붙잡고 쫓아가는 최대 유지 시간
+	UPROPERTY(EditAnywhere, Category="Chase|Target", meta=(ClampMin="0"))
+	float PathHoldTime = 3.0f;
+
+	// ==== Timers / Accumulators
+	float TimeSinceRepath = 0.0f;
+	bool  bTargetInDetect = false;      // DetectSphere 안에 있는가
+	float TimeSinceDetectLost = 0.0f;   // DetectSphere 밖에 있었던 누적 시간
+	float TimeSinceNoLOS = 0.0f;        // LOS가 없었던 누적 시간
+
+	// ==== Path ====
+	TArray<FVector> PathPoints;
+	int32  PathIndex = 0;
+	
+	// ==== Heal ====
 	UPROPERTY(EditAnywhere, Category = "Heal")
 	float HealAmount = 30.0f;
 
-	// === VFX / SFX ===
+	// ==== VFX / SFX ====
 	// 현재 이펙트 및 사운드가 없어서 임시로 nullptr 나중에 적용할 때 BP에서 변경 OR 코드에서 변경
 	UPROPERTY(EditDefaultsOnly, Category="FX")
 	TObjectPtr<UNiagaraSystem> VFX_Spawn = nullptr;
@@ -119,22 +131,35 @@ private:
 
 	UPROPERTY(EditDefaultsOnly, Category="SFX")
 	TObjectPtr<USoundBase> SFX_Bounce = nullptr;
-	
-protected:
-	// 액터가 생성될 때 호출
-	virtual void OnConstruction(const FTransform& Transform) override;
 
-	virtual void BeginPlay() override;
+	// ===== Debug =====
+	UPROPERTY(EditAnywhere, Category="Debug")
+	bool bDebugDraw = false;
 	
-	virtual void Tick(float DeltaTime) override;
-	
+private:
+	// ==== Overlaps ====
 	UFUNCTION()
 	void OnSphereOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
 						 UPrimitiveComponent* OtherComp, int32 OtherBodyIndex,
 						 bool bFromSweep, const FHitResult& SweepResult);
 
 	UFUNCTION()
-	void OnDetectOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
-						 UPrimitiveComponent* OtherComp, int32 OtherBodyIndex,
-						 bool bFromSweep, const FHitResult& SweepResult);
+	void OnDetectBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
+							  UPrimitiveComponent* OtherComp, int32 OtherBodyIndex,
+							  bool bFromSweep, const FHitResult& SweepResult);
+
+	UFUNCTION()
+	void OnDetectEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
+							  UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
+
+	// ==== Steering / Avoidance ====
+	bool HasLineOfSightToTarget() const;
+	void FollowSteering(float DeltaTime);
+	float GetDistToTarget2D() const; // Helper
+	FVector ComputeDesiredDir() const;
+	FVector AvoidObstacles(const FVector& DesiredDir) const;
+
+	// ==== NavMesh Path ====
+	void RebuildPath();
+	void FollowPath(float DeltaTime);
 };
