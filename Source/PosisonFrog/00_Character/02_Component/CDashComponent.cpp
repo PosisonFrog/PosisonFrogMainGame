@@ -1,283 +1,157 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
-
-#include "00_Character/02_Component/CDashComponent.h"
+#include "CDashComponent.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
-#include "TimerManager.h"
-#include "Global.h"
-
 
 UCDashComponent::UCDashComponent()
 {
-	PrimaryComponentTick.bCanEverTick = true;
+    PrimaryComponentTick.bCanEverTick = true;
+    SetComponentTickEnabled(false);
+    
 }
-
 
 void UCDashComponent::BeginPlay()
 {
     Super::BeginPlay();
-    
-    // 소유자 캐릭터 찾기
-    OwnerCharacter = Cast<ACharacter>(GetOwner());
-    
-    if (OwnerCharacter)
-    {
-        MovementComponent = OwnerCharacter->GetCharacterMovement();
-        if (MovementComponent)
-        {
-            OriginalMaxSpeed = MovementComponent->MaxWalkSpeed;
-        }
-    }
-    
-    CurrentDashCount = MaxDashCount;
-    
-    // 입력 방향 초기화
-    CurrentInputDirection = FVector::ZeroVector;
-}
-
-
-void UCDashComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
-{
-    Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-
-    // 대시 중이 아니면 Tick 비활성화
-    if (!bIsDashing)
-    {
-        SetComponentTickEnabled(false);
-        return;
-    }
-
-    if (OwnerCharacter && MovementComponent)
-    {
-        // 대시 시간 업데이트
-        DashElapsedTime += DeltaTime;
-        float NormalizedTime = FMath::Min(DashElapsedTime / DashDuration, 1.0f);
-        
-        // 현재 위치와 목표 위치 사이의 거리 계산
-        FVector CurrentLocation = OwnerCharacter->GetActorLocation();
-        float DistanceToTarget = FVector::Dist2D(CurrentLocation, DashTargetLocation);
-
-        // 목표 위치에 도달했거나 가까워지면 대시 종료
-        if (DistanceToTarget < 50.0f || DashElapsedTime >= DashDuration)
-        {
-            StopDash();
-            return;
-        }
-        
-        // 벡터 투영을 통해 목표를 지나쳤는지 확인
-        FVector DashVector = DashTargetLocation - CurrentLocation;
-        FVector VelocityDirection = MovementComponent->Velocity.GetSafeNormal();
-        
-        float DotProduct = FVector::DotProduct(DashVector.GetSafeNormal(), VelocityDirection);
-        if (DotProduct < 0) // 목표를 지나침
-        {
-            StopDash();
-            return;
-        }
-        
-        // 속도 조절 - 커브 기반 또는 부드러운 감속 사용
-        float SpeedMultiplier;
-        if (DashSpeedCurve)
-        {
-            // 커브 기반 속도 조절
-            SpeedMultiplier = DashSpeedCurve->GetFloatValue(NormalizedTime);
-        }
-        else
-        {
-            // 기본 속도 조절 (시작은 빠르고 끝에는 느림)
-            // easeOutExpo 공식: y = 1 - pow(2, -10x)
-            SpeedMultiplier = 1.0f - FMath::Pow(2.0f, -10.0f * NormalizedTime);
-        }
-        
-        // 현재 방향은 유지하면서 속도만 조절
-        FVector CurrentVelocityDirection = MovementComponent->Velocity.GetSafeNormal();
-        float CurrentSpeed = InitialDashSpeed * (1.0f - 0.3f * SpeedMultiplier); // 마지막에는 70%까지 감속
-        
-        MovementComponent->Velocity = CurrentVelocityDirection * CurrentSpeed;
-    }
+    OwnerChar = Cast<ACharacter>(GetOwner());
+    if (OwnerChar)
+        MoveComp = OwnerChar->GetCharacterMovement();
 }
 
 void UCDashComponent::StartDash()
 {
-    if (!CanDash())
-        return;
+    if (!OwnerChar || !MoveComp) return; 
+    if (bIsDashing) return;
+    if (bIsOnCoolDown) return;
 
-    // 이미 대시 중이면 타이머 초기화
-    if (bIsDashing)
+    BeginDash_Internal();
+}
+
+void UCDashComponent::BeginDash_Internal()
+{
+    // 전방 수평 방향(카메라가 아닌 캐릭터 방향 기준)
+    DashDir2D = OwnerChar->GetActorForwardVector();
+    DashDir2D.Z = 0.f;
+    DashDir2D = DashDir2D.GetSafeNormal();
+    if (DashDir2D.IsNearlyZero())
+        DashDir2D = FVector::ForwardVector;
+
+    // 물리 파라미터 저장 & 오버라이드
+    ApplyPhysicsOverrides();
+
+    // Z 속도 제거(옵션)
+    if (bClearZVelocity)
     {
-        GetWorld()->GetTimerManager().ClearTimer(DashTimerHandle);
+        FVector V = MoveComp->Velocity;
+        V.Z = 0.f;
+        MoveComp->Velocity = V;
     }
 
     // 대시 시작
     bIsDashing = true;
-    CurrentDashCount--;
-    DashStartTime = GetWorld()->GetTimeSeconds();
-    DashElapsedTime = 0.0f;
-
-    if (!OwnerCharacter || !MovementComponent)
-        return;
-
-    // 원래 속도 저장
-    OriginalMaxSpeed = MovementComponent->MaxWalkSpeed;
-    OriginalGravityScale = MovementComponent->GravityScale;
-
-    // 대시 방향 결정
-    FVector DashDirection;
-
-    // 입력 방향이 있으면 그 방향으로 대시
-    if (CurrentInputDirection.SizeSquared() > 0.1f)
-    {
-        DashDirection = CurrentInputDirection.GetSafeNormal2D();
-    }
-    // 입력이 없지만 이동 중이면 현재 속도 방향으로 대시
-    else if (MovementComponent->Velocity.SizeSquared() > 1.0f)
-    {
-        DashDirection = MovementComponent->Velocity.GetSafeNormal2D();
-    }
-    // 아무 입력도 없으면 캐릭터가 바라보는 방향으로 대시
-    else
-    {
-        DashDirection = OwnerCharacter->GetActorForwardVector();
-    }
-    
-    // 공중 상태에 따라 다른 값 적용
-    float ActualDashDistance = DashDistance;
-    float ActualDashSpeed = DashSpeed;
-
-    // 지상 대시 설정
-    MovementComponent->SetMovementMode(MOVE_Flying); // 지상에서는 Flying 모드로 변경하여 마찰 제거
-    
-    // 지상 대시 애니메이션 재생
-    if (GroundDashMontage)
-    {
-        OwnerCharacter->PlayAnimMontage(GroundDashMontage);
-    }
-    else if (DashMontage)
-    {
-        OwnerCharacter->PlayAnimMontage(DashMontage);
-    }
-
-    // 대시 초기 속도 설정 (커브의 시작 값이나 최대값)
-    InitialDashSpeed = ActualDashSpeed;
-    
-    // LineTrace로 대시 목표 위치 결정
-    FVector StartLocation = OwnerCharacter->GetActorLocation();
-    FVector EndLocation = StartLocation + DashDirection * ActualDashDistance;
-
-    FHitResult HitResult;
-    FCollisionQueryParams QueryParams;
-    QueryParams.AddIgnoredActor(OwnerCharacter);
-
-    // LineTrace 실행
-    bool bHit = GetWorld()->LineTraceSingleByChannel(
-        HitResult,
-        StartLocation,
-        EndLocation,
-        ECC_Visibility,
-        QueryParams
-    );
-
-    // 충돌 지점이 있으면 그 지점까지만 이동
-    if (bHit)
-    {
-        DashTargetLocation = HitResult.Location - DashDirection * 50.0f; // 충돌 지점보다 약간 앞에서 멈춤
-    }
-    else
-    {
-        DashTargetLocation = EndLocation;
-    }
-
-    // 디버그 라인 그리기
-    DrawDebugLine(
-        GetWorld(),
-        StartLocation,
-        DashTargetLocation,
-        FColor::Green,
-        false,
-        2.0f,
-        0,
-        1.0f
-    );
-
-    // 대시 이동 설정 - 초기 속도는 최대치로
-    MovementComponent->Velocity = DashDirection * InitialDashSpeed;
-
-    // 대시 시작 이벤트 발생
-    OnDashStarted.Broadcast();
-
-    // 대시 종료 체크를 위해 Tick 사용
+    DashTimeAcc = 0.f;
     SetComponentTickEnabled(true);
 }
 
-
-
-void UCDashComponent::StopDash()
+void UCDashComponent::EndDash_Internal()
 {
-    if (!bIsDashing)
-        return;
-
     bIsDashing = false;
     SetComponentTickEnabled(false);
-
-    if (MovementComponent)
+    
+    // 대시 종료 시 속도 감소 적용
+    if (bApplyStopForceOnDashEnd && MoveComp)
     {
-        // 원래 이동 모드로 복원
-        MovementComponent->SetMovementMode(MOVE_Walking);
-            
-        // 지상에서는 일정 속도를 유지 (현재 속도의 X, Y 값 보존)
-        FVector CurrentVelocity = MovementComponent->Velocity;
-        // 너무 빠른 속도는 제한 (OriginalMaxSpeed의 80%까지만 유지)
-        float MaxHorizontalSpeed = OriginalMaxSpeed * 0.8f;
-        float CurrentHorizontalSpeed = FMath::Min(CurrentVelocity.Size2D(), MaxHorizontalSpeed);
-            
-        if (CurrentHorizontalSpeed > 0.1f)
-        {
-            FVector Direction = CurrentVelocity.GetSafeNormal2D();
-            MovementComponent->Velocity = FVector(
-                Direction.X * CurrentHorizontalSpeed, 
-                Direction.Y * CurrentHorizontalSpeed, 
-                MovementComponent->Velocity.Z
-            );
-        }
-
-
-
-        // 원래 최대 속도와 중력 복원
-        MovementComponent->MaxWalkSpeed = OriginalMaxSpeed;
-        MovementComponent->GravityScale = OriginalGravityScale;
+        FVector CurrentVel = MoveComp->Velocity;
+        CurrentVel.X *= StopForceMultiplier;
+        CurrentVel.Y *= StopForceMultiplier;
+        // Z축(점프/낙하)는 유지
+        MoveComp->Velocity = CurrentVel;
     }
+    
+    RestorePhysicsOverrides();
 
-    // 몽타주 중지 (블렌드 아웃으로 부드럽게)
-    if (OwnerCharacter)
-    {
-        OwnerCharacter->StopAnimMontage(DashMontage);
-        OwnerCharacter->StopAnimMontage(GroundDashMontage);
-    }
-
-    // 쿨다운 시작
-    bInCooldown = true;
-
-    // 대시 종료 이벤트 발생
-    OnDashEnded.Broadcast();
-
-    // 쿨다운 타이머 설정
-    GetWorld()->GetTimerManager().SetTimer(CooldownTimerHandle, [this]()
-    {
-        bInCooldown = false;
-        CurrentDashCount = FMath::Min(CurrentDashCount + 1, MaxDashCount);
-    }, DashCooldown, false);
+    StartCooldown();
+    MoveSpeedUp();
 }
 
-bool UCDashComponent::CanDash() const
+void UCDashComponent::ApplyPhysicsOverrides()
 {
-	if (!OwnerCharacter || !MovementComponent)
-		return false;
+    // 스냅샷(기존 코드 재사용하기 위해서 기존 변수의 값을 저장.)
+    Saved_GroundFriction         = MoveComp->GroundFriction;
+    Saved_BrakingFrictionFactor  = MoveComp->BrakingFrictionFactor;
+    Saved_BrakingDecelWalking    = MoveComp->BrakingDecelerationWalking;
+    Saved_bOrientRotationToMovement = OwnerChar->bUseControllerRotationYaw ? false : MoveComp->bOrientRotationToMovement;
+    Saved_DefaultMovementSpeed = MoveComp->GetMaxSpeed();
+    
+    // 오버라이드(낮은 마찰/제동으로 직진 손맛 강화)
+    MoveComp->GroundFriction            = Override_GroundFriction;
+    MoveComp->BrakingFrictionFactor     = Override_BrakingFrictionFactor;
+    MoveComp->BrakingDecelerationWalking= Override_BrakingDecelWalking;
 
-	// 대시 가능 조건 확인 - 달리기 중에도 가능하도록 조건 제거
-	bool bHasCharges = CurrentDashCount > 0;
-	bool bNotInCooldown = !bInCooldown;
-	bool bCanAirDashCheck = !MovementComponent->IsFalling();
+    // 대시 중에는 이동 방향 고정(선택) → 여기서는 유지, 필요 시 OrientRotationToMovement 조절 가능
+}
 
-	return bHasCharges && bNotInCooldown && bCanAirDashCheck;
+void UCDashComponent::RestorePhysicsOverrides()
+{
+    if (!MoveComp) return;
+    
+    // 대시 종료 후 높은 마찰계수로 빠른 정지
+    MoveComp->GroundFriction             = DashEndFriction; // 마찰계수로 바꿈
+    MoveComp->BrakingFrictionFactor      = Saved_BrakingFrictionFactor;
+    MoveComp->BrakingDecelerationWalking = DashEndBrakingDecel; // 높은 제동력 제동력으로 바꿈
+   
+    // 일정 시간 후 원래 값으로 복구하는 타이머 설정
+    FTimerHandle RestoreTimer;
+    GetWorld()->GetTimerManager().SetTimer(RestoreTimer, [this]()
+    {
+        if (MoveComp)
+        {
+            MoveComp->GroundFriction = Saved_GroundFriction;
+            MoveComp->BrakingDecelerationWalking = Saved_BrakingDecelWalking;
+        }
+    }, 0.5f, false); // 0.5초 후 원래 값으로 복구
+}
+
+void UCDashComponent::StartCooldown()
+{
+    bIsOnCoolDown = true;
+    CooldownTimeRemaining = DashCooldown;
+
+    FTimerHandle CooldownTimer;
+    GetWorld()->GetTimerManager().SetTimer(CooldownTimer, [this]()
+    {
+        bIsOnCoolDown = false;
+        CooldownTimeRemaining = 0.0f;
+    }, DashCooldown, false);
+
+}
+
+void UCDashComponent::MoveSpeedUp()
+{
+    FTimerHandle MoveSpeedUpTimer;
+    MoveComp->MaxWalkSpeed = MaxSpeedUp;
+    GetWorld()->GetTimerManager().SetTimer(MoveSpeedUpTimer, [this]()
+    {
+        MoveComp->MaxWalkSpeed = Saved_DefaultMovementSpeed;
+    }, SpeedUpActiveTime, false);
+}
+
+void UCDashComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+{
+    Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+    if (!bIsDashing || !MoveComp) return; 
+
+    DashTimeAcc += DeltaTime;
+
+    // 대시 중 속도 유지(수평)
+    FVector Vel = DashDir2D * DashSpeed;
+    if (!MoveComp->IsMovingOnGround())
+    {
+        // 공중이라면 수평만 유지하고 Z는 기존 유지
+        Vel.Z = MoveComp->Velocity.Z;
+    }
+    MoveComp->Velocity = Vel;
+
+    // 끝나면 원복
+    if (DashTimeAcc >= DashDuration)
+        EndDash_Internal();
 }
