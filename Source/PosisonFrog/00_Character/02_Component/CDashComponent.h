@@ -90,10 +90,6 @@ private:
     UPROPERTY(EditAnywhere, Category = "Dash", meta = (AllowPrivateAccess = "true"))
     bool bInvincibleWhileDashing = false;
 
-    // 공중에서 대시 가능 여부
-    UPROPERTY(EditAnywhere, Category = "Dash", meta = (AllowPrivateAccess = "true"))
-    bool bCanAirDash = true;
-
     // 최대 대시 횟수
     UPROPERTY(EditAnywhere, Category = "Dash", meta = (AllowPrivateAccess = "true"))
     int32 MaxDashCount = 1;
@@ -106,33 +102,15 @@ private:
     UPROPERTY(EditAnywhere, Category = "Dash", meta = (AllowPrivateAccess = "true"))
     float DashSpeed = 4000.0f;
     
-    // ----- 공중 대시 관련 설정 -----
-    
-    // 공중 대시 속도 조절 계수 (1.0보다 작게 설정하면 공중에서 더 느리게 대시)
-    UPROPERTY(EditAnywhere, Category = "Dash", meta = (AllowPrivateAccess = "true"))
-    float AirDashSpeedModifier = 1.4f;
-
-    // 공중 대시 지속 시간 조절 계수 (1.0보다 작게 설정하면 공중 대시 시간이 짧아짐)
-    UPROPERTY(EditAnywhere, Category = "Dash", meta = (AllowPrivateAccess = "true"))
-    float AirDashDurationModifier = 0.2f;
-    
-    // 공중 대시 거리 조정 계수
-    UPROPERTY(EditAnywhere, Category = "Dash", meta = (AllowPrivateAccess = "true"))
-    float AirDashDistanceModifier = 2.0f;
-    
     // ----- 애니메이션 관련 -----
     
     // 대시 애니메이션 몽타주
     UPROPERTY(EditAnywhere, Category = "Dash|Animation", meta = (AllowPrivateAccess = "true"))
     UAnimMontage* DashMontage;
 
-    // 지상 대시 애니메이션 몽타주
+    // 대시 애니메이션 몽타주
     UPROPERTY(EditAnywhere, Category = "Dash|Animation", meta = (AllowPrivateAccess = "true"))
     UAnimMontage* GroundDashMontage;
-
-    // 공중 대시 애니메이션 몽타주
-    UPROPERTY(EditAnywhere, Category = "Dash|Animation", meta = (AllowPrivateAccess = "true"))
-    UAnimMontage* AirDashMontage;
 
     // 대시 속도 커브
     UPROPERTY(EditAnywhere, Category = "Dash|Movement", meta = (AllowPrivateAccess = "true"))
@@ -144,9 +122,6 @@ private:
     bool bIsDashing = false;
     bool bInCooldown = false;
     int32 CurrentDashCount = 0;
-    
-    // 대시 시작 시 공중 상태 저장
-    bool bWasInAir = false;
     
     // 대시 진행 시간 관련
     float DashTimeRemaining = 0.0f;

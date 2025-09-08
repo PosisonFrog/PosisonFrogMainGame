@@ -7,10 +7,13 @@
 #include "00_Character/CBaseCharacter.h"
 #include "CPlayerCharacter.generated.h"
 
+class UCWeaponComponent;
 class USpringArmComponent;
 class UCameraComponent;
-class UCInputConfig;
 class UCDashComponent;
+class UCHealthComponent;
+class UCInputConfig;
+class UCPlayerWidget;
 struct FInputActionValue;
 
 
@@ -36,6 +39,8 @@ protected:
 	void Look(const FInputActionValue& Value);
 
 	void DashStart();
+
+	void Attack();
 	
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	UCInputConfig* InputConfig;
@@ -43,17 +48,34 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "MovementSpeed")
 	float WalkingSpeed = 400.0f;
 
+	// UI
+protected:
+	UPROPERTY(EditAnywhere, Category = "UI")
+	TSubclassOf<UCPlayerWidget> PlayerWidgetClass;
 
+	UPROPERTY()
+	UCPlayerWidget* PlayerWidget = nullptr;
+
+	UFUNCTION()
+	void HandleHealthChanged(float CurrentHealth, float MaxHealth);
+	
+	void UpdateHpUI() const;
+	
 protected:
 	UPROPERTY(VisibleAnywhere, Category = "Component")
 	UCDashComponent* DashComponent;
+
+	UPROPERTY(VisibleAnywhere, Category = "Component")
+	UCWeaponComponent* WeaponComponent;
+
+	UPROPERTY(VisibleAnywhere, Category = "Component")
+	UCHealthComponent* HealthComponent;
+	
 	// 카메라 관련
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 	USpringArmComponent* SpringArm;
 	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 	UCameraComponent* PlayerCamera;
-
-	
 };
 

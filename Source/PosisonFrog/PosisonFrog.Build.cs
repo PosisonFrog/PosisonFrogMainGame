@@ -19,7 +19,8 @@ public class PosisonFrog : ModuleRules
 			"EnhancedInput",
 			"AnimGraphRuntime",  
 			"AIModule",
-			"GameplayTags"
+			"GameplayTags",
+			"UMG"
 		});
 	}
 }
