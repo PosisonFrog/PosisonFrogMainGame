@@ -20,7 +20,8 @@ public class PosisonFrog : ModuleRules
 			"AnimGraphRuntime",  
 			"AIModule",
 			"GameplayTags",
-			"UMG"
+			"UMG",
+			"Niagara"
 		});
 	}
 }
