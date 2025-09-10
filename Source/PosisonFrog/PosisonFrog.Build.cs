@@ -17,10 +17,12 @@ public class PosisonFrog : ModuleRules
 			"Engine", 
 			"InputCore", 
 			"EnhancedInput",
-			"AnimGraphRuntime",  
+			"AnimGraphRuntime",
+			"NavigationSystem",
 			"AIModule",
 			"GameplayTags",
-			"UMG"
+			"UMG",
+			"Niagara"
 		});
 	}
 }
