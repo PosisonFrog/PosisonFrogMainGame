@@ -80,7 +80,6 @@ void ACPlayerCharacter::BeginPlay()
 	
 }
 
-
 void ACPlayerCharacter::Move(const FInputActionValue& Value)
 {
 	FVector2D MovementVector = Value.Get<FVector2D>();
@@ -141,5 +140,3 @@ void ACPlayerCharacter::Attack()
 		WeaponComponent->DoAttack();
 	}
 }
-
-
