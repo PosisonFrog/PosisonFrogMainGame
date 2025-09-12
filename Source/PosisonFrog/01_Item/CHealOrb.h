@@ -98,7 +98,7 @@ private:
 	UPROPERTY(EditAnywhere, Category="Chase|Target", meta=(ClampMin="0"))
 	float PathHoldTime = 3.0f;
 
-	// ==== Timers / Accumulators
+	// ==== Timers / Accumulators ====
 	float TimeSinceRepath = 0.0f;
 	bool  bTargetInDetect = false;      // DetectSphere 안에 있는가
 	float TimeSinceDetectLost = 0.0f;   // DetectSphere 밖에 있었던 누적 시간
