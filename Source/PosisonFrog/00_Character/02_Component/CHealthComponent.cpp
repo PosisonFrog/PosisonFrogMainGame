@@ -14,6 +14,17 @@ void UCHealthComponent::BeginPlay()
 		MaxHealth = PlayerStatAssetData->MaxHp;
 		CurrentHealth = 50.f;
 	}
+	else
+	{
+		// PlayerStatAssetData가 없는 경우를 대비한 기본값 설정
+		MaxHealth = 100.f;
+		CurrentHealth = MaxHealth;
+	}
+	
+	if (OnHealthChanged.IsBound())
+	{
+		OnHealthChanged.Broadcast(CurrentHealth, MaxHealth);
+	}
 }
 
 void UCHealthComponent::Healing(float InAmount)
