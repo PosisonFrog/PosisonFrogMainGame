@@ -13,6 +13,7 @@
 #include "00_Character/02_Component/CGameplayTags.h"
 #include "00_Character/02_Component/CWeaponComponent.h"
 #include "00_Character/02_Component/CHealthComponent.h"
+#include "00_Character/00_Player/02_Weapon/CHammer.h"
 
 #include "PosisonFrog/00_Character/00_Player/01_Widget/CPlayerWidget.h"
 
