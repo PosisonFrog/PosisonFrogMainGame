@@ -33,8 +33,8 @@ private:
 	UPROPERTY(VisibleAnywhere, Category = "Weapon|Damage")
 	float Damage = 20.0f;
 
-	UPROPERTY(VisibleAnywhere, Category = "Weapon|Damage")
-	FName EnemyTagName = FName(TEXT("Enemy"));
+	UPROPERTY(EditAnywhere, Category="Weapon|Damage")
+	TEnumAsByte<ECollisionChannel> EnemyBodyChannel = ECollisionChannel::ECC_GameTraceChannel2;
 	
 	// 스윙 동안 맞은 액터가 중복으로 맞는걸 막기 위함
 	TSet<TWeakObjectPtr<AActor>> HitActors;

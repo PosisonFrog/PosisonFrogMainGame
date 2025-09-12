@@ -26,7 +26,7 @@ ACHammer::ACHammer()
 	DamageBox->SetGenerateOverlapEvents(true);
 	DamageBox->SetCollisionObjectType(ECC_WorldDynamic);
 	DamageBox->SetCollisionResponseToAllChannels(ECR_Ignore);
-	DamageBox->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
+	DamageBox->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
 }
 
 // Called when the game starts or when spawned
@@ -61,9 +61,9 @@ void ACHammer::OnDamageBoxBeginOverlap(UPrimitiveComponent* OverlapComponent, AA
 	if (!bDamageActive)
 		return;
 
-	if (!IsValid(OtherActor) || !OtherActor->ActorHasTag("Enemy"))
+	if (!IsValid(OtherActor) || OtherComp->GetCollisionObjectType() != EnemyBodyChannel)
 		return;
-
+	
 	AActor* InstigatorActor = GetOwner();
 	if (!IsValid(InstigatorActor) || OtherActor == InstigatorActor)
 		return;
