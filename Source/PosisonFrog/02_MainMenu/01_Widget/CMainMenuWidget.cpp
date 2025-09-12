@@ -11,19 +11,20 @@ void UCMainMenuWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
 
-	auto BindButton = [&](UButton* Btn, auto ReleasedHandler)
+	if (MainMenu_StartButton)
 	{
-		if (!Btn)
-			return;
+		MainMenu_StartButton->OnClicked.AddDynamic(this, &UCMainMenuWidget::MainMenu_StartButtonReleasedHandle);
+	}
 
-		Btn->OnHovered.AddDynamic(this, &UCMainMenuWidget::OnAnyButtonHovered);
-		Btn->OnPressed.AddDynamic(this, &UCMainMenuWidget::OnAnyButtonPressed);
-		Btn->OnReleased.AddDynamic(this, ReleasedHandler);
-	};
+	if (MainMenu_SettingButton)
+	{
+		MainMenu_SettingButton->OnClicked.AddDynamic(this, &UCMainMenuWidget::MainMenu_SettingButtonReleasedHandle);
+	}
 
-	BindButton(MainMenu_StartButton, &UCMainMenuWidget::MainMenu_StartButtonReleasedHandle);
-	BindButton(MainMenu_SettingButton, &UCMainMenuWidget::MainMenu_SettingButtonReleasedHandle);
-	BindButton(MainMenu_SettingButton, &UCMainMenuWidget::MainMenu_ExitButtonReleasedHandle);
+	if (MainMenu_ExitButton)
+	{
+		MainMenu_ExitButton->OnClicked.AddDynamic(this, &UCMainMenuWidget::MainMenu_ExitButtonReleasedHandle);
+	}
 }
 
 // ==== UI 바인드 ====

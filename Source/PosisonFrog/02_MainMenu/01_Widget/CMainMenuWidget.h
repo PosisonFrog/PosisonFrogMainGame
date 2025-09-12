@@ -31,8 +31,13 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, meta = (BindWidget))
 	TObjectPtr<UButton> MainMenu_ExitButton;
 
+	UFUNCTION()
 	void MainMenu_StartButtonReleasedHandle();
+
+	UFUNCTION()
 	void MainMenu_SettingButtonReleasedHandle();
+
+	UFUNCTION()
 	void MainMenu_ExitButtonReleasedHandle();
 	
 	// ==== UI 애니메이션 ====
