@@ -80,8 +80,6 @@ void ACPlayerCharacter::BeginPlay()
 	
 }
 
-
-
 void ACPlayerCharacter::Move(const FInputActionValue& Value)
 {
 	FVector2D MovementVector = Value.Get<FVector2D>();
@@ -116,12 +114,12 @@ void ACPlayerCharacter::DashStart()
 {
 	if (IsValid(DashComponent))  // IsValid 함수로 더 안전하게 확인
 	{
-		CLog::Log("대시 시작 - 컴포넌트 사용 가능");
+		CLog::Log(TEXT("대시 시작 - 컴포넌트 사용 가능"));
 		DashComponent->StartDash();
 	}
 	else
 	{
-		CLog::Log("오류: DashComponent를 찾을 수 없습니다!");
+		CLog::Log(TEXT("오류: DashComponent를 찾을 수 없습니다!"));
     
 		// 컴포넌트를 찾아 참조 설정 시도
 		/*UCDashComponent* FoundComponent = FindComponentByClass<UCDashComponent>();
@@ -138,8 +136,7 @@ void ACPlayerCharacter::Attack()
 {
 	if (IsValid(WeaponComponent))
 	{
-		CLog::Log("공격 시작 - 컴포넌트 사용 가능");
+		CLog::Log(TEXT("공격 시작 - 컴포넌트 사용 가능"));
 		WeaponComponent->DoAttack();
 	}
 }
-

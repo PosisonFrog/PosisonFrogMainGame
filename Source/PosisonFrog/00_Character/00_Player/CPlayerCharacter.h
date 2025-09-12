@@ -31,36 +31,17 @@ public:
 	FORCEINLINE UCameraComponent* GetFollowCamera() const { return PlayerCamera; }
 
 protected:
-	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
-	
 	virtual void BeginPlay();
-
-	void Move(const FInputActionValue& Value);
-	void Look(const FInputActionValue& Value);
-
-	void DashStart();
-
-	void Attack();
 	
-	UPROPERTY(EditDefaultsOnly, Category = "Input")
-	UCInputConfig* InputConfig;
-
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "MovementSpeed")
 	float WalkingSpeed = 400.0f;
-
-	// UI
-protected:
-	UPROPERTY(EditAnywhere, Category = "UI")
-	TSubclassOf<UCPlayerWidget> PlayerWidgetClass;
-
-	UPROPERTY()
-	UCPlayerWidget* PlayerWidget = nullptr;
-
-	UFUNCTION()
-	void HandleHealthChanged(float CurrentHealth, float MaxHealth);
 	
-	void UpdateHpUI() const;
-	
+public:
+	void Move(const FInputActionValue& Value);
+	void Look(const FInputActionValue& Value);
+	void DashStart();
+	void Attack();
+
 protected:
 	UPROPERTY(VisibleAnywhere, Category = "Component")
 	UCDashComponent* DashComponent;
