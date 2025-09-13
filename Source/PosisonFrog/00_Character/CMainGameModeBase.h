@@ -13,5 +13,6 @@ UCLASS()
 class POSISONFROG_API ACMainGameModeBase : public AGameModeBase
 {
 	GENERATED_BODY()
-	
+public:
+	ACMainGameModeBase();
 };

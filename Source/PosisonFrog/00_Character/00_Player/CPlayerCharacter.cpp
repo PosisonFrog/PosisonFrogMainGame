@@ -9,14 +9,8 @@
 #include "GameFramework/SpringArmComponent.h"
 
 #include "00_Character/02_Component/CDashComponent.h"
-#include "00_Character/02_Component/CEnhancedInputComponent.h"
-#include "00_Character/02_Component/CGameplayTags.h"
 #include "00_Character/02_Component/CWeaponComponent.h"
 #include "00_Character/02_Component/CHealthComponent.h"
-#include "00_Character/00_Player/02_Weapon/CHammer.h"
-
-#include "PosisonFrog/00_Character/00_Player/01_Widget/CPlayerWidget.h"
-
 #include "00_Character/03_AssetData/CPlayerStatAssetData.h"
 
 #include "Global.h"
@@ -57,69 +51,33 @@ ACPlayerCharacter::ACPlayerCharacter()
 	PlayerCamera->bUsePawnControlRotation = false;
 }
 
-
-
-//////////////////////////////////////////////////////////////////////////
-// Input
-
-void ACPlayerCharacter::SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent)
-{
-	Super::SetupPlayerInputComponent(PlayerInputComponent);
-	
-	UCEnhancedInputComponent* CEnhancedInputComponent = Cast<UCEnhancedInputComponent>(PlayerInputComponent);
-	check(CEnhancedInputComponent);
-	// 기본 이동 및 시야 입력
-	CEnhancedInputComponent->BindActionByTag(InputConfig, CGameplayTags::InputTag_Move, ETriggerEvent::Triggered, this, &ACPlayerCharacter::Move);
-	CEnhancedInputComponent->BindActionByTag(InputConfig, CGameplayTags::InputTag_Look, ETriggerEvent::Triggered, this, &ACPlayerCharacter::Look);
-	CEnhancedInputComponent->BindActionByTag(InputConfig, CGameplayTags::InputTag_Dash, ETriggerEvent::Started, this, &ACPlayerCharacter::DashStart);
-	CEnhancedInputComponent->BindActionByTag(InputConfig, CGameplayTags::InputTag_Attack, ETriggerEvent::Started, this, &ACPlayerCharacter::Attack);
-}
-
 void ACPlayerCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 	GetCharacterMovement()->MaxWalkSpeed = WalkingSpeed;
 	
-	if (PlayerWidgetClass)
-	{
-		APlayerController* PC = Cast<APlayerController>(GetController());
-		if (!PC)
-			PC = GetWorld()->GetFirstPlayerController();
-
-		PlayerWidget = CreateWidget<UCPlayerWidget>(PC, PlayerWidgetClass);
-		if (PlayerWidget)
-		{
-			PlayerWidget->AddToViewport();
-			UpdateHpUI();
-		}
-	}
-	
 	// 컴포넌트가 없으면 지연 생성 시도
 	if (!DashComponent)
 	{
-		CLog::Log("대시 컴포넌트 없음 - 지연 생성 시도");
+		CLog::Log(TEXT("대시 컴포넌트 없음 - 지연 생성 시도"));
 		DashComponent = NewObject<UCDashComponent>(this, UCDashComponent::StaticClass(), TEXT("DashComponent"));
 		DashComponent->RegisterComponent();
 	}
 
 	if (!WeaponComponent)
 	{
-		CLog::Log("무기 컴포넌트 없음 - 지연 생성 시도");
+		CLog::Log(TEXT("무기 컴포넌트 없음 - 지연 생성 시도"));
 		WeaponComponent = NewObject<UCWeaponComponent>(this, UCWeaponComponent::StaticClass(), TEXT("WeaponComponent"));
 		WeaponComponent->RegisterComponent();
 	}
 
 	if (!HealthComponent)
 	{
-		CLog::Log("체력 컴포넌트 없음 - 지연 생성 시도");
+		CLog::Log(TEXT("체력 컴포넌트 없음 - 지연 생성 시도"));
 		HealthComponent = NewObject<UCHealthComponent>(this, UCHealthComponent::StaticClass(), TEXT("HealthComponent"));
 		HealthComponent->RegisterComponent();
 	}
-
-	if (HealthComponent)
-	{
-		HealthComponent->OnHealthChanged.AddDynamic(this, &ACPlayerCharacter::HandleHealthChanged);
-	}
+	
 }
 
 void ACPlayerCharacter::Move(const FInputActionValue& Value)
@@ -156,12 +114,12 @@ void ACPlayerCharacter::DashStart()
 {
 	if (IsValid(DashComponent))  // IsValid 함수로 더 안전하게 확인
 	{
-		CLog::Log("대시 시작 - 컴포넌트 사용 가능");
+		CLog::Log(TEXT("대시 시작 - 컴포넌트 사용 가능"));
 		DashComponent->StartDash();
 	}
 	else
 	{
-		CLog::Log("오류: DashComponent를 찾을 수 없습니다!");
+		CLog::Log(TEXT("오류: DashComponent를 찾을 수 없습니다!"));
     
 		// 컴포넌트를 찾아 참조 설정 시도
 		/*UCDashComponent* FoundComponent = FindComponentByClass<UCDashComponent>();
@@ -178,23 +136,7 @@ void ACPlayerCharacter::Attack()
 {
 	if (IsValid(WeaponComponent))
 	{
-		CLog::Log("공격 시작 - 컴포넌트 사용 가능");
+		CLog::Log(TEXT("공격 시작 - 컴포넌트 사용 가능"));
 		WeaponComponent->DoAttack();
-	}
-}
-
-void ACPlayerCharacter::HandleHealthChanged(float CurrentHealth, float MaxHealth)
-{
-	if (PlayerWidget)
-	{
-		PlayerWidget->UpdateHpBar(CurrentHealth, MaxHealth);
-	}
-}
-
-void ACPlayerCharacter::UpdateHpUI() const
-{
-	if (PlayerWidget)
-	{
-		PlayerWidget->UpdateHpBar(HealthComponent->GetHealth(), HealthComponent->GetMaxHealth());
 	}
 }
