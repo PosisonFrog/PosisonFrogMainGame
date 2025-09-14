@@ -1,5 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
+// CMainGameModeBase.cpp
 
 #include "CMainGameModeBase.h"
 #include "00_Character/00_Player/CPlayerController.h"
@@ -7,6 +6,9 @@
 
 ACMainGameModeBase::ACMainGameModeBase()
 {
-	PlayerControllerClass = ACMainGameModeBase::StaticClass();
-	DefaultPawnClass = ACPlayerCharacter::StaticClass();
+	PlayerControllerClass = ACPlayerController::StaticClass();   // 올바른 컨트롤러 지정
+	DefaultPawnClass = ACPlayerCharacter::StaticClass();    //플레이어 폰 지정
+
+	// (선택) HUDClass = AYourHUD::StaticClass();
+	// (선택) bUseSeamlessTravel = false;
 }

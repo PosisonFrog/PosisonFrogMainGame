@@ -1,88 +1,116 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 #pragma once
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
-#include "Templates/Function.h"
 #include "CMainMenuWidget.generated.h"
 
+// ── 전방 선언 ──
+class UWidget;
 class UButton;
+class UWidgetAnimation;
+class USoundBase;
 class UNiagaraSystem;
+class UOptionsMenuWidget;
+
 /**
- * 
+ * 메인 메뉴 UMG 위젯 (Start / Settings / Exit)
  */
 UCLASS()
 class POSISONFROG_API UCMainMenuWidget : public UUserWidget
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 
 protected:
-	virtual void NativeConstruct() override;
-	
-	// ==== UI 바인드 ====
+    virtual void NativeConstruct() override;
+    virtual void NativeDestruct() override;
+
+    // ─────────────────────────────
+    // UI 바인딩 (디자이너에 놓인 위젯들)
+    // ─────────────────────────────
 protected:
-	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, meta = (BindWidget))
-	TObjectPtr<UButton> MainMenu_StartButton;
+    // 메인 루트 패널(선택) : 옵션창 오픈 시 숨김 처리
+    UPROPERTY(meta = (BindWidgetOptional), BlueprintReadOnly)
+    TObjectPtr<UWidget> MainRootPanel;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, meta = (BindWidget))
-	TObjectPtr<UButton> MainMenu_SettingButton;
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, meta = (BindWidget))
-	TObjectPtr<UButton> MainMenu_ExitButton;
+    UPROPERTY(meta = (BindWidget), BlueprintReadOnly, Category = "MainMenu")
+    TObjectPtr<UButton> MainMenu_StartButton;
 
-	UFUNCTION()
-	void MainMenu_StartButtonReleasedHandle();
+    UPROPERTY(meta = (BindWidget), BlueprintReadOnly, Category = "MainMenu")
+    TObjectPtr<UButton> MainMenu_SettingButton;
 
-	UFUNCTION()
-	void MainMenu_SettingButtonReleasedHandle();
+    UPROPERTY(meta = (BindWidget), BlueprintReadOnly, Category = "MainMenu")
+    TObjectPtr<UButton> MainMenu_ExitButton;
 
-	UFUNCTION()
-	void MainMenu_ExitButtonReleasedHandle();
-	
-	// ==== UI 애니메이션 ====
-	// UMG에서 애니메이션 추가만 해도 코드가 자동으로 재생되게 설정 해봤습니다.
+    // ── 버튼 핸들러(Clicked 권장) ──
+    UFUNCTION() void OnStartClicked();
+    UFUNCTION() void OnSettingClicked();
+    UFUNCTION() void OnExitClicked();
+
+    // 공통 연출
+    UFUNCTION() void OnAnyButtonHovered();
+    UFUNCTION() void OnAnyButtonPressed();
+
+    // ─────────────────────────────
+    // 애니메이션 (이름 일치 필요)
+    // ─────────────────────────────
 protected:
-	UPROPERTY(Transient, meta = (BindWidgetAnimOptional))
-	UWidgetAnimation* Anim_Focus;
-	
-	UPROPERTY(Transient, meta = (BindWidgetAnimOptional))
-	UWidgetAnimation* Anim_Hover;
-	
-	UPROPERTY(Transient, meta = (BindWidgetAnimOptional))
-	UWidgetAnimation* Anim_Click;
+    UPROPERTY(Transient, meta = (BindWidgetAnimOptional))
+    UWidgetAnimation* Anim_Focus = nullptr;
 
-	UPROPERTY(Transient, meta = (BindWidgetAnimOptional))
-	UWidgetAnimation* Anim_FadeOut;
+    UPROPERTY(Transient, meta = (BindWidgetAnimOptional))
+    UWidgetAnimation* Anim_Hover = nullptr;
 
-	UFUNCTION()
-	void OnAnyButtonHovered();
-	
-	UFUNCTION()
-	void OnAnyButtonPressed();
+    UPROPERTY(Transient, meta = (BindWidgetAnimOptional))
+    UWidgetAnimation* Anim_Click = nullptr;
 
-	// ==== UI SFX ====
+    UPROPERTY(Transient, meta = (BindWidgetAnimOptional))
+    UWidgetAnimation* Anim_FadeOut = nullptr;
+
+    // ─────────────────────────────
+    // SFX / VFX
+    // ─────────────────────────────
 protected:
-	UPROPERTY(EditDefaultsOnly, Category = "SFX")
-	USoundBase* SFX_Hover = nullptr;
+    UPROPERTY(EditDefaultsOnly, Category = "UI|SFX")
+    USoundBase* SFX_Hover = nullptr;
 
-	UPROPERTY(EditDefaultsOnly, Category = "SFX")
-	USoundBase* SFX_Click = nullptr;
+    UPROPERTY(EditDefaultsOnly, Category = "UI|SFX")
+    USoundBase* SFX_Click = nullptr;
 
-	void PlayUISound(USoundBase* SFX);
+    UFUNCTION() void PlayUISound(USoundBase* SFX);
 
-	// ==== 나이아가라(파티클) ====
-	// 사용한다면 SpawnClickVFX에 따로 구현 예정
+    UPROPERTY(EditDefaultsOnly, Category = "UI|VFX")
+    UNiagaraSystem* VFX_Click = nullptr;
+
+    UFUNCTION() void SpawnClickVFX(FVector2D ScreenPos);
+
+    // ─────────────────────────────
+    // 네비게이션 / 옵션 위젯 (선택)
+    // ─────────────────────────────
 protected:
-	UPROPERTY(EditDefaultsOnly, Category = "VFX")
-	UNiagaraSystem* VFX_Click = nullptr;
+    // 시작 레벨 이름을 BP에서 변경 가능
+    UPROPERTY(EditDefaultsOnly, Category = "Navigation")
+    FName StartLevelName = TEXT("ThirdPersonMap");
 
-	UFUNCTION()
-	void SpawnClickVFX(FVector2D ScreenPos);
+    //옵션 메뉴(있다면 연결)
+    UPROPERTY(EditDefaultsOnly, Category = "Navigation")
+    TSubclassOf<UOptionsMenuWidget> OptionsMenuClass;
 
-	// ==== 중복 클릭 방지 (뭔가 있어야할거 같은데....) ====
-	// 이건 동인 주인님 도우ㅜ우우우우우움
+    UPROPERTY() UOptionsMenuWidget* OptionsMenu = nullptr;
+
+    UFUNCTION() void OnOptionsClosed();
+    void SetMainPanelVisible(bool bVisible);
+
+    // ─────────────────────────────
+    // 더블클릭/스팸 방지
+    // ─────────────────────────────
 protected:
-	bool bInputLocked = false;
-	
+    UPROPERTY(EditDefaultsOnly, Category = "Input")
+    float InputLockDuration = 0.35f;
+
+    bool bInputLocked = false;
+    FTimerHandle InputUnlockTimer;
+
+    void LockInput();
+    void UnlockInput();
 };
+

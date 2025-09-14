@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// CPlayerController.h
 
 #pragma once
 
@@ -13,70 +13,74 @@ class UCPlayerWidget;
 class ACPlayerCharacter;
 class UCHealthComponent;
 class UCEnhancedInputComponent;
+
 /**
- * 
+ * 플레이어 컨트롤러
+ * - Enhanced Input 매핑 컨텍스트 적용
+ * - 입력 바인딩(컨트롤러 → 캐릭터 위임)
+ * - HP UI(플레이어 위젯) 생성/갱신
  */
 UCLASS()
 class POSISONFROG_API ACPlayerController : public APlayerController
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 
 public:
-	ACPlayerController();
+    ACPlayerController();
 
 protected:
-	virtual void BeginPlay() override;
-	virtual void SetupInputComponent() override;
-	virtual void OnPossess(APawn* InPawn) override;
-	virtual void OnUnPossess() override;
-	
-	
-	UFUNCTION()
-	void HandleHealthChanged(float CurrentHealth, float MaxHealth);
-	void UpdateHpUI() const;
-	
-	UFUNCTION()
-	void HandleMove(const FInputActionValue& Value);
-    
-	UFUNCTION()
-	void HandleLook(const FInputActionValue& Value);
-    
-	UFUNCTION()
-	void HandleDashStart();
-    
-	UFUNCTION()
-	void HandleAttack();
+    /** 커스텀 입력 컴포넌트(UCEnhancedInputComponent) 생성 지점 */
+    virtual void CreateInputComponent() ;
 
-private:
-	void SetupInputBindings();
+    virtual void BeginPlay() override;
+    virtual void SetupInputComponent() override;
+    virtual void OnPossess(APawn* InPawn) override;
+    virtual void OnUnPossess() override;
 
-	UFUNCTION()
-	bool ShouldCreatePlayerWidget() const;
+    // ---- 입력 바인딩 내부 구성 ----
+    void SetupInputBindings();
 
-	void CreatePlayerWidget();
+    // ---- UI ----
+    bool ShouldCreatePlayerWidget() const;
+    void CreatePlayerWidget();
+
+    // ---- 입력 핸들러 (컨트롤러에서 받아 캐릭터 함수로 위임) ----
+    UFUNCTION() void HandleMove(const FInputActionValue& Value);
+    UFUNCTION() void HandleLook(const FInputActionValue& Value);
+    UFUNCTION() void HandleDashStart();
+    UFUNCTION() void HandleAttack();
+
+    // ---- HP 갱신 ----
+    UFUNCTION() void HandleHealthChanged(float CurrentHealth, float MaxHealth);
+    void UpdateHpUI() const;
+
 protected:
-	UPROPERTY(EditAnywhere, Category = "UI")
-	TSubclassOf<UCPlayerWidget> PlayerWidgetClass;
+    // ===== UI =====
+    UPROPERTY(EditAnywhere, Category = "UI")
+    TSubclassOf<UCPlayerWidget> PlayerWidgetClass;
 
-	TSubclassOf<UInputComponent>InputComponentClass;
+    UPROPERTY() // GC 안전
+        UCPlayerWidget* PlayerWidget = nullptr;
 
-	UPROPERTY()
-	UCPlayerWidget* PlayerWidget = nullptr;
+    // ===== 입력(매핑/설정) =====
+    UPROPERTY(EditDefaultsOnly, Category = "Input")
+    UCInputConfig* InputConfig = nullptr;
 
-	UPROPERTY()
-	TObjectPtr<ACPlayerCharacter> OwnerCharacter = nullptr;
-	
-	UPROPERTY()
-	TObjectPtr<UCHealthComponent> HealthComponent = nullptr;
+    UPROPERTY(EditDefaultsOnly, Category = "Input")
+    UInputMappingContext* DefaultMappingContext = nullptr;
 
-	UPROPERTY(EditDefaultsOnly, Category = "Input")
-	UCInputConfig* InputConfig = nullptr;
+    UPROPERTY(EditDefaultsOnly, Category = "Input")
+    bool bClearPreviousMappings = true;
 
-	UPROPERTY(EditDefaultsOnly, Category = "Input")
-	UInputMappingContext* DefaultMappingContext = nullptr;
+    /** 실제로 소유하는 입력 컴포넌트(컨트롤러 소유) */
+    UPROPERTY(Transient)
+    UCEnhancedInputComponent* CEnhancedInputComponent = nullptr;
 
-	UCEnhancedInputComponent* CEnhancedInputComponent;
-	
-	UPROPERTY(EditDefaultsOnly, Category = "Input")
-	bool bClearPreviousMappings = true;
+    // ===== 소유 캐릭터 & 헬스 =====
+    UPROPERTY()
+    TObjectPtr<ACPlayerCharacter> OwnerCharacter = nullptr;
+
+    UPROPERTY()
+    TObjectPtr<UCHealthComponent> HealthComponent = nullptr;
 };
+
