@@ -16,21 +16,4 @@ class POSISONFROG_API ACEnemyCharacterBase : public ACBaseCharacter
 
 public:
 	ACEnemyCharacterBase();
-
-protected:
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health")
-	float MaxHealth = 100.0f;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Health")
-	float CurrentHealth;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health")
-	bool bIsDead = false;
-
-	virtual void BeginPlay() override;
-
-	virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser) override;
-
-	UFUNCTION()
-	void OnDeath();
 };
