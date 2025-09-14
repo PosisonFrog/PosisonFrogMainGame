@@ -22,7 +22,17 @@ public class PosisonFrog : ModuleRules
 			"AIModule",
 			"GameplayTags",
 			"UMG",
-			"Niagara"
+			"Niagara",
+			"Slate",        
+            "SlateCore"
+		});
+		
+		PrivateDependencyModuleNames.AddRange(new string[] 
+		{
+			"Slate", 
+			"SlateCore",   
+			"UMG",
+			"ToolMenus"
 		});
 	}
 }
