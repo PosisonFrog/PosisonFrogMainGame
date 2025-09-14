@@ -98,13 +98,14 @@ void UCWeaponComponent::DoAttack()
     if (!IsValid(OwnerCharacter) || ComboMontages.Num() == 0)
         return;
 
+
     // 이미 공격 중: 창이 열려 있으면 즉시 다음 스텝, 아니면 큐잉
     if (bIsAttacking)
     {
-        if (bCanNextCombo && (CurrentCombo < ComboMontages.Num() - 1))
-        {
-            StepToNextCombo();
-        }
+       	if (bCanNextCombo && CurrentCombo < ComboMontages.Num() - 1)
+       	{
+       	    StepToNextCombo();
+       	}
         else
         {
             bQueuedNextInput = true; // 창 열릴 때 자동 처리
@@ -145,10 +146,9 @@ void UCWeaponComponent::PlayComboAttack()
         ResetCombo();
         return;
     }
-
-    // 재생
+ 
     AnimInst->Montage_Play(Montage);
-
+    
     // 종료시 정리(인터럽트/블렌드아웃 포함)
     FOnMontageEnded EndDelegate;
     EndDelegate.BindUObject(this, &UCWeaponComponent::OnMontageEnded);
@@ -183,8 +183,11 @@ void UCWeaponComponent::ResetCombo()
     DisableAttackBoxCollider();
 }
 
-void UCWeaponComponent::OnMontageEnded(UAnimMontage* /*Montage*/, bool /*bInterrupted*/)
+void UCWeaponComponent::OnMontageEnded(UAnimMontage* /*Montage*/, bool bInterrupted)
 {
+    if (bInterrupted)
+        return;
+    
     // 애님이 어떤 이유로 끝나면 항상 정리
     ResetCombo();
 }
