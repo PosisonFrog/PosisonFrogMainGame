@@ -1,18 +1,20 @@
-﻿// Source/PosisonFrogMainGame/Private/Debug/HealOrbDebugStatsSubsystem.cpp
-#include "01_Item/HealOrbDebugStatsSubsystem.h"
+// Fill out your copyright notice in the Description page of Project Settings.
 
-void UHealOrbDebugStatsSubsystem::Initialize(FSubsystemCollectionBase& Collection)
+
+#include "01_Item/CHealOrbDebugStatsSubsystem.h"
+
+void UCHealOrbDebugStatsSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 	Counts.Reset();
 }
 
-void UHealOrbDebugStatsSubsystem::Deinitialize()
+void UCHealOrbDebugStatsSubsystem::Deinitialize()
 {
 	Super::Deinitialize();
 }
 
-void UHealOrbDebugStatsSubsystem::Increment(EHealOrbEvent Ev)
+void UCHealOrbDebugStatsSubsystem::Increment(EHealOrbEvent Ev)
 {
 	switch (Ev)
 	{
