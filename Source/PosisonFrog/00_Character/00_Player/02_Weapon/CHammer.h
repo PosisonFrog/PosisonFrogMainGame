@@ -19,28 +19,24 @@ class POSISONFROG_API ACHammer : public AActor
 	
 public:	
 	ACHammer();
+	
+	UFUNCTION(BlueprintCallable, Category = "Weapon")
+	void ActivateDamage();
 
+	UFUNCTION(BlueprintCallable, Category = "Weapon")
+	void DeactivateDamage();
+
+	UFUNCTION(BlueprintCallable, Category = "Weapon")
+	void ResetHitActors();
+
+	// 외부에서 구독할 이벤트 (피격 알림)
+	UPROPERTY(BlueprintAssignable, Category = "Weapon")
+	FOnHammerHit OnHammerHit;
+	
 protected:
 	virtual void BeginPlay() override;
-	
-private:
-	UPROPERTY(VisibleAnywhere)
-	USkeletalMeshComponent* HammerMesh;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
-	UPROPERTY(VisibleAnywhere)
-	UBoxComponent* DamageBox;
-
-	UPROPERTY(VisibleAnywhere, Category = "Weapon|Damage")
-	float Damage = 20.0f;
-
-	UPROPERTY(EditAnywhere, Category="Weapon|Damage")
-	TEnumAsByte<ECollisionChannel> EnemyBodyChannel = ECollisionChannel::ECC_GameTraceChannel2;
-	
-	// 스윙 동안 맞은 액터가 중복으로 맞는걸 막기 위함
-	TSet<TWeakObjectPtr<AActor>> HitActors;
-	
-	bool bDamageActive = false;
-	
 	UFUNCTION()
 	void OnDamageBoxBeginOverlap(UPrimitiveComponent* OverlapComponent, AActor* OtherActor,
 								 UPrimitiveComponent* OtherComp, int32 OtherBodyIndex,
@@ -48,17 +44,47 @@ private:
 
 	UFUNCTION()
 	void ApplyDamageHandler(AActor* InstigatorActor, AActor* HitActor, float InDamage, FHitResult HitInfo);
+
+	bool ShouldHitActor(AActor* OtherActor) const;
 	
-	void ResetHitActors();
+protected:
+	// ===== Components =====
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon|Components", meta = (AllowPrivateAccess = "true"))
+	USceneComponent* DefaultSceneRoot = nullptr;
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon|Components", meta = (AllowPrivateAccess = "true"))
+	USkeletalMeshComponent* HammerMesh = nullptr;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon|Components", meta = (AllowPrivateAccess = "true"))
+	UBoxComponent* DamageBox = nullptr;
+
+	// ===== Damage / Filter =====
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon|Damage", meta = (ClampMin = "0.0", AllowPrivateAccess = "true"))
+	float Damage = 20.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon|Damage", meta = (AllowPrivateAccess = "true"))
+	TSubclassOf<UDamageType> DamageTypeClass;
+
+	// 적 식별(태그)
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon|Damage", meta = (AllowPrivateAccess = "true"))
+	FName EnemyTag = TEXT("Enemy");
+
+	// 실제 데미지를 서버에서만 처리할지
+	UPROPERTY(EditDefaultsOnly, Category = "Weapon|Net")
+	bool bServerOnlyDamage = true;
+
+	// ===== State / Debug =====
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Weapon|Debug", meta = (AllowPrivateAccess = "true"))
+	bool bDamageActive = false;
+
+	UPROPERTY(EditAnywhere, Category = "Weapon|Debug")
+	bool bDebugLog = false;
+	
+	// 중복 타격 방지를 위한 약참조
+	TSet<TWeakObjectPtr<AActor>> HitActors;
 
 public:
-	// 외부에서 구독할 이벤트 (피격 알림)
-	UPROPERTY(BlueprintAssignable, Category = "Weapon")
-	FOnHammerHit OnHammerHit;
-	
-	UFUNCTION(BlueprintCallable, Category="Weapon")
-	void ActivateDamage();
-
-	UFUNCTION(BlueprintCallable, Category="Weapon")
-	void DeactivateDamage();
+	// 읽기 편의 Getter
+	FORCEINLINE float GetDamage() const { return Damage; }
+	FORCEINLINE USkeletalMeshComponent* GetHammerMesh() const { return HammerMesh; }
 };
