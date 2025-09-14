@@ -74,7 +74,7 @@ protected:
 
 	/** 에디터에서 값 지정 시 bStartAtMaxHealth=false로 두면 그대로 시작 */
 	UPROPERTY(EditAnywhere, Category = "Health", meta = (ClampMin = "0.0"))
-	float CurrentHealth = 100.f;
+	float CurrentHealth = 50.f;
 
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Health")
 	bool bIsDead = false;

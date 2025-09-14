@@ -6,6 +6,7 @@
 
 class UTextBlock;
 class UProgressBar;
+class UCPlayerHpBarWidget;
 
 UCLASS()
 class POSISONFROG_API UCPlayerWidget : public UUserWidget
@@ -26,5 +27,8 @@ protected:
 	UPROPERTY(meta = (BindWidgetOptional)) UProgressBar* DashCooldownBar = nullptr;
 
 	// 필요하면 HP 바도 BindWidgetOptional 추가
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, meta=(BindWidget))
+	TObjectPtr<UCPlayerHpBarWidget> WBP_PlayerHpBar;
 };
 

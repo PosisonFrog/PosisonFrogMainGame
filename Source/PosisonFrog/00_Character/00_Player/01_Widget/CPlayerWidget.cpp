@@ -1,11 +1,14 @@
 #include "CPlayerWidget.h"
+
+#include "CPlayerHpBarWidget.h"
 #include "Components/TextBlock.h"
 #include "Components/ProgressBar.h"
 
 void UCPlayerWidget::UpdateHpBar(float Current, float Max)
 {
 	// 프로젝트에 맞게 구현하세요 (예: ProgressBar/숫자 텍스트 갱신) -> 나중에 맞춰봅시다
-
+	if (WBP_PlayerHpBar)
+		WBP_PlayerHpBar->UpdateHp(Current, Max);
 }
 
 void UCPlayerWidget::UpdateDashCooldown(float RemainingSeconds, float TotalSeconds)

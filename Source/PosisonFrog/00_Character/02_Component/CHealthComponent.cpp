@@ -26,7 +26,7 @@ void UCHealthComponent::BeginPlay()
 	// 2) 시작 체력 결정
 	if (bStartAtMaxHealth)
 	{
-		CurrentHealth = MaxHealth;
+		//CurrentHealth = MaxHealth;
 	}
 	else
 	{
