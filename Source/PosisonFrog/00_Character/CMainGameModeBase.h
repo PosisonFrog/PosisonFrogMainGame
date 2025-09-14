@@ -7,6 +7,7 @@
 #include "GameFramework/GameModeBase.h"
 #include "CMainGameModeBase.generated.h"
 
+class ACHealOrb;
 /**
  * 게임플레이 기본 GameMode
  * - DefaultPawn: ACPlayerCharacter
@@ -19,4 +20,11 @@ class POSISONFROG_API ACMainGameModeBase : public AGameModeBase
 
 public:
 	ACMainGameModeBase();
+
+private:
+	UPROPERTY(EditAnywhere)
+	TSubclassOf<ACHealOrb> HealOrbClass;
+	
+protected:
+	virtual void BeginPlay() override;
 };

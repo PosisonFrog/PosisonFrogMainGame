@@ -1,68 +1,32 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
+// CHealOrb.h
 #pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Curves/CurveFloat.h"
 #include "CHealOrb.generated.h"
 
 class USphereComponent;
-class ACPlayerCharacter;
-class UCurveFloat;
+class UStaticMeshComponent;
+class UNiagaraSystem;
+class USoundBase;
+class UCHealOrbPoolSubsystem;
 
-UENUM()
-enum class ESpeedCurveMode : uint8
+/** 속도 커브 프리셋 */
+UENUM(BlueprintType)
+enum class EHealOrbSpeedCurvePreset : uint8
 {
-    None,
-    ByDistanceToTarget,
-    ByLifetime
+    Linear,
+    EaseIn,         // 느리게 시작 → 가속
+    EaseOut,        // 빠르게 시작 → 브레이크
+    EaseInOut,      // S-curve
+    FastStartBrake, // 초반 튀고 후반 강한 감속
+    RubberBand      // 초반 강가속, 중후반 미세 진동 감
 };
 
-UENUM()
-enum class ESpeedCurvePreset : uint8
-{
-    None,
-    SoftEase,
-    AggressiveEase,
-    RushIn,
-    RushOut,
-    Pulse
-};
-
-// ── HUD용 디버그 스냅샷 ─────────────────────────────────────────
-USTRUCT()
-struct FHealOrbDebugInfo
-{
-    GENERATED_BODY()
-
-    UPROPERTY() FString Name;
-    UPROPERTY() bool    bHasTarget = false;
-    UPROPERTY() bool    bInDetect = false;
-    UPROPERTY() bool    bHasLOS = false;
-
-    UPROPERTY() float   Dist2D = 0.f;
-    UPROPERTY() int32   PathIndex = 0;
-    UPROPERTY() int32   PathNum = 0;
-
-    UPROPERTY() float   Speed = 0.f;   // |Velocity|
-    UPROPERTY() float   MaxSpeedVal = 0.f;   // MaxSpeed
-    UPROPERTY() float   AccelVal = 0.f;   // Accel
-
-    UPROPERTY() float   LifeSec = 0.f;
-    UPROPERTY() int32   NoGroundFramesInt = 0;
-    UPROPERTY() float   CheapTickAccSec = 0.f;
-
-    UPROPERTY() FVector Location = FVector::ZeroVector;
-    UPROPERTY() FVector VelocityVec = FVector::ZeroVector;
-
-    // 튜닝/커브 정보(상세 패널용)
-    UPROPERTY() uint8   CurveMode = static_cast<uint8>(ESpeedCurveMode::None);
-    UPROPERTY() uint8   CurvePreset = static_cast<uint8>(ESpeedCurvePreset::SoftEase);
-    UPROPERTY() float   ArriveRadiusVal = 0.f;
-    UPROPERTY() float   TurnAssistVal = 0.f;
-    UPROPERTY() float   DetectRadiusVal = 0.f;
-    UPROPERTY() float   RepathIntervalVal = 0.f;
-};
+/** HUD/외부 연동용 이벤트 */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnHealOrbSpawned, AActor*, OrbActor);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnHealOrbPicked, AActor*, OrbActor, AActor*, HealedActor);
 
 UCLASS()
 class POSISONFROG_API ACHealOrb : public AActor
@@ -72,243 +36,168 @@ class POSISONFROG_API ACHealOrb : public AActor
 public:
     ACHealOrb();
 
-    // 풀 사용 시
-    void ActivateAt(const FVector& SpawnLoc, ACPlayerCharacter* Target);
-    void Deactivate();
+    /** 오브 활성화(스폰/풀에서 꺼낼 때). PreferredTarget이 있으면 즉시 추적 시작 */
+    UFUNCTION(BlueprintCallable, Category="HealOrb")
+    void ActivateOrb(AActor* PreferredTarget = nullptr);
 
-    // 직접 스폰 시
-    void ForceSetTarget(ACPlayerCharacter* InPlayer);
+    /** 오브 해제(풀 반납 or 파괴). 여러 번 호출돼도 안전 */
+    UFUNCTION(BlueprintCallable, Category="HealOrb")
+    void ReleaseOrb(bool bReturnToPool = false);
 
-    // HUD용 스냅샷
-    void GetDebugInfo(FHealOrbDebugInfo& Out) const;
+    /** 런타임 파라미터 튜닝 */
+    UFUNCTION(BlueprintCallable, Category="HealOrb")
+    void SetupParams(float InHealAmount, float InSpeed) { HealAmount = InHealAmount; BaseSpeed = InSpeed; }
+
+    /** 외부에서 타깃을 강제 지정(재획득용) */
+    UFUNCTION(BlueprintCallable, Category="HealOrb")
+    void SetTarget(AActor* NewTarget);
+
+    // 이벤트: HUD/카운터 연동
+    UPROPERTY(BlueprintAssignable, Category="HealOrb|Events")
+    FOnHealOrbSpawned OnOrbSpawned;
+
+    UPROPERTY(BlueprintAssignable, Category="HealOrb|Events")
+    FOnHealOrbPicked OnOrbPicked;
+
+    /** 풀 매니저가 설정하는 플래그(픽업 시 ReleaseOrb(true) 하도록) */
+    UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category="HealOrb|Pool")
+    bool bUsePooling = false;
 
 protected:
     virtual void BeginPlay() override;
     virtual void Tick(float DeltaTime) override;
+    virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 private:
-    // === Components ===
-    UPROPERTY(VisibleAnywhere, Category = "Components")
-    TObjectPtr<USphereComponent> Sphere;
+    // ===== 내부 루틴 =====
+    void ResetOrbState();
+    void BindOverlaps();
+    void UnbindOverlaps();
+    void EnableCollisions(bool bEnable);
+    void UpdateSpeedByCurve(float CurrentDist);
+    void UpdateHover(float DeltaTime);
+    void AppendCsv(const FString& Line);
+    void ApplyCurvePreset(EHealOrbSpeedCurvePreset Preset);
+    bool HasLineOfSightToTarget(const FVector& From, const FVector& To) const;
 
-    UPROPERTY(VisibleAnywhere, Category = "Components")
+    // ===== 오버랩 핸들러 =====
+    UFUNCTION()
+    void OnPickupOverlap(UPrimitiveComponent* Overlapped, AActor* OtherActor,
+                         UPrimitiveComponent* OtherComp, int32 OtherBodyIndex,
+                         bool bFromSweep, const FHitResult& Hit);
+
+    UFUNCTION()
+    void OnDetectOverlap(UPrimitiveComponent* Overlapped, AActor* OtherActor,
+                         UPrimitiveComponent* OtherComp, int32 OtherBodyIndex,
+                         bool bFromSweep, const FHitResult& Hit);
+
+    UFUNCTION()
+    void OnDetectEndOverlap(UPrimitiveComponent* Overlapped, AActor* OtherActor,
+                            UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
+
+private:
+    // ===== 컴포넌트 =====
+    UPROPERTY(VisibleAnywhere, Category="Components")
+    TObjectPtr<USphereComponent> PickupSphere;
+
+    UPROPERTY(VisibleAnywhere, Category="Components")
     TObjectPtr<USphereComponent> DetectSphere;
 
-    // === Target/Heal ===
-    UPROPERTY(VisibleInstanceOnly, Category = "Heal")
-    TObjectPtr<ACPlayerCharacter> TargetPlayer = nullptr;
+    UPROPERTY(VisibleAnywhere, Category="Components")
+    TObjectPtr<UStaticMeshComponent> VisualMesh;
 
-    UPROPERTY(EditAnywhere, Category = "Heal")
+    // ===== 추적/치유 파라미터 =====
+    UPROPERTY(EditAnywhere, Category="HealOrb|Chase", meta=(ClampMin="0.0"))
+    float PickupRadius = 60.f;
+
+    UPROPERTY(EditAnywhere, Category="HealOrb|Chase", meta=(ClampMin="0.0"))
+    float DetectRadius = 300.f;
+
+    UPROPERTY(EditAnywhere, Category="HealOrb|Chase", meta=(ClampMin="0.0"))
+    float BaseSpeed = 550.f;
+
+    UPROPERTY(EditAnywhere, Category="HealOrb|Chase", meta=(ClampMin="0.0"))
     float HealAmount = 30.f;
 
-    UPROPERTY(EditAnywhere, Category = "Heal")
-    bool bDestroyOnHeal = false;
+    /** Detect End 이후에도 추적 유지할 유예시간(초). 0이면 즉시 해제 */
+    UPROPERTY(EditAnywhere, Category="HealOrb|Chase", meta=(ClampMin="0.0"))
+    float DetectLossGraceTime = 1.0f;
 
-    bool bAlreadyHealed = false;
+    /** Detect를 잃었어도 이 거리 이내면 계속 추적 유지 */
+    UPROPERTY(EditAnywhere, Category="HealOrb|Chase", meta=(ClampMin="0.0"))
+    float KeepChaseMaxDistance = 2000.f;
 
-    // === Movement ===
-    UPROPERTY(EditAnywhere, Category = "Chase|Move")
-    float MaxSpeed = 800.f;
+    // ===== Hover =====
+    /** 간단한 단차 보정: 바닥 트레이스로 HoverHeight 유지 */
+    UPROPERTY(EditAnywhere, Category="HealOrb|Hover", meta=(ClampMin="0.0"))
+    float HoverHeight = 120.f;
 
-    UPROPERTY(EditAnywhere, Category = "Chase|Move")
-    float Accel = 3000.f;
+    UPROPERTY(EditAnywhere, Category="HealOrb|Hover", meta=(ClampMin="0.0"))
+    float HoverTraceLength = 200.f;
 
-    UPROPERTY(EditAnywhere, Category = "Chase|Move")
-    float ArriveRadius = 120.f;
+    /** 지면 따라 부드러운 Z 보정 속도 */
+    UPROPERTY(EditAnywhere, Category="HealOrb|Hover", meta=(ClampMin="0.0"))
+    float HoverLerpSpeed = 10.f;
 
-    UPROPERTY(EditAnywhere, Category = "Chase|Move", meta = (ClampMin = "0", ClampMax = "1"))
-    float TurnAssist = 0.25f;
+    // ===== 속도 커브 =====
+    /** 거리 기반 0..1 진척도로 속도 조절. 외부 자산 우선 */
+    UPROPERTY(EditAnywhere, Category="HealOrb|SpeedCurve")
+    TObjectPtr<UCurveFloat> SpeedCurveAsset = nullptr;
 
-    // Avoid
-    UPROPERTY(EditAnywhere, Category = "Chase|Avoid")
-    float ProbeLength = 140.f;
+    /** 자산이 없을 때 사용하는 런타임 커브 */
+    UPROPERTY(EditAnywhere, Category="HealOrb|SpeedCurve")
+    FRuntimeFloatCurve RuntimeSpeedCurve;
 
-    UPROPERTY(EditAnywhere, Category = "Chase|Avoid")
-    float SideProbeOffset = 70.f;
+    /** 프리셋 선택 시 RuntimeSpeedCurve에 키를 자동 구성 */
+    UPROPERTY(EditAnywhere, Category="HealOrb|SpeedCurve")
+    EHealOrbSpeedCurvePreset SpeedCurvePreset = EHealOrbSpeedCurvePreset::EaseOut;
 
-    // Nav
-    UPROPERTY(EditAnywhere, Category = "Chase|Nav")
-    bool bUseNavMesh = true;
+    /** 커브 적용 세기(최종 속도 = BaseSpeed * (CurveValue * Strength)) */
+    UPROPERTY(EditAnywhere, Category="HealOrb|SpeedCurve", meta=(ClampMin="0.0"))
+    float CurveStrength = 1.0f;
 
-    UPROPERTY(EditAnywhere, Category = "Chase|Nav")
-    float RepathInterval = 0.30f;
-
-    UPROPERTY(EditAnywhere, Category = "Chase|Nav")
-    float WaypointReachRadius = 80.f;
-
-    // Detect Reacquire
-    UPROPERTY(EditAnywhere, Category = "Detect")
-    float PathHoldTime = 3.0f;
-
-    UPROPERTY(EditAnywhere, Category = "Detect")
-    float DetectRadius = 800.0f;
-
-    // Collision (heal trigger)
-    UPROPERTY(EditAnywhere, Category = "Collision")
-    float SphereRadius = 60.0f;
-
-    // Separation
-    UPROPERTY(EditAnywhere, Category = "Separation")
-    bool bUseSeparation = true;
-
-    UPROPERTY(EditAnywhere, Category = "Separation")
-    float SeparationRadius = 120.f;
-
-    UPROPERTY(EditAnywhere, Category = "Separation")
-    float SeparationStrength = 1200.f;
-
-    // Hover/Step
-    UPROPERTY(EditAnywhere, Category = "Grounding|Hover")
-    bool bUseHoverConform = true;
-
-    UPROPERTY(EditAnywhere, Category = "Grounding|Hover")
-    float HoverHeight = 35.f;
-
-    UPROPERTY(EditAnywhere, Category = "Grounding|Hover")
-    float SpawnLiftZ = 30.f;
-
-    UPROPERTY(EditAnywhere, Category = "Grounding|Hover")
-    float HoverInterpSpeed = 12.f;
-
-    UPROPERTY(EditAnywhere, Category = "Grounding|Hover")
-    float HoverTraceUp = 60.f;
-
-    UPROPERTY(EditAnywhere, Category = "Grounding|Hover")
-    float HoverTraceDown = 220.f;
-
-    UPROPERTY(EditAnywhere, Category = "Grounding|Step")
-    bool bUseStepCorrection = true;
-
-    UPROPERTY(EditAnywhere, Category = "Grounding|Step")
-    float StepUpMaxHeight = 45.f;
-
-    UPROPERTY(EditAnywhere, Category = "Grounding|Step")
-    float StepForwardProbeScale = 1.2f;
-
-    UPROPERTY(EditAnywhere, Category = "Grounding|Step")
-    float MaxStepDownPerTick = 60.f;
-
-    UPROPERTY(EditAnywhere, Category = "Grounding|NoGround")
-    int32 MaxNoGroundFramesBeforeFall = 6;
-
-    UPROPERTY(EditAnywhere, Category = "Grounding|NoGround")
-    float FallSpeedWhenNoGround = 250.f;
-
-    // Tick LOD / Expire
-    UPROPERTY(EditAnywhere, Category = "Perf")
-    bool bUseCheapTickWhenFar = true;
-
-    UPROPERTY(EditAnywhere, Category = "Perf")
-    float CheapTickDistance = 1200.f;
-
-    UPROPERTY(EditAnywhere, Category = "Perf")
-    float CheapTickInterval = 0.15f;
-
-    UPROPERTY(EditAnywhere, Category = "Lifetime")
-    bool bAutoExpire = true;
-
-    UPROPERTY(EditAnywhere, Category = "Lifetime")
-    float ExpireAfterNoTargetSeconds = 20.f;
-
-    // Speed curve
-    UPROPERTY(EditAnywhere, Category = "Chase|SpeedCurve")
-    ESpeedCurveMode SpeedCurveMode = ESpeedCurveMode::None;
-
-    UPROPERTY(EditAnywhere, Category = "Chase|SpeedCurve")
-    ESpeedCurvePreset SpeedCurvePreset = ESpeedCurvePreset::SoftEase;
-
-    UPROPERTY(EditAnywhere, Category = "Chase|SpeedCurve")
-    bool bAutoGenerateDefaultCurveIfNone = true;
-
-    UPROPERTY(EditAnywhere, Category = "Chase|SpeedCurve")
-    TObjectPtr<UCurveFloat> SpeedCurve = nullptr;
-
-    // Debug flags
-    UPROPERTY(EditAnywhere, Category = "Debug")
+    // ===== 디버그 =====
+    UPROPERTY(EditAnywhere, Category="HealOrb|Debug")
     bool bDebugDraw = false;
 
-    UPROPERTY(EditAnywhere, Category = "Debug")
-    float DebugDuration = 0.05f;
+    UPROPERTY(EditAnywhere, Category="HealOrb|Debug", meta=(ClampMin="0.0"))
+    float DebugDrawDuration = 0.05f;
 
-    UPROPERTY(EditAnywhere, Category = "Debug")
-    float DebugThickness = 1.5f;
+    // ===== CSV 로깅 =====
+    UPROPERTY(EditAnywhere, Category="HealOrb|CSV")
+    bool bEnableCsvLogging = false;
 
-private:
-    // Overlaps
-    UFUNCTION()
-    void OnHealBeginOverlap(UPrimitiveComponent* Overlapped, AActor* Other, UPrimitiveComponent* OtherComp,
-        int32 OtherBodyIndex, bool bFromSweep, const FHitResult& Sweep);
-    UFUNCTION()
-    void OnDetectBeginOverlap(UPrimitiveComponent* Overlapped, AActor* Other, UPrimitiveComponent* OtherComp,
-        int32 OtherBodyIndex, bool bFromSweep, const FHitResult& Sweep);
-    UFUNCTION()
-    void OnDetectEndOverlap(UPrimitiveComponent* Overlapped, AActor* Other, UPrimitiveComponent* OtherComp,
-        int32 OtherBodyIndex);
+    /** Saved/HealOrbs/HealOrbLog.csv 등 상대 경로로 기록 */
+    UPROPERTY(EditAnywhere, Category="HealOrb|CSV")
+    FString CsvRelativePath = TEXT("HealOrbs/HealOrbLog.csv");
 
-    // Move helpers
-    bool   HasLineOfSightToTarget() const;
-    void   RebuildPath();
-    void   FollowSteering(float DeltaTime);
-    void   FollowPath(float DeltaTime);
+    // ===== VFX/SFX =====
+    UPROPERTY(EditAnywhere, Category="HealOrb|VFX")
+    TObjectPtr<UNiagaraSystem> VFX_Spawn = nullptr;
 
-    FVector ComputeDesiredDir() const;
-    FVector AvoidObstacles(const FVector& DesiredDir) const;
-    FVector ComputeSeparationForce() const;
-    float   GetDistToTarget2D() const;
+    UPROPERTY(EditAnywhere, Category="HealOrb|VFX")
+    TObjectPtr<UNiagaraSystem> VFX_Pick = nullptr;
 
-    // Grounding / Step
-    void    AdjustSpawnOnSlope();
-    void    MaintainHover(float DeltaTime);
-    bool    TryStepUp(const FVector& IntendedDelta, FVector& OutAdjustedDelta) const;
-    float   SnapZToGround(float CurrentZ, float DeltaTime) const;
+    UPROPERTY(EditAnywhere, Category="HealOrb|SFX")
+    TObjectPtr<USoundBase> SFX_Spawn = nullptr;
 
-    // TickLOD / Expire / Target
-    void    CheapTickGateBegin();
-    bool    CheapTickGatePass(float DeltaTime);
-    void    UpdateExpireTimers(float DeltaTime);
-    void    ValidateTargetOrSleep();
-
-    // Speed curve
-    void    ApplySpeedCurvePresetIfNeeded();
-    float   EvalSpeedCurve(float DeltaTime);
-
-    // Debug draw
-    bool    IsDebugEnabled() const;
-    void    DrawDebugAll(const FVector& PrevVel, bool bHasLOS);
-
-    // CSV + 실시간 카운터
-    void    CsvLog_Spawn();
-    void    CsvLog_Detect(bool bBegin);
-    void    CsvLog_Repath(int32 NumPts);
-    void    CsvLog_Heal();
-    void    CsvLog_Expire(const TCHAR* Reason);
-    FString CsvTargetName() const;
-
-    // 상태 초기화
-    void    ResetRuntimeState();
+    UPROPERTY(EditAnywhere, Category="HealOrb|SFX")
+    TObjectPtr<USoundBase> SFX_Pick = nullptr;
 
 private:
-    // Runtime
-    FVector Velocity = FVector::ZeroVector;
+    // ===== 상태 =====
+    TWeakObjectPtr<AActor> TargetActor;
+    FVector LastKnownTargetLocation = FVector::ZeroVector;
+    float   StartDistanceToTarget   = 0.f;
+    float   CurrentSpeed            = 0.f;
 
-    float   TimeSinceRepath = 0.f;
-    bool    bTargetInDetect = false;
-    float   TimeSinceDetectLost = 0.f;
+    bool    bActive   = false; // Tick/추적 활성
+    bool    bReleased = false; // Release 재진입 가드
 
-    TArray<FVector> PathPoints;
-    int32  PathIndex = 0;
+    // Detect End 유예
+    bool    bDetectLost = false;
+    float   DetectLostTimeAcc = 0.f;
 
-    // Hover/ground
-    mutable int32 NoGroundFrames = 0;
-
-    // Cheap tick
-    float   CheapTickAcc = 0.f;
-
-    // Lifetime
-    float   LifeAcc = 0.f;
-    float   NoTargetAcc = 0.f;
-
-    // HUD 캐시
-    bool  bLastHasLOS = false;
-    float LastTargetSpeed = 0.f;
+    // 안전 파괴/풀반납 타이머
+    FTimerHandle SafeDestroyHandle;
 };

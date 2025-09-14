@@ -1,802 +1,525 @@
+// CHealOrb.cpp
 #include "01_Item/CHealOrb.h"
 
-#include "Components/SphereComponent.h"
-#include "DrawDebugHelpers.h"
-#include "NavigationSystem.h"
-#include "NavigationPath.h"
-#include "Curves/CurveFloat.h"
-#include "HAL/IConsoleManager.h"
-#include "Misc/Paths.h"
-#include "Misc/FileHelper.h"
-
-#include "00_Character/00_Player/CPlayerCharacter.h"
+#include "01_Item/CHealOrbPoolSubsystem.h"
 #include "00_Character/02_Component/CHealthComponent.h"
-#include "01_Item/CHealOrbDebugStatsSubsystem.h" // ★ 카운터 연동
-// #include "Debug/HealOrbDebugStatsSubsystem.h"
-
-/*// PF CSV/세션 로거 자동 감지
-#if __has_include("PFDataDump.h")
-#include "PFDataDump.h"
-#define PF_CSV_AVAILABLE 1
-#else
-#define PF_CSV_AVAILABLE 0
-#endif
-#if __has_include("PFLogFileSink.h")
-#include "PFLogFileSink.h"
-#define PF_LOG_SESSION 1
-#else
-#define PF_LOG_SESSION 0
-#endif
-
-// 콘솔 변수: 라인/스피어 디버그
-static TAutoConsoleVariable<int32> CVarPFHealOrbDebug(
-    TEXT("pf.healorb.debug"), 0,
-    TEXT("HealOrb debug draw (0:off, 1:on)"),
-    ECVF_Cheat);
-
-// CSV 세션 파일 헬퍼
-namespace HealOrbCSV
-{
-#if PF_CSV_AVAILABLE
-    static TUniquePtr<PFData::FCsv> GCsv;
-    static bool bHeader = false;
-
-    static FString SessionDir()
-    {
-#if PF_LOG_SESSION
-        return PFLogFile::SessionDir();
-#else
-        return FPaths::ProjectSavedDir() / TEXT("HealOrb");
-#endif
-    }
-
-    static void Ensure()
-    {
-        if (GCsv) return;
-        IFileManager::Get().MakeDirectory(*SessionDir(), true);
-        GCsv = MakeUnique<PFData::FCsv>(SessionDir() / TEXT("heal_orb_events.csv"));
-        if (!bHeader)
-        {
-            GCsv->SetHeader({ TEXT("time"), TEXT("event"), TEXT("orb"), TEXT("target"), TEXT("pos"), TEXT("detail") });
-            bHeader = true;
-        }
-    }
-
-    static void Write(UWorld* World, const FString& Ev, const FString& Orb, const FString& Target, const FString& Pos, const FString& Detail)
-    {
-        Ensure();
-        GCsv->AddRow({ FDateTime::Now().ToString(), Ev, Orb, Target, Pos, Detail });
-
-        // ★ 실시간 카운트 증가
-        if (World)
-        {
-            if (UHealOrbDebugStatsSubsystem* Stats = World->GetSubsystem<UHealOrbDebugStatsSubsystem>())
-            {
-                using E = EHealOrbEvent;
-                if (Ev == TEXT("spawn"))        Stats->Increment(E::Spawn);
-                else if (Ev == TEXT("detect_begin")) Stats->Increment(E::DetectBegin);
-                else if (Ev == TEXT("detect_end"))   Stats->Increment(E::DetectEnd);
-                else if (Ev == TEXT("repath"))       Stats->Increment(E::Repath);
-                else if (Ev == TEXT("heal"))         Stats->Increment(E::Heal);
-                else if (Ev == TEXT("expire"))       Stats->Increment(E::Expire);
-            }
-        }
-    }
-#else
-    static bool bHeader = false;
-    static FString FilePath()
-    {
-        const FString Dir = FPaths::ProjectSavedDir() / TEXT("HealOrb");
-        IFileManager::Get().MakeDirectory(*Dir, true);
-        return Dir / TEXT("heal_orb_events.csv");
-    }
-    static void Ensure()
-    {
-        if (bHeader) return;
-        const FString Header = TEXT("time,event,orb,target,pos,detail\n");
-        FFileHelper::SaveStringToFile(Header, *FilePath(), FFileHelper::EEncodingOptions::AutoDetect, &IFileManager::Get(), FILEWRITE_Append);
-        bHeader = true;
-    }
-    static void Write(UWorld* World, const FString& Ev, const FString& Orb, const FString& Target, const FString& Pos, const FString& Detail)
-    {
-        Ensure();
-        const FString Line = FString::Printf(TEXT("%s,%s,%s,%s,\"%s\",\"%s\"\n"),
-            *FDateTime::Now().ToString(), *Ev, *Orb, *Target, *Pos, *Detail);
-        FFileHelper::SaveStringToFile(Line, *FilePath(), FFileHelper::EEncodingOptions::AutoDetect, &IFileManager::Get(), FILEWRITE_Append);
-
-        if (World)
-        {
-            if (UHealOrbDebugStatsSubsystem* Stats = World->GetSubsystem<UHealOrbDebugStatsSubsystem>())
-            {
-                using E = EHealOrbEvent;
-                if (Ev == TEXT("spawn"))        Stats->Increment(E::Spawn);
-                else if (Ev == TEXT("detect_begin")) Stats->Increment(E::DetectBegin);
-                else if (Ev == TEXT("detect_end"))   Stats->Increment(E::DetectEnd);
-                else if (Ev == TEXT("repath"))       Stats->Increment(E::Repath);
-                else if (Ev == TEXT("heal"))         Stats->Increment(E::Heal);
-                else if (Ev == TEXT("expire"))       Stats->Increment(E::Expire);
-            }
-        }
-    }
-#endif
-} */// namespace
-
-/* ========== ctor/BeginPlay/Tick ========== */
+#include "Components/SphereComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Kismet/GameplayStatics.h"
+#include "NiagaraFunctionLibrary.h"
+#include "DrawDebugHelpers.h"
+#include "Engine/World.h"
+#include "Engine/CollisionProfile.h"
+#include "TimerManager.h"
+#include "HAL/FileManager.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 
 ACHealOrb::ACHealOrb()
 {
     PrimaryActorTick.bCanEverTick = true;
     SetActorTickEnabled(false);
 
-    Sphere = CreateDefaultSubobject<USphereComponent>(TEXT("Sphere"));
-    SetRootComponent(Sphere);
-    Sphere->InitSphereRadius(SphereRadius);
-    Sphere->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
-    Sphere->SetCollisionObjectType(ECC_WorldDynamic);
-    Sphere->SetCollisionResponseToAllChannels(ECR_Ignore);
-    Sphere->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
-    Sphere->SetGenerateOverlapEvents(true);
+    PickupSphere = CreateDefaultSubobject<USphereComponent>(TEXT("PickupSphere"));
+    SetRootComponent(PickupSphere);
+    PickupSphere->InitSphereRadius(PickupRadius);
+    PickupSphere->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+    PickupSphere->SetCollisionObjectType(ECC_WorldDynamic);
+    PickupSphere->SetCollisionResponseToAllChannels(ECR_Ignore);
+    PickupSphere->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+    PickupSphere->SetCollisionResponseToChannel(ECC_GameTraceChannel1,ECR_Overlap);
+    PickupSphere->SetGenerateOverlapEvents(true);
 
     DetectSphere = CreateDefaultSubobject<USphereComponent>(TEXT("DetectSphere"));
-    DetectSphere->SetupAttachment(Sphere);
+    DetectSphere->SetupAttachment(PickupSphere);
     DetectSphere->InitSphereRadius(DetectRadius);
     DetectSphere->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
     DetectSphere->SetCollisionObjectType(ECC_WorldDynamic);
     DetectSphere->SetCollisionResponseToAllChannels(ECR_Ignore);
     DetectSphere->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
     DetectSphere->SetGenerateOverlapEvents(true);
+    
+    VisualMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("VisualMesh"));
+    VisualMesh->SetupAttachment(PickupSphere);
+    VisualMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+    // 기본 커브 프리셋 구성
+    ApplyCurvePreset(SpeedCurvePreset);
 }
 
 void ACHealOrb::BeginPlay()
 {
     Super::BeginPlay();
+    BindOverlaps();
 
-    Sphere->OnComponentBeginOverlap.AddDynamic(this, &ACHealOrb::OnHealBeginOverlap);
-    DetectSphere->OnComponentBeginOverlap.AddDynamic(this, &ACHealOrb::OnDetectBeginOverlap);
-    DetectSphere->OnComponentEndOverlap.AddDynamic(this, &ACHealOrb::OnDetectEndOverlap);
+    OnOrbSpawned.Broadcast(this);
 
-    ApplySpeedCurvePresetIfNeeded();
-
-    if (bUseHoverConform)
+    if (bEnableCsvLogging)
     {
-        SetActorLocation(GetActorLocation() + FVector(0, 0, SpawnLiftZ));
-        AdjustSpawnOnSlope();
+        AppendCsv(TEXT("Event,Time,Orb,Target,Dist,Speed"));
+    }
+}
+
+void ACHealOrb::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+    UnbindOverlaps();
+
+    if (UWorld* W = GetWorld())
+    {
+        W->GetTimerManager().ClearAllTimersForObject(this);
     }
 
-    ValidateTargetOrSleep();
-    CsvLog_Spawn();
+    Super::EndPlay(EndPlayReason);
+}
+
+void ACHealOrb::BindOverlaps()
+{
+    UnbindOverlaps(); // 중복 방지
+
+    if (PickupSphere)
+    {
+        PickupSphere->OnComponentBeginOverlap.AddDynamic(this, &ACHealOrb::OnPickupOverlap);
+    }
+    if (DetectSphere)
+    {
+        DetectSphere->OnComponentBeginOverlap.AddDynamic(this, &ACHealOrb::OnDetectOverlap);
+        DetectSphere->OnComponentEndOverlap.AddDynamic(this, &ACHealOrb::OnDetectEndOverlap);
+    }
+}
+
+void ACHealOrb::UnbindOverlaps()
+{
+    if (PickupSphere)
+        PickupSphere->OnComponentBeginOverlap.RemoveAll(this);
+    if (DetectSphere)
+    {
+        DetectSphere->OnComponentBeginOverlap.RemoveAll(this);
+        DetectSphere->OnComponentEndOverlap  .RemoveAll(this);
+    }
+}
+
+void ACHealOrb::EnableCollisions(bool bEnable)
+{
+    const ECollisionEnabled::Type Mode = bEnable ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision;
+
+    if (PickupSphere)
+    {
+        PickupSphere->SetCollisionEnabled(Mode);
+        PickupSphere->SetGenerateOverlapEvents(bEnable);
+    }
+    if (DetectSphere)
+    {
+        DetectSphere->SetCollisionEnabled(Mode);
+        DetectSphere->SetGenerateOverlapEvents(bEnable);
+    }
+}
+
+void ACHealOrb::ResetOrbState()
+{
+    bActive   = false;
+    bReleased = false;
+    bDetectLost = false;
+    DetectLostTimeAcc = 0.f;
+    TargetActor = nullptr;
+    LastKnownTargetLocation = FVector::ZeroVector;
+    StartDistanceToTarget = 0.f;
+    CurrentSpeed = 0.f;
+
+    SetActorTickEnabled(false);
+    SetActorHiddenInGame(false);
+    SetActorEnableCollision(true);
+
+    if (UWorld* W = GetWorld())
+        W->GetTimerManager().ClearAllTimersForObject(this);
+
+    if (PickupSphere)
+        PickupSphere->SetSphereRadius(PickupRadius);
+    if (DetectSphere)
+        DetectSphere->SetSphereRadius(DetectRadius);
+}
+
+void ACHealOrb::ActivateOrb(AActor* PreferredTarget)
+{
+    ResetOrbState();
+    BindOverlaps();
+    EnableCollisions(true);
+
+    if (PreferredTarget)
+        TargetActor = PreferredTarget;
+
+    if (AActor* T = TargetActor.Get())
+    {
+        StartDistanceToTarget   = FVector::Distance(GetActorLocation(), T->GetActorLocation());
+        LastKnownTargetLocation = T->GetActorLocation();
+        bActive = true;
+        SetActorTickEnabled(true);
+
+        if (bEnableCsvLogging)
+        {
+            const FString Line = FString::Printf(TEXT("Spawn,%f,%s,%s,%.1f,%.1f"),
+                UGameplayStatics::GetTimeSeconds(this),
+                *GetName(),
+                *T->GetName(),
+                StartDistanceToTarget,
+                CurrentSpeed);
+            AppendCsv(Line);
+        }
+    }
+
+    // VFX/SFX
+    if (VFX_Spawn)
+        UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, VFX_Spawn, GetActorLocation());
+    if (SFX_Spawn)
+        UGameplayStatics::PlaySoundAtLocation(this, SFX_Spawn, GetActorLocation());
+
+    OnOrbSpawned.Broadcast(this);
+}
+
+void ACHealOrb::ReleaseOrb(bool bReturnToPool)
+{
+    if (bReleased) return;
+    bReleased = true;
+
+    bActive = false;
+    SetActorTickEnabled(false);
+
+    UnbindOverlaps();
+    EnableCollisions(false);
+
+    if (UWorld* W = GetWorld())
+        W->GetTimerManager().ClearAllTimersForObject(this);
+
+    SetActorHiddenInGame(true);
+    TargetActor = nullptr;
+
+    if (!bReturnToPool)
+    {
+        // 파괴 경로(풀 미사용/서브시스템 없음)
+        if (UWorld* W = GetWorld())
+        {
+            W->GetTimerManager().SetTimerForNextTick([this]()
+            {
+                if (IsValid(this))
+                    Destroy();
+            });
+        }
+    }
+    else
+    {
+        // ★중요★: 풀 반납은 "서브시스템"이 호출(Release)합니다.
+        // 여기서 다시 풀에 통지하면 재귀가 됩니다. (아무 것도 하지 않음)
+    }
+}
+
+void ACHealOrb::SetTarget(AActor* NewTarget)
+{
+    if (!IsValid(NewTarget)) return;
+
+    TargetActor = NewTarget;
+    LastKnownTargetLocation = NewTarget->GetActorLocation();
+    StartDistanceToTarget   = FVector::Distance(GetActorLocation(), LastKnownTargetLocation);
+
+    bDetectLost = false;
+    DetectLostTimeAcc = 0.f;
+
+    bActive = true;
+    SetActorTickEnabled(true);
 }
 
 void ACHealOrb::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
-
-    LifeAcc += DeltaTime;
-    UpdateExpireTimers(DeltaTime);
-    ValidateTargetOrSleep();
-    if (!IsValid(TargetPlayer))
+    if (!bActive || bReleased)
         return;
 
-    if (!CheapTickGatePass(DeltaTime))
-        return;
+    AActor* T = TargetActor.Get();
 
-    const bool bHasLOS = HasLineOfSightToTarget();
-    bLastHasLOS = bHasLOS; // HUD 캐시
-    TimeSinceDetectLost = bTargetInDetect ? 0.f : (TimeSinceDetectLost + DeltaTime);
-
-    TimeSinceRepath += DeltaTime;
-    if (!bHasLOS && bUseNavMesh && TimeSinceRepath >= RepathInterval)
+    // 타깃 위치/유지 정책
+    if (IsValid(T))
     {
-        RebuildPath();
-        TimeSinceRepath = 0.f;
-        CsvLog_Repath(PathPoints.Num());
-    }
-
-    const bool bHasPath = (PathPoints.Num() > 0 && PathIndex < PathPoints.Num());
-    const bool bPathExpired = (!bHasPath) || (TimeSinceDetectLost > PathHoldTime);
-    if (!bTargetInDetect && !bHasLOS && bPathExpired)
-    {
-        CsvLog_Expire(TEXT("LostTargetAndPathExpired"));
-        TargetPlayer = nullptr;
-        PathPoints.Reset(); PathIndex = 0;
-        SetActorTickEnabled(false);
-        Velocity = FVector::ZeroVector;
-        return;
-    }
-
-    const FVector OldVel = Velocity;
-    if (bHasLOS || PathPoints.Num() == 0)  FollowSteering(DeltaTime);
-    else                                 FollowPath(DeltaTime);
-
-    if (bUseHoverConform)
-        MaintainHover(DeltaTime);
-
-    if (IsDebugEnabled())
-        DrawDebugAll(OldVel, bHasLOS);
-}
-
-/* ========== 풀 API ========== */
-
-void ACHealOrb::ResetRuntimeState()
-{
-    bAlreadyHealed = false;
-    Velocity = FVector::ZeroVector;
-    PathPoints.Reset(); PathIndex = 0;
-    TimeSinceRepath = 0.f;
-    bTargetInDetect = false;
-    TimeSinceDetectLost = 0.f;
-    NoGroundFrames = 0;
-    CheapTickAcc = 0.f;
-    LifeAcc = 0.f;
-    NoTargetAcc = 0.f;
-    LastTargetSpeed = 0.f;
-    bLastHasLOS = false;
-}
-
-void ACHealOrb::ActivateAt(const FVector& SpawnLoc, ACPlayerCharacter* Target)
-{
-    SetActorLocation(SpawnLoc);
-    SetActorHiddenInGame(false);
-    SetActorEnableCollision(true);
-
-    ResetRuntimeState();
-    ApplySpeedCurvePresetIfNeeded();
-
-    if (bUseHoverConform)
-    {
-        SetActorLocation(SpawnLoc + FVector(0, 0, SpawnLiftZ));
-        AdjustSpawnOnSlope();
-    }
-
-    ForceSetTarget(Target);
-    CsvLog_Spawn();
-}
-
-void ACHealOrb::Deactivate()
-{
-    SetActorHiddenInGame(true);
-    SetActorEnableCollision(false);
-    SetActorTickEnabled(false);
-
-    TargetPlayer = nullptr;
-    ResetRuntimeState();
-}
-
-void ACHealOrb::ForceSetTarget(ACPlayerCharacter* InPlayer)
-{
-    TargetPlayer = InPlayer;
-    bTargetInDetect = IsValid(InPlayer);
-    TimeSinceDetectLost = 0.f;
-    if (IsValid(InPlayer))
-    {
-        SetActorTickEnabled(true);
-        CheapTickGateBegin();
-    }
-}
-
-/* ========== Overlaps ========== */
-
-void ACHealOrb::OnDetectBeginOverlap(UPrimitiveComponent*, AActor* Other, UPrimitiveComponent*, int32, bool, const FHitResult&)
-{
-    if (!Other || Other == this) return;
-
-    if (ACPlayerCharacter* Player = Cast<ACPlayerCharacter>(Other))
-    {
-        TargetPlayer = Player;
-        bTargetInDetect = true;
-        TimeSinceDetectLost = 0.f;
-        SetActorTickEnabled(true);
-        CheapTickGateBegin();
-        CsvLog_Detect(true);
-    }
-}
-
-void ACHealOrb::OnDetectEndOverlap(UPrimitiveComponent*, AActor* Other, UPrimitiveComponent*, int32)
-{
-    if (Other == TargetPlayer)
-    {
-        bTargetInDetect = false;
-        CsvLog_Detect(false);
-    }
-}
-
-void ACHealOrb::OnHealBeginOverlap(UPrimitiveComponent*, AActor* Other, UPrimitiveComponent*, int32, bool, const FHitResult&)
-{
-    if (bAlreadyHealed) return;
-    if (!Other || Other == this) return;
-    if (Other != TargetPlayer) return;
-
-    if (UCHealthComponent* Health = Other->FindComponentByClass<UCHealthComponent>())
-    {
-        Health->Healing(HealAmount);
-        bAlreadyHealed = true;
-        CsvLog_Heal();
-
-        if (UCHealOrbDebugStatsSubsystem* Pool = GetWorld()->GetSubsystem<UCHealOrbDebugStatsSubsystem>())
+        LastKnownTargetLocation = T->GetActorLocation();
+        if (!HasLineOfSightToTarget(GetActorLocation(), LastKnownTargetLocation))
         {
-            //Pool->Release(this);
-            return;
+            // LOS가 없어도 추적 지속(옵션). 현재는 유지
+        }
+    }
+    else
+    {
+        // Detect를 잃은 상태면 유예 타이머
+        if (bDetectLost)
+        {
+            DetectLostTimeAcc += DeltaTime;
+            if (DetectLostTimeAcc >= DetectLossGraceTime)
+            {
+                const float Dist = FVector::Distance(GetActorLocation(), LastKnownTargetLocation);
+                if (Dist > KeepChaseMaxDistance)
+                {
+                    bActive = false;
+                    SetActorTickEnabled(false);
+                    return;
+                }
+            }
+        }
+        else
+        {
+            bDetectLost = true;
+            DetectLostTimeAcc = 0.f;
+        }
+    }
+
+    // 현재 목표 위치
+    const FVector TargetLoc = LastKnownTargetLocation;
+    const FVector Current   = GetActorLocation();
+
+    FVector Delta = TargetLoc - Current;
+    const float Dist = Delta.Size();
+    if (Dist <= KINDA_SMALL_NUMBER)
+        return;
+
+    // 속도 커브 적용
+    UpdateSpeedByCurve(Dist);
+
+    // 방향/스텝
+    const FVector Dir  = Delta / Dist;
+    const float   Step = CurrentSpeed * DeltaTime;
+
+    // 이동(스윕 true로 경사면/충돌 반영)
+    AddActorWorldOffset(Dir * Step, true);
+
+    // 단차 보정 (지면 추적)
+    UpdateHover(DeltaTime);
+
+    // 디버그 드로우
+    if (bDebugDraw)
+    {
+        DrawDebugLine(GetWorld(), Current, TargetLoc, FColor::Cyan, false, DebugDrawDuration, 0, 1.5f);
+        DrawDebugSphere(GetWorld(), GetActorLocation(), 8.f, 8, FColor::Green,  false, DebugDrawDuration);
+        DrawDebugSphere(GetWorld(), TargetLoc,         12.f, 12, FColor::Magenta,false, DebugDrawDuration);
+    }
+
+    // CSV 로깅(부하를 줄이려면 간헐적으로만 호출 권장)
+    if (bEnableCsvLogging)
+    {
+        const FString Line = FString::Printf(TEXT("Tick,%f,%s,%s,%.1f,%.1f"),
+            UGameplayStatics::GetTimeSeconds(this),
+            *GetName(),
+            IsValid(T) ? *T->GetName() : TEXT("None"),
+            Dist,
+            CurrentSpeed);
+        AppendCsv(Line);
+    }
+}
+
+void ACHealOrb::OnPickupOverlap(UPrimitiveComponent* Overlapped, AActor* OtherActor,
+                                UPrimitiveComponent* OtherComp, int32 OtherBodyIndex,
+                                bool bFromSweep, const FHitResult& Hit)
+{
+    if (bReleased) return;
+    if (!IsValid(OtherActor) || OtherActor == this) return;
+
+    if (UCHealthComponent* Health = OtherActor->FindComponentByClass<UCHealthComponent>())
+    {
+        // 치유
+        Health->Healing(HealAmount);
+
+        // VFX/SFX
+        if (VFX_Pick)
+            UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, VFX_Pick, GetActorLocation());
+        if (SFX_Pick)
+            UGameplayStatics::PlaySoundAtLocation(this, SFX_Pick, GetActorLocation());
+
+        // 이벤트
+        OnOrbPicked.Broadcast(this, OtherActor);
+
+        // CSV
+        if (bEnableCsvLogging)
+        {
+            const float Dist = FVector::Distance(GetActorLocation(), OtherActor->GetActorLocation());
+            const FString Line = FString::Printf(TEXT("Pick,%f,%s,%s,%.1f,%.1f"),
+                UGameplayStatics::GetTimeSeconds(this),
+                *GetName(),
+                *OtherActor->GetName(),
+                Dist,
+                CurrentSpeed);
+            AppendCsv(Line);
         }
 
-        if (bDestroyOnHeal) Destroy();
-        else Deactivate();  
+        // 풀 사용 시: 서브시스템 경유로 반납
+        // 서브시스템이 없으면(=싱글/테스트) 로컬 해제
+        if (bUsePooling)
+        {
+            if (UGameInstance* GI = GetGameInstance())
+            {
+                if (auto* Pool = GI->GetSubsystem<class UCHealOrbPoolSubsystem>())
+                {
+                    Pool->NotifyPicked(this); // 내부에서 Release(Orb) → Orb->ReleaseOrb(true)
+                }
+                else
+                {
+                    ReleaseOrb(true); // 풀 없으면 로컬 비활성화만
+                }
+            }
+            else
+            {
+                ReleaseOrb(true);
+            }
+        }
+        else
+        {
+            ReleaseOrb(false); // 파괴 경로
+        }
     }
 }
 
-/* ========== 시야/경로/이동 ========== */
-
-bool ACHealOrb::HasLineOfSightToTarget() const
+void ACHealOrb::OnDetectOverlap(UPrimitiveComponent* Overlapped, AActor* OtherActor,
+                                UPrimitiveComponent* OtherComp, int32 OtherBodyIndex,
+                                bool bFromSweep, const FHitResult& Hit)
 {
-    if (!IsValid(TargetPlayer)) return false;
+    if (bReleased) return;
+    if (!IsValid(OtherActor) || OtherActor == this) return;
 
+    if (OtherActor->FindComponentByClass<UCHealthComponent>())
+    {
+        SetTarget(OtherActor); // 타깃 지정 및 추적 시작
+    }
+}
+
+void ACHealOrb::OnDetectEndOverlap(UPrimitiveComponent* Overlapped, AActor* OtherActor,
+                                   UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
+{
+    if (bReleased) return;
+    if (!IsValid(OtherActor)) return;
+
+    if (TargetActor.IsValid() && OtherActor == TargetActor.Get())
+    {
+        // Detect 범위를 이탈했지만, 유예시간/거리 정책으로 계속 추적할 수 있음
+        bDetectLost = true;
+        DetectLostTimeAcc = 0.f;
+    }
+}
+
+void ACHealOrb::UpdateSpeedByCurve(float CurrentDist)
+{
+    // 0..1 진행도: 시작거리 기준으로 얼마나 근접했는가
+    if (StartDistanceToTarget <= KINDA_SMALL_NUMBER)
+    {
+        // 시작거리가 아직 셋업 안 된 경우 현 거리로 초기화
+        StartDistanceToTarget = CurrentDist;
+    }
+
+    const float Progress = FMath::Clamp(1.f - (CurrentDist / (StartDistanceToTarget + KINDA_SMALL_NUMBER)), 0.f, 1.f);
+
+    float CurveVal = 1.f; // 기본 1배
+    if (SpeedCurveAsset)
+    {
+        CurveVal = SpeedCurveAsset->GetFloatValue(Progress);
+    }
+    else if (RuntimeSpeedCurve.GetRichCurveConst())
+    {
+        CurveVal = RuntimeSpeedCurve.GetRichCurveConst()->Eval(Progress, 1.f);
+    }
+
+    CurveVal = FMath::Max(0.f, CurveVal) * CurveStrength;
+    CurrentSpeed = BaseSpeed * CurveVal;
+}
+
+void ACHealOrb::UpdateHover(float DeltaTime)
+{
+    if (HoverHeight <= 0.f || HoverTraceLength <= 0.f) return;
+
+    FVector Loc = GetActorLocation();
+
+    FHitResult Hit;
+    FVector Start = Loc + FVector(0,0,HoverTraceLength * 0.5f);
+    FVector End   = Loc - FVector(0,0,HoverTraceLength);
+
+    FCollisionQueryParams P(SCENE_QUERY_STAT(HealOrbHover), false, this);
+    FCollisionResponseParams R;
+
+    const bool bHit = GetWorld()->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, P, R);
+    if (bHit)
+    {
+        const float TargetZ = Hit.ImpactPoint.Z + HoverHeight;
+        Loc.Z = FMath::FInterpTo(Loc.Z, TargetZ, DeltaTime, HoverLerpSpeed);
+        SetActorLocation(Loc, false);
+    }
+
+    if (bDebugDraw)
+    {
+        DrawDebugLine(GetWorld(), Start, End, FColor::Yellow, false, DebugDrawDuration, 0, 0.5f);
+        if (bHit)
+            DrawDebugSphere(GetWorld(), Hit.ImpactPoint, 6.f, 8, FColor::Yellow, false, DebugDrawDuration);
+    }
+}
+
+bool ACHealOrb::HasLineOfSightToTarget(const FVector& From, const FVector& To) const
+{
     FHitResult Hit;
     FCollisionQueryParams P(SCENE_QUERY_STAT(HealOrbLOS), false, this);
-    P.AddIgnoredActor(this);
-
-    const FVector From = GetActorLocation();
-    const FVector To = TargetPlayer->GetActorLocation();
-
-    const bool bHit = GetWorld()->LineTraceSingleByChannel(Hit, From, To, ECC_Visibility, P);
-    return (!bHit || Hit.GetActor() == TargetPlayer);
+    const bool bBlocking = GetWorld()->LineTraceSingleByChannel(Hit, From, To, ECC_Visibility, P);
+    if (!bBlocking) return true;
+    // 타깃 자신이 히트면 LOS로 간주
+    return Hit.GetActor() == TargetActor.Get();
 }
 
-FVector ACHealOrb::ComputeDesiredDir() const
+void ACHealOrb::ApplyCurvePreset(EHealOrbSpeedCurvePreset Preset)
 {
-    if (!IsValid(TargetPlayer)) return FVector::ZeroVector;
-    FVector To = TargetPlayer->GetActorLocation() - GetActorLocation();
-    To.Z = 0.f;
-    return To.GetSafeNormal();
-}
+    FRichCurve* Curve = RuntimeSpeedCurve.GetRichCurve();
+    if (!Curve) return;
 
-float ACHealOrb::GetDistToTarget2D() const
-{
-    return IsValid(TargetPlayer)
-        ? FVector::Dist2D(GetActorLocation(), TargetPlayer->GetActorLocation())
-        : FLT_MAX;
-}
+    Curve->Reset();
 
-FVector ACHealOrb::AvoidObstacles(const FVector& DesiredDir) const
-{
-    const FVector Pos = GetActorLocation();
-    const FVector Right = FVector::CrossProduct(DesiredDir, FVector::UpVector).GetSafeNormal();
-
-    auto Probe = [&](const FVector& From, const FVector& Dir, float Len)->bool
-        {
-            FHitResult Hit;
-            FCollisionQueryParams P(SCENE_QUERY_STAT(HealOrbProbe), false, this);
-            P.AddIgnoredActor(this);
-            return GetWorld()->LineTraceSingleByChannel(Hit, From, From + Dir * Len, ECC_Visibility, P)
-                && Hit.bBlockingHit;
-        };
-
-    const bool bFrontBlocked = Probe(Pos, DesiredDir, ProbeLength);
-    if (!bFrontBlocked) return DesiredDir;
-
-    const bool bLeftBlocked = Probe(Pos + Right * -SideProbeOffset, DesiredDir, ProbeLength);
-    const bool bRightBlocked = Probe(Pos + Right * SideProbeOffset, DesiredDir, ProbeLength);
-
-    const FVector TangentLeft = (DesiredDir + Right * -0.9f).GetSafeNormal();
-    const FVector TangentRight = (DesiredDir + Right * 0.9f).GetSafeNormal();
-
-    if (bLeftBlocked && !bRightBlocked) return TangentRight;
-    if (!bLeftBlocked && bRightBlocked) return TangentLeft;
-    return bRightBlocked ? TangentLeft : TangentRight;
-}
-
-FVector ACHealOrb::ComputeSeparationForce() const
-{
-    if (!bUseSeparation) return FVector::ZeroVector;
-
-    TArray<FOverlapResult> Hits;
-    FCollisionObjectQueryParams ObjParams; ObjParams.AddObjectTypesToQuery(ECC_WorldDynamic);
-    FCollisionQueryParams Query(SCENE_QUERY_STAT(HealOrbSep), false, this);
-    const FCollisionShape Shape = FCollisionShape::MakeSphere(SeparationRadius);
-
-    FVector Sum = FVector::ZeroVector;
-    const FVector Center = GetActorLocation();
-
-    if (GetWorld()->OverlapMultiByObjectType(Hits, Center, FQuat::Identity, ObjParams, Shape, Query))
+    auto Key = [&](float X, float Y, ERichCurveInterpMode Mode = RCIM_Cubic)
     {
-        for (const FOverlapResult& R : Hits)
-        {
-            const AActor* A = R.GetActor();
-            if (!A || A == this) continue;
-            if (!A->IsA(StaticClass())) continue;
-
-            FVector ToMe = Center - A->GetActorLocation();
-            ToMe.Z = 0.f;
-            const float Dist = ToMe.Size();
-            if (Dist < KINDA_SMALL_NUMBER) continue;
-
-            const float Weight = 1.f - FMath::Clamp(Dist / SeparationRadius, 0.f, 1.f);
-            Sum += (ToMe / Dist) * Weight;
-        }
-    }
-    return Sum.GetSafeNormal() * SeparationStrength;
-}
-
-float ACHealOrb::EvalSpeedCurve(float /*DeltaTime*/)
-{
-    if (!SpeedCurve || SpeedCurveMode == ESpeedCurveMode::None)
-        return 1.f;
-
-    if (SpeedCurveMode == ESpeedCurveMode::ByDistanceToTarget)
-    {
-        const float Dist = FMath::Clamp(GetDistToTarget2D(), 0.f, DetectRadius);
-        const float T = (DetectRadius <= KINDA_SMALL_NUMBER) ? 1.f : (1.f - (Dist / DetectRadius));
-        return FMath::Max(0.f, SpeedCurve->GetFloatValue(T));
-    }
-    else
-    {
-        constexpr float Window = 5.f;
-        const float T = FMath::Clamp(LifeAcc / Window, 0.f, 1.f);
-        return FMath::Max(0.f, SpeedCurve->GetFloatValue(T));
-    }
-}
-
-void ACHealOrb::FollowSteering(float DeltaTime)
-{
-    if (!IsValid(TargetPlayer)) return;
-
-    FVector Dir = AvoidObstacles(ComputeDesiredDir());
-    float TargetSpeed = MaxSpeed;
-    const float Dist2D = GetDistToTarget2D();
-
-    if (Dist2D < ArriveRadius)
-    {
-        const float Lerp = FMath::GetMappedRangeValueClamped(FVector2D(0.f, ArriveRadius), FVector2D(0.f, 1.f), Dist2D);
-        TargetSpeed *= Lerp;
-    }
-
-    TargetSpeed *= EvalSpeedCurve(DeltaTime);
-    LastTargetSpeed = TargetSpeed; // HUD 표시용
-
-    const FVector DesiredVel = Dir * TargetSpeed;
-
-    if (TurnAssist > 0.f)
-        Velocity = FMath::VInterpTo(Velocity, DesiredVel, DeltaTime, FMath::Clamp(TurnAssist / FMath::Max(KINDA_SMALL_NUMBER, DeltaTime), 0.f, 60.f));
-
-    const FVector ToAdd = (DesiredVel - Velocity);
-    const FVector Clamped = ToAdd.GetClampedToMaxSize(Accel * DeltaTime);
-    Velocity += Clamped;
-
-    Velocity += ComputeSeparationForce() * DeltaTime;
-    Velocity = Velocity.GetClampedToMaxSize(MaxSpeed * 1.5f);
-
-    FVector Delta = Velocity * DeltaTime;
-    FVector Adjusted = Delta;
-    if (bUseStepCorrection && TryStepUp(Delta, Adjusted))
-        Delta = Adjusted;
-
-    FHitResult Hit;
-    AddActorWorldOffset(Delta, true, &Hit);
-    if (Hit.bBlockingHit)
-    {
-        FVector Slide = FVector::VectorPlaneProject(Delta, Hit.Normal);
-        AddActorWorldOffset(Slide, true);
-    }
-}
-
-void ACHealOrb::RebuildPath()
-{
-    PathPoints.Reset();
-    PathIndex = 0;
-
-    if (!bUseNavMesh || !IsValid(TargetPlayer)) return;
-
-    if (UNavigationSystemV1* NavSys = UNavigationSystemV1::GetCurrent(GetWorld()))
-    {
-        const FVector Start = GetActorLocation();
-        const FVector Goal = TargetPlayer->GetActorLocation();
-
-        if (UNavigationPath* Path = NavSys->FindPathToLocationSynchronously(GetWorld(), Start, Goal))
-        {
-            for (const FNavPathPoint& P : Path->GetPath()->GetPathPoints())
-                PathPoints.Add(P.Location);
-
-            if (PathPoints.Num() >= 2 && FVector::Dist2D(PathPoints[0], Start) < 50.f)
-                PathIndex = 1;
-        }
-    }
-}
-
-void ACHealOrb::FollowPath(float DeltaTime)
-{
-    if (PathPoints.Num() == 0 || PathIndex >= PathPoints.Num())
-        return;
-
-    const FVector Cur = GetActorLocation();
-
-    // 코너 스킵
-    for (int32 i = FMath::Min(PathIndex + 2, PathPoints.Num() - 1); i > PathIndex; --i)
-    {
-        FHitResult Hit;
-        FCollisionQueryParams P(SCENE_QUERY_STAT(HealOrbCornerCut), false, this);
-        P.AddIgnoredActor(this);
-        if (!GetWorld()->LineTraceSingleByChannel(Hit, Cur, PathPoints[i], ECC_Visibility, P))
-        {
-            PathIndex = i;
-            break;
-        }
-    }
-
-    FVector To = PathPoints[PathIndex] - Cur; To.Z = 0.f;
-    FVector Dir = AvoidObstacles(To.GetSafeNormal());
-
-    float TargetSpeed = MaxSpeed * EvalSpeedCurve(DeltaTime);
-    LastTargetSpeed = TargetSpeed;
-
-    const FVector DesiredVel = Dir * TargetSpeed;
-
-    const FVector ToAdd = (DesiredVel - Velocity);
-    const FVector Clamped = ToAdd.GetClampedToMaxSize(Accel * DeltaTime);
-    Velocity += Clamped;
-
-    Velocity += ComputeSeparationForce() * DeltaTime;
-    Velocity = Velocity.GetClampedToMaxSize(MaxSpeed * 1.5f);
-
-    FVector Delta = Velocity * DeltaTime;
-    FVector Adjusted = Delta;
-    if (bUseStepCorrection && TryStepUp(Delta, Adjusted))
-        Delta = Adjusted;
-
-    FHitResult Hit;
-    AddActorWorldOffset(Delta, true, &Hit);
-    if (Hit.bBlockingHit)
-    {
-        FVector Slide = FVector::VectorPlaneProject(Delta, Hit.Normal);
-        AddActorWorldOffset(Slide, true);
-    }
-
-    if (FVector::Dist2D(Cur, PathPoints[PathIndex]) < WaypointReachRadius)
-        ++PathIndex;
-}
-
-/* ========== Hover/Step ========= */
-
-void ACHealOrb::AdjustSpawnOnSlope()
-{
-    UWorld* World = GetWorld(); if (!World) return;
-    const float SweepR = FMath::Max(1.f, SphereRadius - 2.f);
-    const FVector Start = GetActorLocation() + FVector(0, 0, HoverTraceUp);
-    const FVector End = GetActorLocation() - FVector(0, 0, HoverTraceDown);
-
-    FHitResult Hit;
-    FCollisionQueryParams Params(SCENE_QUERY_STAT(HealOrb_SpawnSnap), false, this);
-    const bool bHit = World->SweepSingleByChannel(
-        Hit, Start, End, FQuat::Identity, ECC_Visibility,
-        FCollisionShape::MakeSphere(SweepR), Params);
-
-    if (bHit && Hit.bBlockingHit)
-    {
-        const FVector Target = Hit.ImpactPoint + Hit.ImpactNormal * FMath::Max(HoverHeight, 8.f);
-        SetActorLocation(Target, true);
-    }
-}
-
-float ACHealOrb::SnapZToGround(float CurrentZ, float DeltaTime) const
-{
-    return CurrentZ - MaxStepDownPerTick * DeltaTime;
-}
-
-void ACHealOrb::MaintainHover(float DeltaTime)
-{
-    UWorld* World = GetWorld(); if (!World) return;
-
-    const float SweepR = FMath::Max(1.f, SphereRadius - 2.f);
-    const FVector Cur = GetActorLocation();
-    const FVector Start = Cur + FVector(0, 0, HoverTraceUp);
-    const FVector End = Cur - FVector(0, 0, HoverTraceDown);
-
-    FHitResult Hit;
-    FCollisionQueryParams Params(SCENE_QUERY_STAT(HealOrb_HoverSnap), false, this);
-    const bool bHit = World->SweepSingleByChannel(
-        Hit, Start, End, FQuat::Identity, ECC_Visibility,
-        FCollisionShape::MakeSphere(SweepR), Params);
-
-    if (bHit && Hit.bBlockingHit)
-    {
-        NoGroundFrames = 0;
-
-        const FVector Desired = Hit.ImpactPoint + Hit.ImpactNormal * FMath::Max(HoverHeight, 8.f);
-        FVector Target = Cur;
-        float DesiredZ = Desired.Z;
-
-        const float MinAllowedZ = SnapZToGround(Cur.Z, DeltaTime);
-        DesiredZ = FMath::Max(DesiredZ, MinAllowedZ);
-
-        Target.Z = DesiredZ;
-        const FVector NewLoc = FMath::VInterpTo(Cur, Target, DeltaTime, HoverInterpSpeed);
-        SetActorLocation(NewLoc, true);
-    }
-    else
-    {
-        NoGroundFrames++;
-        if (NoGroundFrames >= MaxNoGroundFramesBeforeFall)
-            AddActorWorldOffset(FVector(0, 0, -FallSpeedWhenNoGround * DeltaTime), true);
-    }
-}
-
-/* ========== Tick LOD / Expire ========= */
-
-void ACHealOrb::CheapTickGateBegin() { CheapTickAcc = 0.f; }
-
-bool ACHealOrb::CheapTickGatePass(float DeltaTime)
-{
-    if (!bUseCheapTickWhenFar || !IsValid(TargetPlayer)) return true;
-
-    const float Dist = GetDistToTarget2D();
-    if (Dist <= CheapTickDistance) return true;
-
-    CheapTickAcc += DeltaTime;
-    if (CheapTickAcc >= CheapTickInterval)
-    {
-        CheapTickAcc = 0.f;
-        return true;
-    }
-    return false;
-}
-
-void ACHealOrb::UpdateExpireTimers(float DeltaTime)
-{
-    if (!bAutoExpire) return;
-
-    if (IsValid(TargetPlayer)) NoTargetAcc = 0.f;
-    else                       NoTargetAcc += DeltaTime;
-
-    if (NoTargetAcc >= ExpireAfterNoTargetSeconds)
-    {
-        CsvLog_Expire(TEXT("AutoExpire_NoTarget"));
-        if (UCHealOrbDebugStatsSubsystem* Pool = GetWorld()->GetSubsystem<UCHealOrbDebugStatsSubsystem>())
-            //Pool->Release(this);
-        else
-            Destroy();
-    }
-}
-
-void ACHealOrb::ValidateTargetOrSleep()
-{
-    if (!IsValid(TargetPlayer))
-    {
-        SetActorTickEnabled(false);
-        Velocity = FVector::ZeroVector;
-    }
-}
-
-/* ========== Speed Curve ========= */
-
-void ACHealOrb::ApplySpeedCurvePresetIfNeeded()
-{
-    if (SpeedCurveMode == ESpeedCurveMode::None)
-        return;
-
-    if (SpeedCurve && SpeedCurve->FloatCurve.GetNumKeys() > 0)
-        return;
-
-    SpeedCurve = NewObject<UCurveFloat>(this, TEXT("HealOrbAutoCurve"));
-    FRichCurve& RC = SpeedCurve->FloatCurve;
-    RC.Reset();
-
-    auto K = [&](float X, float Y) {
-        const auto& Key = RC.AddKey(X, Y);
-        RC.SetKeyInterpMode(Key, RCIM_Cubic);
+        FKeyHandle Handle = Curve->AddKey(X, Y);
+        Curve->SetKeyInterpMode(Handle, Mode);
     };
 
-    switch (SpeedCurvePreset)
+    switch (Preset)
     {
-    case ESpeedCurvePreset::AggressiveEase:
-        K(0.00f, 0.20f);  K(0.20f, 1.00f);  K(0.80f, 1.00f);  K(1.00f, 0.20f);
+    case EHealOrbSpeedCurvePreset::Linear:
+        Key(0.f, 1.f, RCIM_Linear);
+        Key(1.f, 1.f, RCIM_Linear);
         break;
-    case ESpeedCurvePreset::RushIn:
-        K(0.00f, 0.10f);  K(0.15f, 1.00f);  K(0.60f, 0.95f);  K(1.00f, 0.90f);
+    case EHealOrbSpeedCurvePreset::EaseIn:
+        Key(0.f, 0.3f);
+        Key(1.f, 1.f);
         break;
-    case ESpeedCurvePreset::RushOut:
-        K(0.00f, 0.60f);  K(0.60f, 1.00f);  K(0.90f, 0.50f);  K(1.00f, 0.30f);
+    case EHealOrbSpeedCurvePreset::EaseOut:
+        Key(0.f, 1.5f);
+        Key(1.f, 0.6f);
         break;
-    case ESpeedCurvePreset::Pulse:
-        K(0.00f, 0.30f);  K(0.25f, 0.95f);  K(0.50f, 0.70f);  K(0.75f, 0.95f);  K(1.00f, 0.40f);
+    case EHealOrbSpeedCurvePreset::EaseInOut:
+        Key(0.f, 0.5f);
+        Key(0.5f, 1.2f);
+        Key(1.f, 0.8f);
         break;
-    case ESpeedCurvePreset::SoftEase:
-    default:
-        K(0.00f, 0.35f);  K(0.30f, 0.90f);  K(0.70f, 0.90f);  K(1.00f, 0.40f);
+    case EHealOrbSpeedCurvePreset::FastStartBrake:
+        Key(0.f, 2.0f);   // 초반 빠르게
+        Key(0.7f, 1.0f);  // 중반 안정
+        Key(1.f, 0.5f);   // 끝에 브레이크
+        break;
+    case EHealOrbSpeedCurvePreset::RubberBand:
+        Key(0.f, 2.2f);
+        Key(0.4f, 1.0f);
+        Key(0.8f, 1.3f);
+        Key(1.f, 0.7f);
         break;
     }
 }
 
-/* ========== Debug Draw ========= */
-
-bool ACHealOrb::IsDebugEnabled() const
+void ACHealOrb::AppendCsv(const FString& Line)
 {
-    return bDebugDraw;
-    //|| (CVarPFHealOrbDebug.GetValueOnAnyThread() != 0);
-}
+    if (!bEnableCsvLogging) return;
 
-void ACHealOrb::DrawDebugAll(const FVector& PrevVel, bool bHasLOS)
-{
-    UWorld* World = GetWorld(); if (!World) return;
+    const FString FullPath = FPaths::ProjectSavedDir() / CsvRelativePath;
+    IFileManager::Get().MakeDirectory(*FPaths::GetPath(FullPath), /*Tree*/true);
 
-    const FVector P = GetActorLocation();
-    const FColor  LOSCol = bHasLOS ? FColor::Cyan : FColor::Red;
-
-    if (IsValid(TargetPlayer))
-        DrawDebugLine(World, P, TargetPlayer->GetActorLocation(), LOSCol, false, DebugDuration, 0, DebugThickness);
-
-    DrawDebugLine(World, P, P + Velocity * 0.05f, FColor::Green, false, DebugDuration, 0, DebugThickness);
-    DrawDebugLine(World, P, P + PrevVel * 0.05f, FColor::Silver, false, DebugDuration, 0, 1.0f);
-
-    DrawDebugCircle(World, P, ArriveRadius, 32, FColor::Yellow, false, DebugDuration, 0, DebugThickness, FVector(1, 0, 0), FVector(0, 1, 0), false);
-
-    if (bUseSeparation)
-        DrawDebugCircle(World, P, SeparationRadius, 32, FColor::Purple, false, DebugDuration, 0, 1.0f, FVector(1, 0, 0), FVector(0, 1, 0), false);
-
-    if (PathPoints.Num() > 0 && PathIndex < PathPoints.Num())
-    {
-        for (int32 i = PathIndex + 1; i < PathPoints.Num(); ++i)
-            DrawDebugLine(World, PathPoints[i - 1], PathPoints[i], FColor::Orange, false, DebugDuration, 0, 2.0f);
-
-        DrawDebugSphere(World, PathPoints[PathIndex], 16.f, 12, FColor::Orange, false, DebugDuration, 0, 1.0f);
-    }
-}
-
-/* ========== CSV & 카운트 ========= */
-
-/*FString ACHealOrb::CsvTargetName() const
-{
-    return IsValid(TargetPlayer) ? TargetPlayer->GetName() : TEXT("None");
-}
-
-void ACHealOrb::CsvLog_Spawn()
-{
-    HealOrbCSV::Write(GetWorld(), TEXT("spawn"), GetName(), CsvTargetName(), GetActorLocation().ToString(), TEXT(""));
-}
-void ACHealOrb::CsvLog_Detect(bool bBegin)
-{
-    HealOrbCSV::Write(GetWorld(), bBegin ? TEXT("detect_begin") : TEXT("detect_end"),
-        GetName(), CsvTargetName(), GetActorLocation().ToString(), TEXT(""));
-}
-void ACHealOrb::CsvLog_Repath(int32 NumPts)
-{
-    HealOrbCSV::Write(GetWorld(), TEXT("repath"), GetName(), CsvTargetName(), GetActorLocation().ToString(),
-        FString::Printf(TEXT("points=%d"), NumPts));
-}
-void ACHealOrb::CsvLog_Heal()
-{
-    HealOrbCSV::Write(GetWorld(), TEXT("heal"), GetName(), CsvTargetName(), GetActorLocation().ToString(),
-        FString::Printf(TEXT("amount=%.1f"), HealAmount));
-}
-void ACHealOrb::CsvLog_Expire(const TCHAR* Reason)
-{
-    HealOrbCSV::Write(GetWorld(), TEXT("expire"), GetName(), CsvTargetName(), GetActorLocation().ToString(), Reason);
-}*/
-
-/* ========== HUD 스냅샷 ========= */
-
-void ACHealOrb::GetDebugInfo(FHealOrbDebugInfo& Out) const
-{
-    Out.Name = GetName();
-    Out.bHasTarget = IsValid(TargetPlayer);
-    Out.bInDetect = bTargetInDetect;
-    Out.bHasLOS = bLastHasLOS;
-
-    Out.Dist2D = GetDistToTarget2D();
-    Out.PathIndex = PathIndex;
-    Out.PathNum = PathPoints.Num();
-
-    Out.Speed = Velocity.Size2D();
-    Out.MaxSpeedVal = MaxSpeed;
-    Out.AccelVal = Accel;
-
-    Out.LifeSec = LifeAcc;
-    Out.NoGroundFramesInt = NoGroundFrames;
-    Out.CheapTickAccSec = CheapTickAcc;
-
-    Out.Location = GetActorLocation();
-    Out.VelocityVec = Velocity;
-
-    Out.CurveMode = (uint8)SpeedCurveMode;
-    Out.CurvePreset = (uint8)SpeedCurvePreset;
-    Out.ArriveRadiusVal = ArriveRadius;
-    Out.TurnAssistVal = TurnAssist;
-    Out.DetectRadiusVal = DetectRadius;
-    Out.RepathIntervalVal = RepathInterval;
+    const FString Row = Line + TEXT("\n");
+    FFileHelper::SaveStringToFile(
+        Row, *FullPath,
+        FFileHelper::EEncodingOptions::AutoDetect,
+        &IFileManager::Get(),
+        FILEWRITE_Append
+    );
 }

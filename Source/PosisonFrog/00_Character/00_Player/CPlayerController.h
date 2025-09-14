@@ -30,7 +30,7 @@ public:
 
 protected:
     /** 커스텀 입력 컴포넌트(UCEnhancedInputComponent) 생성 지점 */
-    virtual void CreateInputComponent() ;
+    virtual void CreateInputComponent();
 
     virtual void BeginPlay() override;
     virtual void SetupInputComponent() override;
