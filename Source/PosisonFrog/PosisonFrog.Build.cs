@@ -17,9 +17,22 @@ public class PosisonFrog : ModuleRules
 			"Engine", 
 			"InputCore", 
 			"EnhancedInput",
-			"AnimGraphRuntime",  
+			"AnimGraphRuntime",
+			"NavigationSystem",
 			"AIModule",
-			"GameplayTags"
+			"GameplayTags",
+			"UMG",
+			"Niagara",
+			"Slate",        
+            "SlateCore"
+		});
+		
+		PrivateDependencyModuleNames.AddRange(new string[] 
+		{
+			"Slate", 
+			"SlateCore",   
+			"UMG",
+			"ToolMenus"
 		});
 	}
 }
