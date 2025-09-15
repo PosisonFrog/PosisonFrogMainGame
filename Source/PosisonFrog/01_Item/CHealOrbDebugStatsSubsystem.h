@@ -1,9 +1,10 @@
-﻿// Source/PosisonFrogMainGame/Public/Debug/HealOrbDebugStatsSubsystem.h
+// Fill out your copyright notice in the Description page of Project Settings.
+
 #pragma once
 
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
-#include "HealOrbDebugStatsSubsystem.generated.h"
+#include "CHealOrbDebugStatsSubsystem.generated.h"
 
 UENUM()
 enum class EHealOrbEvent : uint8
@@ -36,7 +37,7 @@ struct FHealOrbEventCounts
 };
 
 UCLASS()
-class POSISONFROG_API UHealOrbDebugStatsSubsystem : public UWorldSubsystem
+class POSISONFROG_API UCHealOrbDebugStatsSubsystem : public UWorldSubsystem
 {
 	GENERATED_BODY()
 public:

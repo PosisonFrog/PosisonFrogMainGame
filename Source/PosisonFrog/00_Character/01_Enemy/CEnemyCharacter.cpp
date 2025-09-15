@@ -3,9 +3,11 @@
 
 #include "00_Character/01_Enemy/CEnemyCharacter.h"
 
-#include "01_Item/CHealOrb.h"
+#include "01_Item/CHealOrbPoolSubsystem.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "Engine/CollisionProfile.h"
+#include "99_Util/CLog.h"
 
 ACEnemyCharacter::ACEnemyCharacter()
 {
@@ -345,21 +347,19 @@ void ACEnemyCharacter::Die()
 	EnterState(EEnemyState::Dead);
 
 	// 힐 오브 드랍(풀 우선)
-	/*const FVector SpawnLoc = GetActorLocation() + FVector(0, 0, 30.f);
+	const FVector  SpawnLoc = GetActorLocation();
 	const FRotator SpawnRot = FRotator::ZeroRotator;
-	ACPlayerCharacter* PC = Cast<ACPlayerCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));
-
-	if (UHealOrbPoolSubsystem* Pool = GetWorld()->GetSubsystem<UHealOrbPoolSubsystem>())
+	
+	if (UWorld* World = GetWorld())
 	{
-		Pool->Acquire(SpawnLoc, SpawnRot, PC);
+		if (UCHealOrbPoolSubsystem* Pool = GetGameInstance()->GetSubsystem<UCHealOrbPoolSubsystem>())
+		{
+			// 풀 초기 클래스가 지정되어 있어야 합니다(게임 시작 시 1회 SetOrbClass)
+			const FTransform Xform(SpawnRot, SpawnLoc);
+			AActor* PlayerPawn = UGameplayStatics::GetPlayerPawn(World, 0);
+			Pool->Acquire(World, Xform, PlayerPawn);
+		}
 	}
-	else
-	{
-		FActorSpawnParameters Params;
-		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
-		if (ACHealOrb* Orb = GetWorld()->SpawnActor<ACHealOrb>(ACHealOrb::StaticClass(), SpawnLoc, SpawnRot, Params))
-			Orb->ForceSetTarget(PC);
-	}*/
-
-	SetLifeSpan(5.f);
+	
+	Destroy();
 }

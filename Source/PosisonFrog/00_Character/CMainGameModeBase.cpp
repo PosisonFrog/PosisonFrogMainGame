@@ -3,6 +3,9 @@
 #include "CMainGameModeBase.h"
 #include "00_Character/00_Player/CPlayerController.h"
 #include "00_Character/00_Player/CPlayerCharacter.h"
+#include "01_Item/CHealOrb.h"
+#include "01_Item/CHealOrbPoolSubsystem.h"
+#include "99_Util/CLog.h"
 
 ACMainGameModeBase::ACMainGameModeBase()
 {
@@ -11,4 +14,15 @@ ACMainGameModeBase::ACMainGameModeBase()
 
 	// (선택) HUDClass = AYourHUD::StaticClass();
 	// (선택) bUseSeamlessTravel = false;
+}
+
+void ACMainGameModeBase::BeginPlay()
+{
+	Super::BeginPlay();
+
+	if (UCHealOrbPoolSubsystem* Pool = GetGameInstance()->GetSubsystem<UCHealOrbPoolSubsystem>())
+	{
+		Pool->SetOrbClass(HealOrbClass);
+		CLog::Log(TEXT("ACMainGameModeBase - HealOrb Pool 초기화 완료"));
+	}
 }

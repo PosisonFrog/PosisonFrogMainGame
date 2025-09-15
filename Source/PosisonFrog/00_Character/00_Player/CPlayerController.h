@@ -4,6 +4,8 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
+#include "01_Item/CHealOrbPoolSubsystem.h"
+#include "00_Character/00_Player/01_Widget/COrbHUDWidget.h"
 #include "CPlayerController.generated.h"
 
 struct FInputActionValue;
@@ -30,9 +32,10 @@ public:
 
 protected:
     /** 커스텀 입력 컴포넌트(UCEnhancedInputComponent) 생성 지점 */
-    virtual void CreateInputComponent() ;
+    virtual void CreateInputComponent();
 
     virtual void BeginPlay() override;
+    virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
     virtual void SetupInputComponent() override;
     virtual void OnPossess(APawn* InPawn) override;
     virtual void OnUnPossess() override;
@@ -43,6 +46,9 @@ protected:
     // ---- UI ----
     bool ShouldCreatePlayerWidget() const;
     void CreatePlayerWidget();
+
+    UFUNCTION()
+    void OnHealOrbCountersChanged(int32 ActiveOrbs, int32 TotalPicked);
 
     // ---- 입력 핸들러 (컨트롤러에서 받아 캐릭터 함수로 위임) ----
     UFUNCTION() void HandleMove(const FInputActionValue& Value);
@@ -60,7 +66,13 @@ protected:
     TSubclassOf<UCPlayerWidget> PlayerWidgetClass;
 
     UPROPERTY() // GC 안전
-        UCPlayerWidget* PlayerWidget = nullptr;
+    UCPlayerWidget* PlayerWidget = nullptr;
+
+    UPROPERTY(EditAnywhere, Category = "UI")
+    TSubclassOf<UCOrbHUDWidget> OrbHUDWidgetClass;
+
+    UPROPERTY()
+    UCOrbHUDWidget* OrbHUDWidget = nullptr;
 
     // ===== 입력(매핑/설정) =====
     UPROPERTY(EditDefaultsOnly, Category = "Input")
