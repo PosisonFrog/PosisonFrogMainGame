@@ -68,9 +68,7 @@ void UCDashComponent::EndDash_Internal()
     }
     
     RestorePhysicsOverrides();
-
-    StartCooldown();
-    MoveSpeedUp();
+    
 }
 
 void UCDashComponent::ApplyPhysicsOverrides()
@@ -111,29 +109,6 @@ void UCDashComponent::RestorePhysicsOverrides()
     }, 0.5f, false); // 0.5초 후 원래 값으로 복구
 }
 
-void UCDashComponent::StartCooldown()
-{
-    bIsOnCoolDown = true;
-    CooldownTimeRemaining = DashCooldown;
-
-    FTimerHandle CooldownTimer;
-    GetWorld()->GetTimerManager().SetTimer(CooldownTimer, [this]()
-    {
-        bIsOnCoolDown = false;
-        CooldownTimeRemaining = 0.0f;
-    }, DashCooldown, false);
-
-}
-
-void UCDashComponent::MoveSpeedUp()
-{
-    FTimerHandle MoveSpeedUpTimer;
-    MoveComp->MaxWalkSpeed = MaxSpeedUp;
-    GetWorld()->GetTimerManager().SetTimer(MoveSpeedUpTimer, [this]()
-    {
-        MoveComp->MaxWalkSpeed = Saved_DefaultMovementSpeed;
-    }, SpeedUpActiveTime, false);
-}
 
 void UCDashComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
