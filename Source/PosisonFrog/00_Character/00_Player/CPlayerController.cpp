@@ -72,12 +72,33 @@ void ACPlayerController::BeginPlay()
             }
         }
     }
-
+    
     // UI 생성은 로컬 컨트롤러 + 게임플레이 맵에서만
     if (IsLocalController() && ShouldCreatePlayerWidget())
     {
         CreatePlayerWidget();
     }
+
+    if (UCHealOrbPoolSubsystem* Pool = GetGameInstance()->GetSubsystem<UCHealOrbPoolSubsystem>())
+    {
+        Pool->OnCountersChanged.RemoveAll(this);
+        Pool->OnCountersChanged.AddDynamic(this, &ACPlayerController::OnHealOrbCountersChanged);
+
+        if (OrbHUDWidget)
+        {
+            OrbHUDWidget->UpdateCounters(Pool->GetActiveCount(), Pool->GetTotalPicked());
+        }
+    }
+}
+
+void ACPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+    if (UCHealOrbPoolSubsystem* Pool = GetGameInstance()->GetSubsystem<UCHealOrbPoolSubsystem>())
+    {
+        Pool->OnCountersChanged.RemoveDynamic(this, &ACPlayerController::OnHealOrbCountersChanged);
+    }
+
+    Super::EndPlay(EndPlayReason);
 }
 
 // ------------------------------------------------------------------
@@ -97,7 +118,7 @@ void ACPlayerController::SetupInputComponent()
         CLog::Log(TEXT("[PC] InputConfig(UCInputConfig)가 설정되지 않았습니다."));
         return;
     }
-
+    
     SetupInputBindings();
 }
 
@@ -201,6 +222,23 @@ void ACPlayerController::CreatePlayerWidget()
         {
             PlayerWidget->AddToViewport();
         }
+    }
+
+    if (OrbHUDWidgetClass && !OrbHUDWidget)
+    {
+        OrbHUDWidget = CreateWidget<UCOrbHUDWidget>(this, OrbHUDWidgetClass);
+        if (OrbHUDWidget)
+        {
+            OrbHUDWidget->AddToViewport();
+        }
+    }
+}
+
+void ACPlayerController::OnHealOrbCountersChanged(int32 ActiveOrbs, int32 TotalPicked)
+{
+    if (OrbHUDWidget)
+    {
+        OrbHUDWidget->UpdateCounters(ActiveOrbs, TotalPicked);
     }
 }
 

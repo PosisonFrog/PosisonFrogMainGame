@@ -4,9 +4,10 @@
 #include "00_Character/01_Enemy/CEnemyCharacter.h"
 
 #include "01_Item/CHealOrbPoolSubsystem.h"
-#include "99_Util/CLog.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "Engine/CollisionProfile.h"
+#include "99_Util/CLog.h"
 
 ACEnemyCharacter::ACEnemyCharacter()
 {

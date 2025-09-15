@@ -8,6 +8,7 @@
 
 class ACHealOrb;
 
+// 기존 : HUD/BP
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
 	FOnOrbCountersChanged, int32, ActiveOrbs, int32, TotalPicked);
 
