@@ -1,197 +1,236 @@
-
-
 #include "CPlayerCharacter.h"
 
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
-#include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 
-// 프로젝트 컴포넌트/유틸
-#include "00_Character/02_Component/CDashComponent.h"
+#include "00_Character/02_Component/CEnhancedInputComponent.h"
+#include "00_Character/02_Component/CGameplayTags.h"
 #include "00_Character/02_Component/CWeaponComponent.h"
+#include "00_Character/02_Component/CDashComponent.h"
 #include "00_Character/02_Component/CHealthComponent.h"
-#include "00_Character/02_Component/CEnhancedInputComponent.h"   // 커스텀 강화 입력
-#include "00_Character/02_Component/CGameplayTags.h"             // InputTag_Move/Look/Dash/Attack
-#include "01_Widget/CPlayerWidget.h"
-#include "99_Util/CLog.h"
+#include "00_Character/02_Component/CMovementBuffComponent.h"
 
-// ============================================================================
-// 생성자
-// ============================================================================
+#include "01_Widget/CPlayerWidget.h"
+#include "Blueprint/UserWidget.h"
+#include "GameFramework/PlayerController.h"
+#include "TimerManager.h"
+#include "Global.h" // CLog 등
+
 ACPlayerCharacter::ACPlayerCharacter()
 {
-	// 캡슐 크기
-	GetCapsuleComponent()->InitCapsuleSize(42.f, 96.0f);
+    // 캡슐
+    GetCapsuleComponent()->InitCapsuleSize(42.f, 96.f);
 
-	// 필수 서브오브젝트 생성 (생성자에서 보장)
-	DashComponent = CreateDefaultSubobject<UCDashComponent>(TEXT("DashComponent"));
-	check(DashComponent);
+    // ─ Components ─
+    DashComponent = CreateDefaultSubobject<UCDashComponent>(TEXT("DashComponent"));
+    check(DashComponent);
 
-	WeaponComponent = CreateDefaultSubobject<UCWeaponComponent>(TEXT("WeaponComponent"));
-	check(WeaponComponent);
+    WeaponComponent = CreateDefaultSubobject<UCWeaponComponent>(TEXT("WeaponComponent"));
+    check(WeaponComponent);
 
-	HealthComponent = CreateDefaultSubobject<UCHealthComponent>(TEXT("HealthComponent"));
-	check(HealthComponent);
+    HealthComponent = CreateDefaultSubobject<UCHealthComponent>(TEXT("HealthComponent"));
+    check(HealthComponent);
 
-	// 캐릭터 회전/이동 기본값
-	bUseControllerRotationPitch = false;
-	bUseControllerRotationYaw = false;
-	bUseControllerRotationRoll = false;
+    MovementBuffComponent = CreateDefaultSubobject<UCMovementBuffComponent>(TEXT("MovementBuff"));
+    check(MovementBuffComponent);
 
-	if (UCharacterMovementComponent* Move = GetCharacterMovement())
-	{
-		Move->bOrientRotationToMovement = true;
-		Move->RotationRate = FRotator(0.0f, 500.0f, 0.0f);
+    SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
+    check(SpringArm);
+    SpringArm->SetupAttachment(RootComponent);
+    SpringArm->TargetArmLength = 400.f;
+    SpringArm->bUsePawnControlRotation = true;
 
-		// 가속 및 제동
-		Move->MinAnalogWalkSpeed = 20.f;
-		Move->BrakingDecelerationWalking = 2000.f;
-		Move->BrakingDecelerationFalling = 1500.f;
-	}
+    PlayerCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
+    check(PlayerCamera);
+    PlayerCamera->SetupAttachment(SpringArm, USpringArmComponent::SocketName);
+    PlayerCamera->bUsePawnControlRotation = false;
 
-	// 카메라 붐
-	SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
-	SpringArm->SetupAttachment(RootComponent);
-	SpringArm->TargetArmLength = 400.0f;
-	SpringArm->bUsePawnControlRotation = true;
+    // 이동(3인칭 기본값)
+    bUseControllerRotationPitch = false;
+    bUseControllerRotationYaw = false;
+    bUseControllerRotationRoll = false;
 
-	// 추적 카메라
-	PlayerCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
-	PlayerCamera->SetupAttachment(SpringArm, USpringArmComponent::SocketName);
-	PlayerCamera->bUsePawnControlRotation = false;
+    if (UCharacterMovementComponent* Move = GetCharacterMovement())
+    {
+        Move->bOrientRotationToMovement = true;
+        Move->RotationRate = FRotator(0.f, 500.f, 0.f);
+        Move->MinAnalogWalkSpeed = 20.f;
+        Move->BrakingDecelerationWalking = 2000.f;
+        Move->BrakingDecelerationFalling = 1500.f;
+        Move->MaxWalkSpeed = WalkingSpeed; // 에디터에서 덮어씀
+    }
 }
 
-// ============================================================================
-// BeginPlay
-// ============================================================================
 void ACPlayerCharacter::BeginPlay()
 {
-	Super::BeginPlay();
+    Super::BeginPlay();
 
-	if (UCharacterMovementComponent* Move = GetCharacterMovement())
-	{
-		Move->MaxWalkSpeed = WalkingSpeed;
-	}
+    if (UCharacterMovementComponent* Move = GetCharacterMovement())
+    {
+        Move->MaxWalkSpeed = WalkingSpeed;
+    }
 
-	// 생성자에서 보장되지만, 회귀 방지를 위한 런타임 체크
-	ensureMsgf(DashComponent, TEXT("DashComponent is missing"));
-	ensureMsgf(WeaponComponent, TEXT("WeaponComponent is missing"));
-	ensureMsgf(HealthComponent, TEXT("HealthComponent is missing"));
+    // 버프 기준 속도 동기화
+    if (MovementBuffComponent)
+        MovementBuffComponent->SetBaseMaxWalkSpeed(WalkingSpeed);
 
-	// === Health UI 연동 ===
-	if (HealthComponent)
-	{
-		HealthComponent->OnHealthChanged.AddDynamic(this, &ACPlayerCharacter::HandleHealthChanged);
-	}
+    // 체력 이벤트 → HP UI 갱신
+    if (ensureMsgf(HealthComponent != nullptr, TEXT("HealthComponent missing")))
+        HealthComponent->OnHealthChanged.AddDynamic(this, &ACPlayerCharacter::HandleHealthChanged);
 
-	if (PlayerWidgetClass)
-	{
-		APlayerController* PC = Cast<APlayerController>(GetController());
-		if (!PC)
-		{
-			if (UWorld* World = GetWorld())
-				PC = World->GetFirstPlayerController();
-		}
+    // UI 생성
+    if (PlayerWidgetClass)
+    {
+        APlayerController* PC = Cast<APlayerController>(GetController());
+        if (!PC) PC = GetWorld()->GetFirstPlayerController();
 
-		PlayerWidget = CreateWidget<UCPlayerWidget>(PC, PlayerWidgetClass);
-		if (PlayerWidget)
-		{
-			PlayerWidget->AddToViewport();
-			UpdateHpUI(); // 초기 수치 반영
-		}
-	}
+        PlayerWidget = CreateWidget<UCPlayerWidget>(PC, PlayerWidgetClass);
+        if (PlayerWidget)
+        {
+            PlayerWidget->AddToViewport();
+            UpdateHpUI();
+            PlayerWidget->SetDashReady(); // 시작 상태
+        }
+        else
+        {
+            CLog::Log(TEXT("PlayerWidget create failed"));
+        }
+    }
 }
 
-// ============================================================================
-// 입력 바인딩 (커스텀 UCEnhancedInputComponent + 태그 기반)
-// ============================================================================
 void ACPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
-	Super::SetupPlayerInputComponent(PlayerInputComponent);
+    Super::SetupPlayerInputComponent(PlayerInputComponent);
 
-	UCEnhancedInputComponent* EIC = Cast<UCEnhancedInputComponent>(PlayerInputComponent);
-	checkf(EIC, TEXT("UCEnhancedInputComponent가 필요합니다. 입력 세팅을 확인하세요."));
-	checkf(InputConfig, TEXT("InputConfig(UCInputConfig)가 설정되지 않았습니다."));
+    UCEnhancedInputComponent* EIC = Cast<UCEnhancedInputComponent>(PlayerInputComponent);
+    checkf(EIC, TEXT("UCEnhancedInputComponent required"));
 
-	// Move / Look / Dash / Attack
-	EIC->BindActionByTag(InputConfig, CGameplayTags::InputTag_Move, ETriggerEvent::Triggered, this, &ACPlayerCharacter::Move);
-	EIC->BindActionByTag(InputConfig, CGameplayTags::InputTag_Look, ETriggerEvent::Triggered, this, &ACPlayerCharacter::Look);
-	EIC->BindActionByTag(InputConfig, CGameplayTags::InputTag_Dash, ETriggerEvent::Started, this, &ACPlayerCharacter::DashStart);
-	EIC->BindActionByTag(InputConfig, CGameplayTags::InputTag_Attack, ETriggerEvent::Started, this, &ACPlayerCharacter::Attack);
+    EIC->BindActionByTag(InputConfig, CGameplayTags::InputTag_Move, ETriggerEvent::Triggered, this, &ACPlayerCharacter::Move);
+    EIC->BindActionByTag(InputConfig, CGameplayTags::InputTag_Look, ETriggerEvent::Triggered, this, &ACPlayerCharacter::Look);
+    EIC->BindActionByTag(InputConfig, CGameplayTags::InputTag_Dash, ETriggerEvent::Started, this, &ACPlayerCharacter::DashStart);
+    EIC->BindActionByTag(InputConfig, CGameplayTags::InputTag_Attack, ETriggerEvent::Started, this, &ACPlayerCharacter::Attack);
 }
 
-// ============================================================================
-// 이동/시야
-// ============================================================================
+// ─ Input Handlers ─
 void ACPlayerCharacter::Move(const FInputActionValue& Value)
 {
-	const FVector2D Axis = Value.Get<FVector2D>();
-	if (!Controller) return;
+    const FVector2D Axis = Value.Get<FVector2D>();
+    if (!Controller) return;
 
-	const FRotator ControlRot = Controller->GetControlRotation();
-	const FRotator YawRot(0.f, ControlRot.Yaw, 0.f);
+    const FRotator ControlRot = Controller->GetControlRotation();
+    const FRotator YawRot(0.f, ControlRot.Yaw, 0.f);
 
-	const FVector Forward = FRotationMatrix(YawRot).GetUnitAxis(EAxis::X);
-	const FVector Right = FRotationMatrix(YawRot).GetUnitAxis(EAxis::Y);
+    const FVector Forward = FRotationMatrix(YawRot).GetUnitAxis(EAxis::X);
+    const FVector Right = FRotationMatrix(YawRot).GetUnitAxis(EAxis::Y);
 
-	AddMovementInput(Forward, Axis.Y);
-	AddMovementInput(Right, Axis.X);
+    AddMovementInput(Forward, Axis.Y);
+    AddMovementInput(Right, Axis.X);
 }
 
 void ACPlayerCharacter::Look(const FInputActionValue& Value)
 {
-	const FVector2D Axis = Value.Get<FVector2D>();
-	if (!Controller) return;
+    const FVector2D Axis = Value.Get<FVector2D>(); 
+    if (!Controller) return;
 
-	AddControllerYawInput(Axis.X);
-	AddControllerPitchInput(Axis.Y);
+    AddControllerYawInput(Axis.X);
+    AddControllerPitchInput(Axis.Y);
 }
 
-// ============================================================================
-// 액션: 대시 / 공격
-// ============================================================================
 void ACPlayerCharacter::DashStart()
 {
-	if (IsValid(DashComponent))
-	{
-		CLog::Log(TEXT("대시 시작 - 컴포넌트 사용 가능"));
-		DashComponent->StartDash(); // 내부에서 쿨다운/가속/물리감 처리
-	}
-	else
-	{
-		CLog::Log(TEXT("오류: DashComponent를 찾을 수 없습니다!"));
-		// 필요 시 FindComponentByClass<UCDashComponent>()로 보정 가능
-	}
+    if (!IsValid(DashComponent))
+    {
+        CLog::Log(TEXT("DashComponent missing"));
+        return;
+    }
+
+    // 쿨타임 중이면 무시
+    if (bDashOnCooldown)
+    {
+        CLog::Print(TEXT("Dash on cooldown"), -1, 0.6f, FColor::Cyan);
+        return;
+    }
+
+    // (1) 대시 실행
+    DashComponent->StartDash();
+
+    // (2) 6초 쿨타임 무조건 시작
+    bDashOnCooldown = true;
+    DashCooldownRemaining = DashCooldown;
+
+    GetWorldTimerManager().ClearTimer(TimerHandle_DashCooldown);
+    GetWorldTimerManager().SetTimer(
+        TimerHandle_DashCooldown,
+        this, &ACPlayerCharacter::ResetDashCooldown,
+        DashCooldown, false);
+
+    GetWorldTimerManager().ClearTimer(TimerHandle_DashUITick);
+    GetWorldTimerManager().SetTimer(
+        TimerHandle_DashUITick,
+        this, &ACPlayerCharacter::TickDashCooldownUI,
+        0.05f, true);
+
+    TickDashCooldownUI(); // 즉시 1회 갱신
+
+    // (3) 대시 후 이속 버프 2초(+15%)
+    if (MovementBuffComponent)
+        MovementBuffComponent->AddSpeedBuff(DashSpeedMultiplier, DashSpeedBuffDuration);
 }
 
 void ACPlayerCharacter::Attack()
 {
-	if (IsValid(WeaponComponent))
-	{
-		CLog::Log(TEXT("공격 시작 - 컴포넌트 사용 가능"));
-		WeaponComponent->DoAttack(); // 내부에서 콤보/애님 노티 윈도우 처리
-	}
+    if (IsValid(WeaponComponent))
+        WeaponComponent->DoAttack();
+    else
+        CLog::Log(TEXT("WeaponComponent missing"));
 }
 
-// ============================================================================
-// HP UI 연동
-// ============================================================================
+// ─ Health / UI ─
 void ACPlayerCharacter::HandleHealthChanged(float CurrentHealth, float MaxHealth)
 {
-	if (PlayerWidget)
-	{
-		PlayerWidget->UpdateHpBar(CurrentHealth, MaxHealth);
-	}
+    if (PlayerWidget)
+        PlayerWidget->UpdateHpBar(CurrentHealth, MaxHealth);
 }
 
 void ACPlayerCharacter::UpdateHpUI() const
 {
-	if (PlayerWidget && HealthComponent)
-	{
-		PlayerWidget->UpdateHpBar(HealthComponent->GetHealth(), HealthComponent->GetMaxHealth());
-	}
+    if (PlayerWidget && HealthComponent)
+        PlayerWidget->UpdateHpBar(HealthComponent->GetHealth(), HealthComponent->GetMaxHealth());
 }
-/* 중요 : UCEnhancedInputComponent, UCInputConfig, CGameplayTags, UCPlayerWidget, UCDashComponent, UCWeaponComponent, UCHealthComponent가 들어가야 프로젝트 적으로 안정성이 커집니다. 이 코드도 이게 존재한다고 가정하고 만들어진 코드입니다만 */
 
+// ─ Dash Cooldown Helpers ─
+void ACPlayerCharacter::ResetDashCooldown()
+{
+    bDashOnCooldown = false;
+    DashCooldownRemaining = 0.f;
+
+    GetWorldTimerManager().ClearTimer(TimerHandle_DashUITick);
+
+    if (PlayerWidget)
+        PlayerWidget->SetDashReady();
+}
+
+void ACPlayerCharacter::TickDashCooldownUI()
+{
+    DashCooldownRemaining = GetWorldTimerManager().GetTimerRemaining(TimerHandle_DashCooldown);
+    DashCooldownRemaining = FMath::Max(0.f, DashCooldownRemaining);
+
+    if (PlayerWidget)
+        PlayerWidget->UpdateDashCooldown(DashCooldownRemaining, DashCooldown);
+
+    if (DashCooldownRemaining <= KINDA_SMALL_NUMBER && bDashOnCooldown)
+        ResetDashCooldown();
+}
+
+
+void ACPlayerCharacter::PostInitializeComponents()
+{
+    Super::PostInitializeComponents();
+    
+    checkf(DashComponent != nullptr, TEXT("DashComponent missing"));
+    checkf(WeaponComponent != nullptr, TEXT("WeaponComponent missing"));
+    checkf(HealthComponent != nullptr, TEXT("HealthComponent missing"));
+    checkf(MovementBuffComponent != nullptr, TEXT("MovementBuffComponent missing"));
+}

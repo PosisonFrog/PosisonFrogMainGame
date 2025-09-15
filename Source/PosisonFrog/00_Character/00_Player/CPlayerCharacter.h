@@ -1,5 +1,3 @@
-
-
 #pragma once
 
 #include "CoreMinimal.h"
@@ -13,6 +11,7 @@ class UCDashComponent;
 class UCHealthComponent;
 class UCInputConfig;
 class UCPlayerWidget;
+class UCMovementBuffComponent;
 struct FInputActionValue;
 
 UCLASS(config = Game)
@@ -23,62 +22,81 @@ class POSISONFROG_API ACPlayerCharacter : public ACBaseCharacter
 public:
     ACPlayerCharacter();
 
-    /** Returns CameraBoom subobject */
-    FORCEINLINE USpringArmComponent* GetCameraBoom() const { return SpringArm; }
-    /** Returns FollowCamera subobject */
+    FORCEINLINE USpringArmComponent* GetCameraBoom()   const { return SpringArm; }
     FORCEINLINE UCameraComponent* GetFollowCamera() const { return PlayerCamera; }
 
 protected:
-    // 입력 바인딩
+    // ACharacter
     virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
-
-    // 생명주기
     virtual void BeginPlay() override;
+    virtual void PostInitializeComponents () override;
 
 public:
-    // 입력 핸들러 (Enhanced Input에서 바인딩)
-    void Move(const FInputActionValue& Value);
-    void Look(const FInputActionValue& Value);
-    void DashStart();
-    void Attack();
+    // ─ Input ─
+    UFUNCTION() void Move(const FInputActionValue& Value);
+    UFUNCTION() void Look(const FInputActionValue& Value);
+    UFUNCTION() void DashStart();    // ← 항상 쿨타임 부여
+    UFUNCTION() void Attack();
 
-    /** 입력 설정(프로젝트 전용 UCInputConfig) */
-    UPROPERTY(EditDefaultsOnly, Category = "Input")
-    UCInputConfig* InputConfig = nullptr;
-
-    /** 이동 기본 속도(튜닝값) */
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Movement", meta = (ClampMin = "0.0"))
-    float WalkingSpeed = 400.0f;
-
-    // === UI ===
 protected:
-    UPROPERTY(EditAnywhere, Category = "UI")
+    UPROPERTY(EditDefaultsOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
+    TObjectPtr<UCInputConfig> InputConfig = nullptr;
+
+    // ─ Movement Tunables ─
+    UPROPERTY(EditDefaultsOnly, Category = "Movement", meta = (ClampMin = "0", ForceUnits = "cm/s"))
+    float WalkingSpeed = 400.f;
+
+    // ─ UI ─
+    UPROPERTY(EditDefaultsOnly, Category = "UI", meta = (AllowPrivateAccess = "true"))
     TSubclassOf<UCPlayerWidget> PlayerWidgetClass;
 
-    UPROPERTY() // GC 안전
-        UCPlayerWidget* PlayerWidget = nullptr;
+    UPROPERTY(Transient, meta = (AllowPrivateAccess = "true"))
+    TObjectPtr<UCPlayerWidget> PlayerWidget = nullptr;
 
-    UFUNCTION()
-    void HandleHealthChanged(float CurrentHealth, float MaxHealth);
-
+    UFUNCTION() void HandleHealthChanged(float CurrentHealth, float MaxHealth);
     void UpdateHpUI() const;
 
-    // === 컴포넌트 ===
-protected:
+    // ─ Dash Cooldown ─
+    UPROPERTY(EditDefaultsOnly, Category = "Dash", meta = (ClampMin = "0"))
+    float DashCooldown = 6.0f;               // 기본 6초
+
+    UPROPERTY(VisibleInstanceOnly, Category = "Dash")
+    bool bDashOnCooldown = false;
+
+    UPROPERTY(VisibleInstanceOnly, Category = "Dash")
+    float DashCooldownRemaining = 0.f;
+
+    FTimerHandle TimerHandle_DashCooldown;   // 만료 타이머
+    FTimerHandle TimerHandle_DashUITick;     // UI 20Hz
+
+    UFUNCTION() void ResetDashCooldown();
+    UFUNCTION() void TickDashCooldownUI();
+
+    // ─ Dash 후 이속 버프 ─
+    UPROPERTY(EditDefaultsOnly, Category = "Dash", meta = (ClampMin = "1.0"))
+    float DashSpeedMultiplier = 1.3f;       // +30%
+
+    UPROPERTY(EditDefaultsOnly, Category = "Dash", meta = (ClampMin = "0"))
+    float DashSpeedBuffDuration = 2.0f;      // 2초
+
+    // ─ Components ─
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
-    UCDashComponent* DashComponent = nullptr;
+    TObjectPtr<UCDashComponent> DashComponent = nullptr;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
-    UCWeaponComponent* WeaponComponent = nullptr;
+    TObjectPtr<UCWeaponComponent> WeaponComponent = nullptr;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
-    UCHealthComponent* HealthComponent = nullptr;
+    TObjectPtr<UCHealthComponent> HealthComponent = nullptr;
 
-    // === 카메라 ===
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera", meta = (AllowPrivateAccess = "true"))
-    USpringArmComponent* SpringArm = nullptr;
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+    TObjectPtr<UCMovementBuffComponent> MovementBuffComponent = nullptr;
 
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera", meta = (AllowPrivateAccess = "true"))
-    UCameraComponent* PlayerCamera = nullptr;
+    // Camera
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Camera", meta = (AllowPrivateAccess = "true"))
+    TObjectPtr<USpringArmComponent> SpringArm = nullptr;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Camera", meta = (AllowPrivateAccess = "true"))
+    TObjectPtr<UCameraComponent> PlayerCamera = nullptr;
 };
 
