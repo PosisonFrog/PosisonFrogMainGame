@@ -54,8 +54,7 @@ private:
     void EndDash_Internal();
     void ApplyPhysicsOverrides();
     void RestorePhysicsOverrides();
-    void StartCooldown();
-    void MoveSpeedUp();
+
 
 private:
     UPROPERTY() ACharacter* OwnerChar = nullptr;
