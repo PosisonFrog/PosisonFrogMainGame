@@ -23,9 +23,6 @@ void ACMainGameModeBase::BeginPlay()
 	if (UCHealOrbPoolSubsystem* Pool = GetGameInstance()->GetSubsystem<UCHealOrbPoolSubsystem>())
 	{
 		Pool->SetOrbClass(HealOrbClass);
-
-		Pool->Prewarm(GetWorld(), 20);
-		
 		CLog::Log(TEXT("ACMainGameModeBase - HealOrb Pool 초기화 완료"));
 	}
 }
