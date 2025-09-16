@@ -218,7 +218,9 @@ void ACPlayerCharacter::TickDashCooldownUI()
     DashCooldownRemaining = FMath::Max(0.f, DashCooldownRemaining);
 
     if (PlayerWidget)
+    {
         PlayerWidget->UpdateDashCooldown(DashCooldownRemaining, DashCooldown);
+    }
 
     if (DashCooldownRemaining <= KINDA_SMALL_NUMBER && bDashOnCooldown)
         ResetDashCooldown();

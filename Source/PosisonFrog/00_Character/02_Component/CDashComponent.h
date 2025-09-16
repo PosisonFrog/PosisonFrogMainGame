@@ -7,6 +7,8 @@
 class UCharacterMovementComponent;
 class ACharacter;
 
+
+
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class POSISONFROG_API UCDashComponent : public UActorComponent
 {
@@ -14,7 +16,7 @@ class POSISONFROG_API UCDashComponent : public UActorComponent
 
 public:
     UCDashComponent();
-
+    
     // 대시 시작(이미 대시 중이면 무시)
     void StartDash();
 

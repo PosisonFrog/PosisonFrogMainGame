@@ -1,6 +1,7 @@
 #include "CPlayerWidget.h"
 
 #include "CPlayerHpBarWidget.h"
+#include "CSkillUIWidget.h"
 #include "Components/TextBlock.h"
 #include "Components/ProgressBar.h"
 
@@ -24,14 +25,17 @@ void UCPlayerWidget::UpdateDashCooldown(float RemainingSeconds, float TotalSecon
 		DashCooldownText->SetVisibility(ESlateVisibility::HitTestInvisible);
 	}
 
-	if (DashCooldownBar)
+	if (WBP_DashSkillUI)
 	{
-		float Ratio = 0.f;
+		float CurrentTime = 0.f;
 		if (TotalSeconds > 0.f)
-			Ratio = FMath::Clamp(RemainingSeconds / TotalSeconds, 0.f, 1.f);
+		{
+			const float Ratio = FMath::Clamp(RemainingSeconds / TotalSeconds, 0.f, 1.f);
+			CurrentTime = 1.0f - Ratio;
+		}
 
-		DashCooldownBar->SetPercent(Ratio);
-		DashCooldownBar->SetVisibility(ESlateVisibility::HitTestInvisible);
+		WBP_DashSkillUI->UpdateCoolDownUI(CurrentTime, TotalSeconds);
+		//WBP_DashSkillUI->SetVisibility(ESlateVisibility::HitTestInvisible);
 	}
 }
 
@@ -42,10 +46,11 @@ void UCPlayerWidget::SetDashReady()
 		DashCooldownText->SetText(FText::FromString(TEXT("READY")));
 		DashCooldownText->SetVisibility(ESlateVisibility::HitTestInvisible);
 	}
-	if (DashCooldownBar)
+	
+	if (WBP_DashSkillUI)
 	{
-		DashCooldownBar->SetPercent(0.f);
-		DashCooldownBar->SetVisibility(ESlateVisibility::Collapsed);
+		WBP_DashSkillUI->FinishCoolDown();
+		//WBP_DashSkillUI->SetVisibility(ESlateVisibility::Collapsed);
 	}
 }
 

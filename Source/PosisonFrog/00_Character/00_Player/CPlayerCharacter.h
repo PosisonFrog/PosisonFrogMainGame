@@ -24,7 +24,7 @@ public:
 
     FORCEINLINE USpringArmComponent* GetCameraBoom()   const { return SpringArm; }
     FORCEINLINE UCameraComponent* GetFollowCamera() const { return PlayerCamera; }
-
+    
 protected:
     // ACharacter
     virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
