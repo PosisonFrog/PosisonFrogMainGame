@@ -4,7 +4,7 @@
 #include "Blueprint/UserWidget.h"
 #include "CPlayerWidget.generated.h"
 
-class UCSkillUIWidget;
+class UCSkillIconUIWidget;
 class UTextBlock;
 class UProgressBar;
 class UCPlayerHpBarWidget;
@@ -24,13 +24,13 @@ public:
 
 protected:
 	// UMG 자산에 동일한 이름의 위젯이 있으면 자동 바인딩(옵션)
-	UPROPERTY(meta = (BindWidgetOptional))
+	UPROPERTY(EditDefaultsOnly, meta = (BindWidgetOptional))
 	UTextBlock* DashCooldownText = nullptr;
-	UPROPERTY(meta = (BindWidgetOptional))
-	UCSkillUIWidget* WBP_DashSkillUI = nullptr;
+	UPROPERTY(EditDefaultsOnly, meta = (BindWidgetOptional))
+	UCSkillIconUIWidget* WBP_DashSkillIconUIWidget = nullptr;
 
 	// 필요하면 HP 바도 BindWidgetOptional 추가
-	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, meta=(BindWidget))
+	UPROPERTY(EditDefaultsOnly, meta=(BindWidget))
 	TObjectPtr<UCPlayerHpBarWidget> WBP_PlayerHpBar;
 };
 

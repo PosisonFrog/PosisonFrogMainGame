@@ -4,8 +4,9 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
-#include "CSkillUIWidget.generated.h"
+#include "CSkillIconUIWidget.generated.h"
 
+class UNiagaraSystem;
 class UImage;
 class UProgressBar;
 
@@ -13,7 +14,7 @@ class UProgressBar;
  * 
  */
 UCLASS()
-class POSISONFROG_API UCSkillUIWidget : public UUserWidget
+class POSISONFROG_API UCSkillIconUIWidget : public UUserWidget
 {
 	GENERATED_BODY()
 	
@@ -27,8 +28,21 @@ private:
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UProgressBar> CoolTimeBar;
 
-	// 애니메이션 및 이펙트, 사운드 변수 필요
+	// 애니메이션 변수 / 흐으으음..... 필요하다면?????
+	
+	// SFX(사운드), VFX(이펙트) 변수
+	UPROPERTY(Transient, meta = (BindWidgetAnimOptional))
+	USoundBase* SFX_CoolTimeFinished = nullptr;
 
+	UPROPERTY(Transient, meta = (BindWidgetAnimOptional))
+	USoundBase* SFX_CoolTimeBlocked = nullptr;
+
+	// 쿨타임 완료되면 플레이어한테도 뭔가 이펙트 출력 괜찮다고 생각해서 한번 작성해봅니다.
+	UPROPERTY(Transient, meta = (BindWidgetAnimOptional))
+	UNiagaraSystem* VFX_CoolTimeFinishedOnPlayer = nullptr;
+
+	// 생각해보니 UI 위에 이펙트 출력 관련으로 동인님한테 물어보고 싶은게 있어요!
+	
 public:
 	// 쿨타임이 진행중 Bar가 업데이트 되는 코드가 필요
 	UFUNCTION()

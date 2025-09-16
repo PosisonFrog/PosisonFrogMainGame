@@ -1,7 +1,7 @@
 #include "CPlayerWidget.h"
 
 #include "CPlayerHpBarWidget.h"
-#include "CSkillUIWidget.h"
+#include "CSkillIconUIWidget.h"
 #include "Components/TextBlock.h"
 #include "Components/ProgressBar.h"
 
@@ -25,7 +25,7 @@ void UCPlayerWidget::UpdateDashCooldown(float RemainingSeconds, float TotalSecon
 		DashCooldownText->SetVisibility(ESlateVisibility::HitTestInvisible);
 	}
 
-	if (WBP_DashSkillUI)
+	if (WBP_DashSkillIconUIWidget)
 	{
 		float CurrentTime = 0.f;
 		if (TotalSeconds > 0.f)
@@ -34,7 +34,7 @@ void UCPlayerWidget::UpdateDashCooldown(float RemainingSeconds, float TotalSecon
 			CurrentTime = 1.0f - Ratio;
 		}
 
-		WBP_DashSkillUI->UpdateCoolDownUI(CurrentTime, TotalSeconds);
+		WBP_DashSkillIconUIWidget->UpdateCoolDownUI(CurrentTime, TotalSeconds);
 		//WBP_DashSkillUI->SetVisibility(ESlateVisibility::HitTestInvisible);
 	}
 }
@@ -47,9 +47,9 @@ void UCPlayerWidget::SetDashReady()
 		DashCooldownText->SetVisibility(ESlateVisibility::HitTestInvisible);
 	}
 	
-	if (WBP_DashSkillUI)
+	if (WBP_DashSkillIconUIWidget)
 	{
-		WBP_DashSkillUI->FinishCoolDown();
+		WBP_DashSkillIconUIWidget->FinishCoolDown();
 		//WBP_DashSkillUI->SetVisibility(ESlateVisibility::Collapsed);
 	}
 }
