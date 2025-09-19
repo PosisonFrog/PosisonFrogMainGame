@@ -31,10 +31,19 @@ void UCWeaponComponent::BeginPlay()
     }
 
     SpawnWeapon();
+
+    if (Hammer)
+    {
+        Hammer->OnHammerHit.AddDynamic(this, &UCWeaponComponent::HandleHammerHit);
+    }
+}
+
+void UCWeaponComponent::HandleHammerHit(AActor* InstigatorActor, AActor* HitActor, float Damage, FHitResult Hit)
+{
+    OnWeaponHit.Broadcast(HitActor, Damage);
 }
 
 /* ============ 무기 스폰/부착 ============ */
-
 void UCWeaponComponent::SpawnWeapon()
 {
     UWorld* World = GetWorld();

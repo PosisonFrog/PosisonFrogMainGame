@@ -3,8 +3,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Blueprint/UserWidget.h"
-#include "CSkillIconUIWidget.generated.h"
+#include "00_Character/00_Player/01_Widget/CSkillIconBaseWidget.h"
+#include "CTimeCooldownSkillIconWidget.generated.h"
 
 class UNiagaraSystem;
 class UImage;
@@ -14,7 +14,7 @@ class UProgressBar;
  * 
  */
 UCLASS()
-class POSISONFROG_API UCSkillIconUIWidget : public UUserWidget
+class POSISONFROG_API UCTimeCooldownSkillIconWidget : public UCSkillIconBaseWidget
 {
 	GENERATED_BODY()
 	
@@ -22,12 +22,6 @@ protected:
 	virtual void NativeConstruct() override;
 	
 private:
-	UPROPERTY(meta = (BindWidget))
-	TObjectPtr<UImage> SkillICon;
-	
-	UPROPERTY(meta = (BindWidget))
-	TObjectPtr<UProgressBar> CoolTimeBar;
-
 	// 애니메이션 변수 / 흐으으음..... 필요하다면?????
 	
 	// SFX(사운드), VFX(이펙트) 변수

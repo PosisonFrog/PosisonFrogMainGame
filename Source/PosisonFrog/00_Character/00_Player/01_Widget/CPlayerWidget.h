@@ -1,10 +1,12 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "00_Character/00_Player/CPlayerCharacter.h"
 #include "Blueprint/UserWidget.h"
 #include "CPlayerWidget.generated.h"
 
-class UCSkillIconUIWidget;
+class UCUltimateSkillIconWidget;
+class UCTimeCooldownSkillIconWidget;
 class UTextBlock;
 class UProgressBar;
 class UCPlayerHpBarWidget;
@@ -22,12 +24,19 @@ public:
 	UFUNCTION(BlueprintCallable) void UpdateDashCooldown(float RemainingSeconds, float TotalSeconds);
 	UFUNCTION(BlueprintCallable) void SetDashReady();
 
+	// 궁극기 UI
+	UFUNCTION(BlueprintCallable) void SetUltimatePoints(float UltimateCurrentPoints, float UltimateMaxPoints);
+
 protected:
 	// UMG 자산에 동일한 이름의 위젯이 있으면 자동 바인딩(옵션)
+	// === Skill UI 관련 ===
 	UPROPERTY(EditDefaultsOnly, meta = (BindWidgetOptional))
 	UTextBlock* DashCooldownText = nullptr;
 	UPROPERTY(EditDefaultsOnly, meta = (BindWidgetOptional))
-	UCSkillIconUIWidget* WBP_DashSkillIconUIWidget = nullptr;
+	UCTimeCooldownSkillIconWidget* WBP_DashSkillIconWidget = nullptr;
+
+	UPROPERTY(EditDefaultsOnly, meta = (BindWidgetOptional))
+	UCUltimateSkillIconWidget* WBP_UltimateSkillIconWidget = nullptr;
 
 	// 필요하면 HP 바도 BindWidgetOptional 추가
 	UPROPERTY(EditDefaultsOnly, meta=(BindWidget))

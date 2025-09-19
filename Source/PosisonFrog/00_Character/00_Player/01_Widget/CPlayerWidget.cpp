@@ -1,7 +1,8 @@
 #include "CPlayerWidget.h"
 
 #include "CPlayerHpBarWidget.h"
-#include "CSkillIconUIWidget.h"
+#include "CTimeCooldownSkillIconWidget.h"
+#include "CUltimateSkillIconWidget.h"
 #include "Components/TextBlock.h"
 #include "Components/ProgressBar.h"
 
@@ -25,7 +26,7 @@ void UCPlayerWidget::UpdateDashCooldown(float RemainingSeconds, float TotalSecon
 		DashCooldownText->SetVisibility(ESlateVisibility::HitTestInvisible);
 	}
 
-	if (WBP_DashSkillIconUIWidget)
+	if (WBP_DashSkillIconWidget)
 	{
 		float CurrentTime = 0.f;
 		if (TotalSeconds > 0.f)
@@ -34,7 +35,7 @@ void UCPlayerWidget::UpdateDashCooldown(float RemainingSeconds, float TotalSecon
 			CurrentTime = 1.0f - Ratio;
 		}
 
-		WBP_DashSkillIconUIWidget->UpdateCoolDownUI(CurrentTime, TotalSeconds);
+		WBP_DashSkillIconWidget->UpdateCoolDownUI(CurrentTime, TotalSeconds);
 		//WBP_DashSkillUI->SetVisibility(ESlateVisibility::HitTestInvisible);
 	}
 }
@@ -47,10 +48,23 @@ void UCPlayerWidget::SetDashReady()
 		DashCooldownText->SetVisibility(ESlateVisibility::HitTestInvisible);
 	}
 	
-	if (WBP_DashSkillIconUIWidget)
+	if (WBP_DashSkillIconWidget)
 	{
-		WBP_DashSkillIconUIWidget->FinishCoolDown();
+		WBP_DashSkillIconWidget->FinishCoolDown();
 		//WBP_DashSkillUI->SetVisibility(ESlateVisibility::Collapsed);
+	}
+}
+
+void UCPlayerWidget::SetUltimatePoints(float UltimateCurrentPoints, float UltimateMaxPoints)
+{
+	if (UltimateCurrentPoints > UltimateMaxPoints)
+		return;
+	
+	const float Ratio = UltimateCurrentPoints / UltimateMaxPoints;
+
+	if (WBP_UltimateSkillIconWidget)
+	{
+		WBP_UltimateSkillIconWidget->SetRatio(Ratio);
 	}
 }
 

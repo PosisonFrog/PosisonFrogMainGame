@@ -1,7 +1,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "00_Character/00_Player/01_Widget/CSkillIconUIWidget.h"
+#include "00_Character/00_Player/01_Widget/CTimeCooldownSkillIconWidget.h"
 
 #include "NiagaraFunctionLibrary.h"
 #include "Blueprint/WidgetTree.h"
@@ -9,36 +9,36 @@
 #include "Components/ProgressBar.h"
 #include "Kismet/GameplayStatics.h"
 
-void UCSkillIconUIWidget::NativeConstruct()
+void UCTimeCooldownSkillIconWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
 }
 
-void UCSkillIconUIWidget::UpdateCoolDownUI(float CurrentTime, float MaxTime)
+void UCTimeCooldownSkillIconWidget::UpdateCoolDownUI(float CurrentTime, float MaxTime)
 {
-	if (!SkillICon || !CoolTimeBar)
+	if (!SkillIcon || !SkillBar)
 		return;
 	
-	CoolTimeBar->SetPercent(FMath::Clamp(CurrentTime, 0.f, MaxTime));
+	SkillBar->SetPercent(FMath::Clamp(CurrentTime, 0.f, MaxTime));
 
 	// 이미지 색 변화를 최적화 하기 위해
 	if (CurrentTime < 1.0f - KINDA_SMALL_NUMBER && !bIsCoolDown)
 	{
 		bIsCoolDown = true;
-		SkillICon->SetColorAndOpacity(FLinearColor(0.15f, 0.15f, 0.15f, 1.0f));
+		SkillIcon->SetColorAndOpacity(FLinearColor(0.15f, 0.15f, 0.15f, 1.0f));
 	}
 }
 
-void UCSkillIconUIWidget::FinishCoolDown()
+void UCTimeCooldownSkillIconWidget::FinishCoolDown()
 {
-	if (!SkillICon || !CoolTimeBar)
+	if (!SkillIcon || !SkillBar)
 		return;
-
-	CoolTimeBar->SetPercent(0.0f);
+ 	
+	SkillBar->SetPercent(0.0f);
 	bIsCoolDown = false;
 
 	// 이미지 변화 및 이펙트, 애니메이션이 출력되는 코드가 필요함
-	SkillICon->SetColorAndOpacity(FLinearColor(1.0f, 1.0f, 1.0f, 1.0f));
+	SkillIcon->SetColorAndOpacity(FLinearColor(1.0f, 1.0f, 1.0f, 1.0f));
 	
 	// 쿨타임 끝 사운드 출력
 	if (SFX_CoolTimeFinished)

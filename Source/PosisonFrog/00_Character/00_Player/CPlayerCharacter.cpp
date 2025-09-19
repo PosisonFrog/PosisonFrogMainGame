@@ -98,6 +98,11 @@ void ACPlayerCharacter::BeginPlay()
             CLog::Log(TEXT("PlayerWidget create failed"));
         }
     }
+
+    if (WeaponComponent)
+    {
+        WeaponComponent->OnWeaponHit.AddDynamic(this, &ACPlayerCharacter::AddUltimatePoint);
+    }
 }
 
 void ACPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -224,6 +229,13 @@ void ACPlayerCharacter::TickDashCooldownUI()
         ResetDashCooldown();
 }
 
+void ACPlayerCharacter::AddUltimatePoint(AActor* HitActor, float Damage)
+{
+    UltimateCurrentPoints = FMath::Clamp(UltimateCurrentPoints + 10, 0, UltimateMaxPoints);
+
+    if (PlayerWidget)
+        PlayerWidget->SetUltimatePoints(UltimateCurrentPoints, UltimateMaxPoints);
+}
 
 void ACPlayerCharacter::PostInitializeComponents()
 {

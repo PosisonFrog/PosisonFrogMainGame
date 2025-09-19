@@ -30,14 +30,17 @@ protected:
     virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
     virtual void BeginPlay() override;
     virtual void PostInitializeComponents () override;
-
+    
 public:
     // ─ Input ─
     UFUNCTION() void Move(const FInputActionValue& Value);
     UFUNCTION() void Look(const FInputActionValue& Value);
-    UFUNCTION() void DashStart();    // ← 항상 쿨타임 부여
-    UFUNCTION() void Attack();
 
+    // ─ Skill ─
+    UFUNCTION() void DashStart();    // ← 항상 쿨타임 부여
+    
+    UFUNCTION() void Attack();
+    
 protected:
     UPROPERTY(EditDefaultsOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
     TObjectPtr<UCInputConfig> InputConfig = nullptr;
@@ -79,6 +82,16 @@ protected:
     UPROPERTY(EditDefaultsOnly, Category = "Dash", meta = (ClampMin = "0"))
     float DashSpeedBuffDuration = 2.0f;      // 2초
 
+    // ─ 궁극기 (버프) ─
+    UPROPERTY(EditDefaultsOnly, Category = "Ultimate")
+    float UltimateMaxPoints = 100.0f;
+    
+    UPROPERTY(EditDefaultsOnly, Category = "Ultimate")
+    float UltimateCurrentPoints = 0.0f;
+
+    UFUNCTION(BlueprintCallable)
+    void AddUltimatePoint(AActor* HitActor, float Damage);
+    
     // ─ Components ─
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
     TObjectPtr<UCDashComponent> DashComponent = nullptr;
