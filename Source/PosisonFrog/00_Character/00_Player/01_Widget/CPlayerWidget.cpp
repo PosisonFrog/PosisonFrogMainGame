@@ -55,7 +55,7 @@ void UCPlayerWidget::SetDashReady()
 	}
 }
 
-void UCPlayerWidget::SetUltimatePoints(float UltimateCurrentPoints, float UltimateMaxPoints)
+void UCPlayerWidget::SetUltimatePoints(float UltimateCurrentPoints, float UltimateMaxPoints, int32 UltimateStack)
 {
 	if (UltimateCurrentPoints > UltimateMaxPoints)
 		return;
@@ -64,7 +64,7 @@ void UCPlayerWidget::SetUltimatePoints(float UltimateCurrentPoints, float Ultima
 
 	if (WBP_UltimateSkillIconWidget)
 	{
-		WBP_UltimateSkillIconWidget->SetRatio(Ratio);
+		WBP_UltimateSkillIconWidget->SetUltimateUI(Ratio, UltimateStack);
 	}
 }
 

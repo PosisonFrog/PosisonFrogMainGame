@@ -231,10 +231,35 @@ void ACPlayerCharacter::TickDashCooldownUI()
 
 void ACPlayerCharacter::AddUltimatePoint(AActor* HitActor, float Damage)
 {
-    UltimateCurrentPoints = FMath::Clamp(UltimateCurrentPoints + 10, 0, UltimateMaxPoints);
+    CalculateUltimatePoint(Damage);
 
+    
     if (PlayerWidget)
-        PlayerWidget->SetUltimatePoints(UltimateCurrentPoints, UltimateMaxPoints);
+        PlayerWidget->SetUltimatePoints(UltimateCurrentPoints, UltimateMaxPoints, UltimateStack);
+}
+
+void ACPlayerCharacter::CalculateUltimatePoint(float AttackDamage)
+{
+    if (UltimateStack >= UltimateMaxStacks && UltimateCurrentPoints >= UltimateMaxPoints)
+        return;
+    
+    float Total = UltimateCurrentPoints + AttackDamage * 2;
+    
+    int32 NewStack = FMath::FloorToInt(Total / UltimateMaxPoints);
+    float Remainder = FMath::Fmod(Total, UltimateMaxPoints);
+
+    UltimateStack += NewStack;
+
+    // 최대 스택 초과 방지
+    if (UltimateStack >= UltimateMaxStacks)
+    {
+        UltimateStack = UltimateMaxStacks;
+        UltimateCurrentPoints = UltimateMaxPoints;
+    }
+    else
+    {
+        UltimateCurrentPoints = Remainder;
+    }
 }
 
 void ACPlayerCharacter::PostInitializeComponents()

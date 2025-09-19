@@ -83,14 +83,23 @@ protected:
     float DashSpeedBuffDuration = 2.0f;      // 2초
 
     // ─ 궁극기 (버프) ─
-    UPROPERTY(EditDefaultsOnly, Category = "Ultimate")
-    float UltimateMaxPoints = 100.0f;
-    
+    // 임의로 스택 +1은 100으로 설정
     UPROPERTY(EditDefaultsOnly, Category = "Ultimate")
     float UltimateCurrentPoints = 0.0f;
+    
+    UPROPERTY(EditDefaultsOnly, Category = "Ultimate")
+    float UltimateMaxPoints = 100.0f;
 
+    UPROPERTY(EditDefaultsOnly, Category = "Ultimate")
+    int32 UltimateStack = 0;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Ultimate")
+    int32 UltimateMaxStacks = 3;
+    
     UFUNCTION(BlueprintCallable)
     void AddUltimatePoint(AActor* HitActor, float Damage);
+
+    void CalculateUltimatePoint(float AttackDamage);
     
     // ─ Components ─
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))

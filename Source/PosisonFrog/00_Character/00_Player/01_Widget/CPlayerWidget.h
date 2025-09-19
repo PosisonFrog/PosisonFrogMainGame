@@ -25,7 +25,8 @@ public:
 	UFUNCTION(BlueprintCallable) void SetDashReady();
 
 	// 궁극기 UI
-	UFUNCTION(BlueprintCallable) void SetUltimatePoints(float UltimateCurrentPoints, float UltimateMaxPoints);
+	UFUNCTION(BlueprintCallable)
+	void SetUltimatePoints(float UltimateCurrentPoints, float UltimateMaxPoints, int32 UltimateStack);
 
 protected:
 	// UMG 자산에 동일한 이름의 위젯이 있으면 자동 바인딩(옵션)
