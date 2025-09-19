@@ -31,10 +31,6 @@ void UCUltimateSkillIconWidget::SetUltimateUI(float Ratio, int32 UltimateStack)
 	if (StackBars.Num() == 0)
 		return;
 
-	const int32 Max = FMath::Min<int32>(StackBars.Num(), MaxStacks);
-	const int32 Stacks = FMath::Clamp(UltimateStack, 0, Max);
-	const float R = FMath::Clamp(Ratio, 0.0f, 1.0f);
-
 	for (int32 i = 0; i < StackBars.Num(); i++)
 	{
 		if (!StackBars[i])

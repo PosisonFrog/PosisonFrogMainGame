@@ -37,26 +37,5 @@ void UCTimeCooldownSkillIconWidget::FinishCoolDown()
 	SkillBar->SetPercent(0.0f);
 	bIsCoolDown = false;
 
-	// 이미지 변화 및 이펙트, 애니메이션이 출력되는 코드가 필요함
 	SkillIcon->SetColorAndOpacity(FLinearColor(1.0f, 1.0f, 1.0f, 1.0f));
-	
-	// 쿨타임 끝 사운드 출력
-	if (SFX_CoolTimeFinished)
-		UGameplayStatics::PlaySound2D(this, SFX_CoolTimeFinished);
-
-	// 간단하게 플레이어 발밑에 한번 스폰하게....?
-	if (VFX_CoolTimeFinishedOnPlayer)
-	{
-		if (APlayerController* PC = GetOwningPlayer())
-		{
-			if (APawn* Pawn = PC->GetPawn())
-			{
-				UNiagaraFunctionLibrary::SpawnSystemAtLocation(
-					GetWorld(),
-					VFX_CoolTimeFinishedOnPlayer,
-					Pawn->GetActorLocation(),
-					Pawn->GetActorRotation());
-			}
-		}
-	}
 }

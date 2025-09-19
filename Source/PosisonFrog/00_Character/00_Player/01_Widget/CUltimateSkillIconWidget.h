@@ -32,6 +32,8 @@ public:
 	void SetUltimateUI(float Ratio, int32 UltimateStack);
 
 private:
+	UPROPERTY()
 	TArray<UProgressBar*> StackBars;
+
 	static constexpr int32 MaxStacks = 3;
 };
