@@ -23,6 +23,8 @@ void UCDashComponent::StartDash()
     if (bIsOnCoolDown) return;
 
     BeginDash_Internal();
+
+    
 }
 
 void UCDashComponent::BeginDash_Internal()

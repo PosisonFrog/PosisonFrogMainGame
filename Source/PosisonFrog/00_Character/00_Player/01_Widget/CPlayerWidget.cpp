@@ -1,78 +1,171 @@
 #include "CPlayerWidget.h"
 
 #include "CPlayerHpBarWidget.h"
+#include "CSkillIconUIWidget.h"
 #include "CTimeCooldownSkillIconWidget.h"
 #include "CUltimateSkillIconWidget.h"
 #include "Components/TextBlock.h"
-#include "Components/ProgressBar.h"
+
+// 초기 상태는 READY로 세팅(에디터 미리보기/런타임 모두 안전)
+void UCPlayerWidget::NativeConstruct()
+{
+    Super::NativeConstruct();
+
+    // 숫자 텍스트 초기화
+    if (DashCooldownText)
+    {
+        if (bShowDashText)
+        {
+            DashCooldownText->SetText(ReadyText);
+            DashCooldownText->SetVisibility(ESlateVisibility::HitTestInvisible);
+        }
+        else
+        {
+            DashCooldownText->SetVisibility(ESlateVisibility::Collapsed);
+        }
+    }
+
+    // 아이콘 초기화(있을 경우)
+   /* if (WBP_DashSkillIconUIWidget)
+    {
+        // 프로젝트 구현에 따라: 0(꽉참) 또는 Finish로 READY 표현
+        WBP_DashSkillIconUIWidget->FinishCoolDown();
+    }*/
+    if (WBP_DashSkillIconWidget)
+    {
+        WBP_DashSkillIconWidget->FinishCooldown();
+    }
+}
 
 void UCPlayerWidget::UpdateHpBar(float Current, float Max)
 {
-	// 프로젝트에 맞게 구현하세요 (예: ProgressBar/숫자 텍스트 갱신) -> 나중에 맞춰봅시다
-	if (WBP_PlayerHpBar)
-		WBP_PlayerHpBar->UpdateHp(Current, Max);
+    if (WBP_PlayerHpBar)
+    {
+        WBP_PlayerHpBar->UpdateHp(Current, Max);
+    }
 }
 
 void UCPlayerWidget::UpdateDashCooldown(float RemainingSeconds, float TotalSeconds)
 {
-	if (DashCooldownText)
-	{
-		const double Sec = FMath::Max(0.0, (double)RemainingSeconds);
-		FNumberFormattingOptions Opt;
-		Opt.SetMinimumFractionalDigits(1);
-		Opt.SetMaximumFractionalDigits(1);
-		const FText SecText = FText::AsNumber(Sec, &Opt);
-		DashCooldownText->SetText(FText::Format(FText::FromString(TEXT("{0}s")), SecText));
-		DashCooldownText->SetVisibility(ESlateVisibility::HitTestInvisible);
-	}
+    // 총 시간 0 or 음수 → 쿨다운 개념이 없거나 즉시 READY 처리
+    if (TotalSeconds <= 0.f)
+    {
+        SetDashReady();
+        return;
+    }
 
-	if (WBP_DashSkillIconWidget)
-	{
-		float CurrentTime = 0.f;
-		if (TotalSeconds > 0.f)
-		{
-			const float Ratio = FMath::Clamp(RemainingSeconds / TotalSeconds, 0.f, 1.f);
-			CurrentTime = 1.0f - Ratio;
-		}
+    const float ClampedRemaining = FMath::Max(RemainingSeconds, 0.f);
+    const float RatioLeft = FMath::Clamp(ClampedRemaining / TotalSeconds, 0.f, 1.f);
+    const float ElapsedRatio = 1.f - RatioLeft; // 0→1로 차오르는 게 일반적
 
-		WBP_DashSkillIconWidget->UpdateCoolDownUI(CurrentTime, TotalSeconds);
-		//WBP_DashSkillUI->SetVisibility(ESlateVisibility::HitTestInvisible);
-	}
+    // 1) 텍스트 갱신
+    if (DashCooldownText)
+    {
+        if (ClampedRemaining > 0.f)
+        {
+            ShowDashTextSeconds_Internal(ClampedRemaining);
+        }
+        else
+        {
+            ShowDashTextReady_Internal();
+        }
+    }
+
+    // 2) 아이콘(프로그레스/원형 타이머 등) 갱신
+    UpdateDashProgress_Internal(ElapsedRatio, TotalSeconds);
+
+    // 3) 남은 시간이 0 이하이면 READY 상태 보장
+    if (ClampedRemaining <= 0.f)
+    {
+        SetDashReady(); // 아이콘/텍스트 모두 READY 표기로 통일
+    }
 }
 
 void UCPlayerWidget::SetDashReady()
 {
-	if (DashCooldownText)
-	{
-		DashCooldownText->SetText(FText::FromString(TEXT("READY")));
-		DashCooldownText->SetVisibility(ESlateVisibility::HitTestInvisible);
-	}
-	
-	if (WBP_DashSkillIconWidget)
-	{
-		WBP_DashSkillIconWidget->FinishCoolDown();
-		//WBP_DashSkillUI->SetVisibility(ESlateVisibility::Collapsed);
-	}
+    
+    // 텍스트 READY
+    if (DashCooldownText)
+    {
+        if (bShowDashText)
+        {
+            DashCooldownText->SetText(ReadyText);
+            DashCooldownText->SetVisibility(ESlateVisibility::HitTestInvisible);
+        }
+        else
+        {
+            DashCooldownText->SetVisibility(ESlateVisibility::Collapsed);
+        }
+    }
+
+    // 아이콘 READY 처리
+    
+    if (WBP_DashSkillIconWidget)
+    {
+        WBP_DashSkillIconWidget->FinishCooldown();
+    }
 }
 
-void UCPlayerWidget::SetUltimatePoints(float UltimateCurrentPoints, float UltimateMaxPoints, int32 UltimateStack)
+void UCPlayerWidget::SetUltimatePoints(float UltimateCurrentPoints, float UltimateMaxPoints)
 {
-	if (UltimateCurrentPoints > UltimateMaxPoints)
-		return;
-	
-	const float Ratio = UltimateCurrentPoints / UltimateMaxPoints;
+    if (!WBP_UltimateSkillIconWidget || UltimateMaxPoints <= 0.f)
+        return;
 
-	if (WBP_UltimateSkillIconWidget)
-	{
-		WBP_UltimateSkillIconWidget->SetUltimateUI(Ratio, UltimateStack);
-	}
+    const float Ratio = FMath::Clamp(UltimateCurrentPoints / UltimateMaxPoints, 0.f, 1.f);
+    WBP_UltimateSkillIconWidget->SetRatio(Ratio);
 }
 
+// ───────────── 내부 헬퍼들 ─────────────
 
-/*빌드 설정
-YourModule.Build.cs에 아래 모듈이 포함되어야 함
-PublicDependencyModuleNames.AddRange(new string[] {
-  "Core", "CoreUObject", "Engine", "InputCore",
-  "UMG", "Slate", "SlateCore"
-}); -> c# 코드임
-*/
+void UCPlayerWidget::UpdateDashProgress_Internal(float ElapsedRatio, float TotalSeconds)
+{
+    // 두 가지 타입의 아이콘 위젯을 모두 지원(있으면 각각 갱신)
+ 
+    // 쿨다운이 시작되지 않았다면 시작
+    if (!WBP_DashSkillIconWidget->IsCoolingDown())
+    {
+        WBP_DashSkillIconWidget->StartCooldown(TotalSeconds);
+    }
+        
+    // 경과된 시간 계산하여 업데이트
+    float ElapsedSeconds = ElapsedRatio * TotalSeconds;
+    WBP_DashSkillIconWidget->UpdateCooldownByElapsed(ElapsedSeconds);
+
+}
+
+void UCPlayerWidget::ShowDashTextSeconds_Internal(float RemainingSeconds)
+{
+    if (!DashCooldownText) return;
+
+    if (!bShowDashText)
+    {
+        DashCooldownText->SetVisibility(ESlateVisibility::Collapsed);
+        return;
+    }
+
+    // 소수 1자리 “X.Xs” 포맷
+    // (로케일 반영을 위해 FText 포맷 사용)
+    FNumberFormattingOptions Opt;
+    Opt.SetMinimumFractionalDigits(1);
+    Opt.SetMaximumFractionalDigits(1);
+
+    const FText SecText = FText::AsNumber((double)RemainingSeconds, &Opt);
+    DashCooldownText->SetText(FText::Format(FText::FromString(TEXT("{0}s")), SecText));
+    DashCooldownText->SetVisibility(ESlateVisibility::HitTestInvisible);
+}
+
+void UCPlayerWidget::ShowDashTextReady_Internal()
+{
+    if (!DashCooldownText) return;
+
+    if (bShowDashText)
+    {
+        DashCooldownText->SetText(ReadyText);
+        DashCooldownText->SetVisibility(ESlateVisibility::HitTestInvisible);
+    }
+    else
+    {
+        DashCooldownText->SetVisibility(ESlateVisibility::Collapsed);
+    }
+}
+

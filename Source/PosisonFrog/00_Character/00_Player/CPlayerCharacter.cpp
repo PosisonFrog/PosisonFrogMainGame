@@ -235,7 +235,7 @@ void ACPlayerCharacter::AddUltimatePoint(AActor* HitActor, float Damage)
 
     
     if (PlayerWidget)
-        PlayerWidget->SetUltimatePoints(UltimateCurrentPoints, UltimateMaxPoints, UltimateStack);
+        PlayerWidget->SetUltimatePoints(UltimateCurrentPoints, UltimateMaxPoints);
 }
 
 void ACPlayerCharacter::CalculateUltimatePoint(float AttackDamage)
@@ -250,6 +250,11 @@ void ACPlayerCharacter::CalculateUltimatePoint(float AttackDamage)
 
     UltimateStack += NewStack;
 
+    CLog::Log(UltimateCurrentPoints);
+    CLog::Log(UltimateMaxPoints);
+    CLog::Log(UltimateStack);
+    CLog::Log(UltimateMaxStacks);
+    
     // 최대 스택 초과 방지
     if (UltimateStack >= UltimateMaxStacks)
     {
