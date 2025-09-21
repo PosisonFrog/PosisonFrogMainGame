@@ -1,5 +1,5 @@
 #include "00_Character/02_Component/CWeaponComponent.h"
-
+#include "00_Character/00_Player/CPlayerCharacter.h"
 #include "00_Character/00_Player/02_Weapon/CHammer.h"
 #include "GameFramework/Character.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -203,8 +203,25 @@ void UCWeaponComponent::OnMontageEnded(UAnimMontage* /*Montage*/, bool bInterrup
 
 /* ============ 상태기/노티에서 호출 ============ */
 
-void UCWeaponComponent::BeginAction() { bIsAttacking = true; }
-void UCWeaponComponent::EndAction() { ResetCombo(); }
+void UCWeaponComponent::BeginAction()
+{
+    bIsAttacking = true;
+    
+    if (ACharacter* Ch = OwnerCharacter)
+    {
+        if (ACPlayerCharacter* PC = Cast<ACPlayerCharacter>(Ch))
+            PC->OnAttackStarted();
+    }
+}
+void UCWeaponComponent::EndAction()
+{
+    ResetCombo();
+    if (ACharacter* Ch = OwnerCharacter)
+    {
+        if (ACPlayerCharacter* PC = Cast<ACPlayerCharacter>(Ch))
+            PC->OnAttackEnded();
+    }
+}
 
 void UCWeaponComponent::EnableComboInput()
 {

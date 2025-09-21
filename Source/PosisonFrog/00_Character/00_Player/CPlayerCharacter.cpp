@@ -105,6 +105,8 @@ void ACPlayerCharacter::BeginPlay()
     }
 }
 
+
+
 void ACPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
     Super::SetupPlayerInputComponent(PlayerInputComponent);
@@ -145,9 +147,21 @@ void ACPlayerCharacter::Look(const FInputActionValue& Value)
 
 void ACPlayerCharacter::DashStart()
 {
-    if (!IsValid(DashComponent))
+    // 컨트롤러에서 바인딩되는 대시 입력 진입점
+    RequestDash();
+}
+
+// ───────── 대시 버퍼/락 핵심 로직 ─────────
+
+void ACPlayerCharacter::RequestDash()
+{
+    const float Now = GetWorld()->GetTimeSeconds();
+
+    // 공격 중이면 실행하지 않고 버퍼에 저장
+    if (bDashLocked)
     {
-        CLog::Log(TEXT("DashComponent missing"));
+        bDashBuffered    = true;
+        DashBufferExpire = Now + DashBufferWindow;
         return;
     }
 
@@ -157,32 +171,80 @@ void ACPlayerCharacter::DashStart()
         CLog::Print(TEXT("Dash on cooldown"), -1, 0.6f, FColor::Cyan);
         return;
     }
+    
+    // 잠금이 아니면 즉시 대시
+    if (DashComponent)
+    {
+        DashComponent->StartDash(); // 내부 쿨타임/중복 체크는 컴포넌트 쪽에서
+        // (2) 6초 쿨타임 무조건 시작
+        bDashOnCooldown = true;
+        DashCooldownRemaining = DashCooldown;
 
-    // (1) 대시 실행
-    DashComponent->StartDash();
+        GetWorldTimerManager().ClearTimer(TimerHandle_DashCooldown);
+        GetWorldTimerManager().SetTimer(
+            TimerHandle_DashCooldown,
+            this, &ACPlayerCharacter::ResetDashCooldown,
+            DashCooldown, false);
 
-    // (2) 6초 쿨타임 무조건 시작
-    bDashOnCooldown = true;
-    DashCooldownRemaining = DashCooldown;
+        GetWorldTimerManager().ClearTimer(TimerHandle_DashUITick);
+        GetWorldTimerManager().SetTimer(
+            TimerHandle_DashUITick,
+            this, &ACPlayerCharacter::TickDashCooldownUI,
+            0.05f, true);
 
-    GetWorldTimerManager().ClearTimer(TimerHandle_DashCooldown);
-    GetWorldTimerManager().SetTimer(
-        TimerHandle_DashCooldown,
-        this, &ACPlayerCharacter::ResetDashCooldown,
-        DashCooldown, false);
+        TickDashCooldownUI(); // 즉시 1회 갱신
 
-    GetWorldTimerManager().ClearTimer(TimerHandle_DashUITick);
-    GetWorldTimerManager().SetTimer(
-        TimerHandle_DashUITick,
-        this, &ACPlayerCharacter::TickDashCooldownUI,
-        0.05f, true);
-
-    TickDashCooldownUI(); // 즉시 1회 갱신
-
-    // (3) 대시 후 이속 버프 2초(+15%)
-    if (MovementBuffComponent)
-        MovementBuffComponent->AddSpeedBuff(DashSpeedMultiplier, DashSpeedBuffDuration);
+        // (3) 대시 후 이속 버프 2초(+15%)
+        if (MovementBuffComponent)
+            MovementBuffComponent->AddSpeedBuff(DashSpeedMultiplier, DashSpeedBuffDuration);
+    }
 }
+
+// 애님 노티(마지막 몇 프레임): 여기서 버퍼를 “같은 프레임에” 소모 → 즉발 체감
+void ACPlayerCharacter::OnAttackDashReady()
+{
+    const float Now = GetWorld()->GetTimeSeconds();
+
+    // 공격 종료 직전이므로 락 해제
+    bDashLocked = false;
+
+    // 버퍼가 살아 있으면 그 프레임에 즉시 대시
+    if (bDashBuffered && Now <= DashBufferExpire)
+    {
+        bDashBuffered = false;
+
+        // 혹시 공격 중 제어 잠금/루트모션 영향이 남아있다면 정리
+        if (UCharacterMovementComponent* Move = GetCharacterMovement())
+        {
+            if (Move->MovementMode == MOVE_None)
+                Move->SetMovementMode(MOVE_Walking);
+            // 필요 시: Move->StopMovementImmediately();
+        }
+
+        if (DashComponent)
+        {
+            DashComponent->StartDash();
+        }
+    }
+}
+
+// 무기/애님에서 공격 시작 시점에 호출(있으면 더 견고)
+void ACPlayerCharacter::OnAttackStarted()
+{
+    bDashLocked = true;
+}
+
+// 무기/애님에서 공격 완전 종료 시 호출(정보용 – 실동작은 DashReady에서 처리)
+void ACPlayerCharacter::OnAttackEnded()
+{
+    bDashLocked = false;
+    // 버퍼를 여기서 바로 소모하지 않는 이유:
+    //  → BlendOut이 약간 남아 있어도 마지막 프레임(DashReady)에서 터뜨리는 게 체감이 가장 좋기 때문
+}
+
+
+
+
 
 void ACPlayerCharacter::Attack()
 {
@@ -276,3 +338,4 @@ void ACPlayerCharacter::PostInitializeComponents()
     checkf(HealthComponent != nullptr, TEXT("HealthComponent missing"));
     checkf(MovementBuffComponent != nullptr, TEXT("MovementBuffComponent missing"));
 }
+

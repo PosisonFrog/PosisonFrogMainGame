@@ -114,6 +114,14 @@ void UCAnimNotifyState_PlayerAttack::NotifyBegin(USkeletalMeshComponent* MeshCom
 
     // Ref-Count 방식: 첫 Begin에서만 Enable
     EnableIfFirst(WeaponComp, bDebugLog);
+
+    if (AActor* Owner = MeshComp->GetOwner())
+    {
+        if (UCWeaponComponent* WeaponComponent = Owner->FindComponentByClass<UCWeaponComponent>())
+        {
+            WeaponComponent->BeginAction();
+        }
+    }
 }
 
 void UCAnimNotifyState_PlayerAttack::NotifyEnd(USkeletalMeshComponent* MeshComp,
@@ -147,6 +155,14 @@ void UCAnimNotifyState_PlayerAttack::NotifyEnd(USkeletalMeshComponent* MeshComp,
 
     // Ref-Count 방식: 마지막 End에서만 Disable
     DisableIfNone(WeaponComp, bDebugLog);
+
+    if (AActor* Owner = MeshComp->GetOwner())
+    {
+        if (UCWeaponComponent* WeaponComponent = Owner->FindComponentByClass<UCWeaponComponent>())
+        {
+            WeaponComponent->EndAction();
+        }
+    }
 }
 
 //이후 디버그 스윕 라인 그리기, 공격 태그/데미지 배율 파라미터화 등 확장하면 좋을것 같습니당
