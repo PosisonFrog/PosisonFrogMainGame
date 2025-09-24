@@ -115,14 +115,11 @@ void UCTimeCooldownSkillIconWidget::RefreshUI(float NormalizedPercent)
     // 아이콘 틴트 전환(쿨다운 시작 시 1→(0,1), 종료 시 (0,1)→0)
     if (SkillIcon)
     {
-        if (bIsCoolDown && !SkillIcon->ColorAndOpacity.Equals(IconTint_OnCooldown))
-        {
-            SkillIcon->SetColorAndOpacity(IconTint_OnCooldown);
-        }
-        else if (!bIsCoolDown && !SkillIcon->ColorAndOpacity.Equals(IconTint_Normal))
-        {
-            SkillIcon->SetColorAndOpacity(IconTint_Normal);
-        }
+        const FLinearColor CurrentTint = SkillIcon->GetColorAndOpacity();
+        const FLinearColor& TargetTint = bIsCoolDown ? IconTint_OnCooldown : IconTint_Normal;
+
+        if (!CurrentTint.Equals(TargetTint))
+            SkillIcon->SetColorAndOpacity(TargetTint);
     }
 }
 

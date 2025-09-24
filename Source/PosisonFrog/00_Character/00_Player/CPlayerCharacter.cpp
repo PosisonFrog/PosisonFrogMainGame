@@ -242,10 +242,6 @@ void ACPlayerCharacter::OnAttackEnded()
     //  → BlendOut이 약간 남아 있어도 마지막 프레임(DashReady)에서 터뜨리는 게 체감이 가장 좋기 때문
 }
 
-
-
-
-
 void ACPlayerCharacter::Attack()
 {
     if (IsValid(WeaponComponent))
@@ -312,10 +308,10 @@ void ACPlayerCharacter::CalculateUltimatePoint(float AttackDamage)
 
     UltimateStack += NewStack;
 
-    CLog::Log(UltimateCurrentPoints);
+    /*CLog::Log(UltimateCurrentPoints);
     CLog::Log(UltimateMaxPoints);
     CLog::Log(UltimateStack);
-    CLog::Log(UltimateMaxStacks);
+    CLog::Log(UltimateMaxStacks);*/
     
     // 최대 스택 초과 방지
     if (UltimateStack >= UltimateMaxStacks)

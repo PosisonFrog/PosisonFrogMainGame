@@ -6,11 +6,21 @@
 #include "Curves/CurveFloat.h"
 #include "CHealOrb.generated.h"
 
+class UProjectileMovementComponent;
 class USphereComponent;
 class UStaticMeshComponent;
 class UNiagaraSystem;
 class USoundBase;
 class UCHealOrbPoolSubsystem;
+
+// ===== Enums =====
+/** 힐 오브 상태 */
+UENUM(BlueprintType)
+enum class HealOrbState
+{
+    Spawn,
+    Chase
+};
 
 /** 속도 커브 프리셋 */
 UENUM(BlueprintType)
@@ -24,6 +34,7 @@ enum class EHealOrbSpeedCurvePreset : uint8
     RubberBand      // 초반 강가속, 중후반 미세 진동 감
 };
 
+// ====== Delegates =====
 /** HUD/외부 연동용 이벤트 */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnHealOrbSpawned, AActor*, OrbActor);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnHealOrbPicked, AActor*, OrbActor, AActor*, HealedActor);
@@ -79,6 +90,8 @@ private:
     void AppendCsv(const FString& Line);
     void ApplyCurvePreset(EHealOrbSpeedCurvePreset Preset);
     bool HasLineOfSightToTarget(const FVector& From, const FVector& To) const;
+    void EnterSpawnState();
+    void EnterChaseState();
 
     // ===== 오버랩 핸들러 =====
     UFUNCTION()
@@ -95,6 +108,9 @@ private:
     void OnDetectEndOverlap(UPrimitiveComponent* Overlapped, AActor* OtherActor,
                             UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
 
+    UFUNCTION()
+    void OnSpawnProjectileStop(const FHitResult& ImpactResult);
+
 private:
     // ===== 컴포넌트 =====
     UPROPERTY(VisibleAnywhere, Category="Components")
@@ -106,6 +122,29 @@ private:
     UPROPERTY(VisibleAnywhere, Category="Components")
     TObjectPtr<UStaticMeshComponent> VisualMesh;
 
+    UPROPERTY(VisibleAnywhere, Category = "HealOrb|Spawn")
+    TObjectPtr<UProjectileMovementComponent> SpawnProjectile = nullptr;
+
+    // ===== Spawn (중력 / 바운스) =====
+    UPROPERTY(EditAnywhere, Category = "HealOrb|Spawn")
+    float SpawnUpSpeed = 600.0f;
+    
+    UPROPERTY(EditAnywhere, Category = "HealOrb|Spawn")
+    float SpawnHorizontalSpeed = 200.0f;
+
+    UPROPERTY(EditAnywhere, Category = "HealOrb|Spawn")
+    float SpawnBounciness = 0.35f;
+
+    UPROPERTY(EditAnywhere, Category = "HealOrb|Spawn")
+    float SpawnFriction = 0.2f;
+
+    // 바운드 끝나면 바로 먹기 허용 : OnSpawnProjectileStop()에서만 false
+    // 추적 시작 전에는 절대 먹히지 않음 : EnterChaseState()에서만 false
+    bool bSpawnPickupLocked = false;
+    bool bChaseAllowed = false;
+
+    FTimerHandle SpawnDelayHandle;
+    
     // ===== 추적/치유 파라미터 =====
     UPROPERTY(EditAnywhere, Category="HealOrb|Chase", meta=(ClampMin="0.0"))
     float PickupRadius = 60.f;
@@ -186,6 +225,8 @@ private:
 
 private:
     // ===== 상태 =====
+    HealOrbState State = HealOrbState::Spawn;
+    
     TWeakObjectPtr<AActor> TargetActor;
     FVector LastKnownTargetLocation = FVector::ZeroVector;
     float   StartDistanceToTarget   = 0.f;
@@ -193,7 +234,7 @@ private:
 
     bool    bActive   = false; // Tick/추적 활성
     bool    bReleased = false; // Release 재진입 가드
-
+    
     // Detect End 유예
     bool    bDetectLost = false;
     float   DetectLostTimeAcc = 0.f;

@@ -95,4 +95,3 @@ protected:
     UPROPERTY()
     TObjectPtr<UCHealthComponent> HealthComponent = nullptr;
 };
-
