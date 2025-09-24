@@ -4,6 +4,7 @@
 #include "00_Character/CBaseCharacter.h"
 #include "CPlayerCharacter.generated.h"
 
+class UTransparentCameraComponent;
 class UCWeaponComponent;
 class USpringArmComponent;
 class UCameraComponent;
@@ -153,11 +154,14 @@ protected:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
     TObjectPtr<UCMovementBuffComponent> MovementBuffComponent = nullptr;
 
-    // Camera
+    //Camera
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Camera", meta = (AllowPrivateAccess = "true"))
     TObjectPtr<USpringArmComponent> SpringArm = nullptr;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Camera", meta = (AllowPrivateAccess = "true"))
     TObjectPtr<UCameraComponent> PlayerCamera = nullptr;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Camera", meta = (AllowPrivateAccess = true))
+    TObjectPtr<UTransparentCameraComponent> TransparentCameraComponent = nullptr;
 };
 
