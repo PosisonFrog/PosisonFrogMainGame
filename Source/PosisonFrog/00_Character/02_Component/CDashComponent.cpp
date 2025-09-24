@@ -6,7 +6,6 @@ UCDashComponent::UCDashComponent()
 {
     PrimaryComponentTick.bCanEverTick = true;
     SetComponentTickEnabled(false);
-    
 }
 
 void UCDashComponent::BeginPlay()
@@ -24,6 +23,8 @@ void UCDashComponent::StartDash()
     if (bIsOnCoolDown) return;
 
     BeginDash_Internal();
+
+    
 }
 
 void UCDashComponent::BeginDash_Internal()
@@ -125,7 +126,7 @@ void UCDashComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActor
         Vel.Z = MoveComp->Velocity.Z;
     }
     MoveComp->Velocity = Vel;
-
+    
     // 끝나면 원복
     if (DashTimeAcc >= DashDuration)
         EndDash_Internal();

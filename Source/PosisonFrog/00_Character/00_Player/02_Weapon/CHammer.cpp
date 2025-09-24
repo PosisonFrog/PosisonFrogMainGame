@@ -5,7 +5,6 @@
 
 #include "99_Util/CLog.h"
 #include "Components/BoxComponent.h"
-#include "GameFramework/Character.h"
 #include "Kismet/GameplayStatics.h"
 
 // Sets default values

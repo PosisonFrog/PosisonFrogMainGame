@@ -8,6 +8,8 @@ class ACharacter;
 class ACHammer;
 class UAnimMontage;
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnWeaponHit, AActor*, HitActor, float, Damage);
+
 /**
  * 무기/콤보 컴포넌트
  * - DoAttack: 공격 입력 진입점
@@ -42,6 +44,12 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Attack") void EnableAttackBoxCollider();
     UFUNCTION(BlueprintCallable, Category = "Attack") void DisableAttackBoxCollider();
 
+    UPROPERTY(BlueprintAssignable)
+    FOnWeaponHit OnWeaponHit;
+
+    UFUNCTION()
+    void HandleHammerHit(AActor* InstigatorActor, AActor* HitActor, float Damage, FHitResult Hit);
+    
 private:
     // ---- 내부 동작 ----
     void SpawnWeapon();
