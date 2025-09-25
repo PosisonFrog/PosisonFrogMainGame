@@ -11,6 +11,7 @@
 #include "00_Character/02_Component/CDashComponent.h"
 #include "00_Character/02_Component/CHealthComponent.h"
 #include "00_Character/02_Component/CMovementBuffComponent.h"
+#include "00_Character/00_Player/03_Camera/TransparentCameraComponent.h"
 
 #include "01_Widget/CPlayerWidget.h"
 #include "Blueprint/UserWidget.h"
@@ -41,12 +42,21 @@ ACPlayerCharacter::ACPlayerCharacter()
     SpringArm->SetupAttachment(RootComponent);
     SpringArm->TargetArmLength = 400.f;
     SpringArm->bUsePawnControlRotation = true;
+    
+    SpringArm->bEnableCameraLag = true;       
+    SpringArm->CameraLagSpeed = 7.0f;
+    SpringArm->bEnableCameraRotationLag = false;
 
+    SpringArm->bDoCollisionTest = false;
+    
     PlayerCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
     check(PlayerCamera);
     PlayerCamera->SetupAttachment(SpringArm, USpringArmComponent::SocketName);
     PlayerCamera->bUsePawnControlRotation = false;
 
+    TransparentCameraComponent = CreateDefaultSubobject<UTransparentCameraComponent>(TEXT("TransparentCamera"));
+    check(TransparentCameraComponent);
+    
     // 이동(3인칭 기본값)
     bUseControllerRotationPitch = false;
     bUseControllerRotationYaw = false;
@@ -67,6 +77,11 @@ void ACPlayerCharacter::BeginPlay()
 {
     Super::BeginPlay();
 
+    if (TransparentCameraComponent && PlayerCamera)
+    {
+        TransparentCameraComponent->SetCameraComponent(PlayerCamera);
+    }
+    
     if (UCharacterMovementComponent* Move = GetCharacterMovement())
     {
         Move->MaxWalkSpeed = WalkingSpeed;
