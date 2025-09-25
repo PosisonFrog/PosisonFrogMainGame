@@ -4,58 +4,51 @@
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
+#include "GameFramework/PlayerController.h"
+#include "Blueprint/UserWidget.h"
+#include "TimerManager.h"
+#include "InputActionValue.h"
 
-#include "00_Character/02_Component/CEnhancedInputComponent.h"
-#include "00_Character/02_Component/CGameplayTags.h"
-#include "00_Character/02_Component/CWeaponComponent.h"
+// 프로젝트 컴포넌트/유틸
 #include "00_Character/02_Component/CDashComponent.h"
+#include "00_Character/02_Component/CWeaponComponent.h"            // 파일명이 CWeaponComponent라면 헤더명을 맞춰주세요 -> 까먹어버렸지 몹니까
 #include "00_Character/02_Component/CHealthComponent.h"
 #include "00_Character/02_Component/CMovementBuffComponent.h"
-#include "00_Character/00_Player/03_Camera/TransparentCameraComponent.h"
+#include "00_Character/02_Component/CEnhancedInputComponent.h"
+#include "00_Character/02_Component/CGameplayTags.h"
 
 #include "01_Widget/CPlayerWidget.h"
-#include "Blueprint/UserWidget.h"
-#include "GameFramework/PlayerController.h"
-#include "TimerManager.h"
-#include "Global.h" // CLog 등
+#include "99_Util/CLog.h"
 
+// ----------------------------------------------------------------------------
+// 생성자
+// ----------------------------------------------------------------------------
 ACPlayerCharacter::ACPlayerCharacter()
 {
     // 캡슐
     GetCapsuleComponent()->InitCapsuleSize(42.f, 96.f);
 
-    // ─ Components ─
+    // 서브오브젝트
     DashComponent = CreateDefaultSubobject<UCDashComponent>(TEXT("DashComponent"));
-    check(DashComponent);
-
     WeaponComponent = CreateDefaultSubobject<UCWeaponComponent>(TEXT("WeaponComponent"));
-    check(WeaponComponent);
-
     HealthComponent = CreateDefaultSubobject<UCHealthComponent>(TEXT("HealthComponent"));
-    check(HealthComponent);
-
     MovementBuffComponent = CreateDefaultSubobject<UCMovementBuffComponent>(TEXT("MovementBuff"));
+
+    check(DashComponent);
+    check(WeaponComponent);
+    check(HealthComponent);
     check(MovementBuffComponent);
 
+
     SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
-    check(SpringArm);
     SpringArm->SetupAttachment(RootComponent);
     SpringArm->TargetArmLength = 400.f;
     SpringArm->bUsePawnControlRotation = true;
-    
-    SpringArm->bEnableCameraLag = true;       
-    SpringArm->CameraLagSpeed = 7.0f;
-    SpringArm->bEnableCameraRotationLag = false;
-
     SpringArm->bDoCollisionTest = false;
     
     PlayerCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
-    check(PlayerCamera);
     PlayerCamera->SetupAttachment(SpringArm, USpringArmComponent::SocketName);
     PlayerCamera->bUsePawnControlRotation = false;
-
-    TransparentCameraComponent = CreateDefaultSubobject<UTransparentCameraComponent>(TEXT("TransparentCamera"));
-    check(TransparentCameraComponent);
     
     // 이동(3인칭 기본값)
     bUseControllerRotationPitch = false;
@@ -73,21 +66,17 @@ ACPlayerCharacter::ACPlayerCharacter()
     }
 }
 
+// ----------------------------------------------------------------------------
+// BeginPlay
+// ----------------------------------------------------------------------------
 void ACPlayerCharacter::BeginPlay()
 {
     Super::BeginPlay();
 
-    if (TransparentCameraComponent && PlayerCamera)
-    {
-        TransparentCameraComponent->SetCameraComponent(PlayerCamera);
-    }
-    
-    if (UCharacterMovementComponent* Move = GetCharacterMovement())
-    {
-        Move->MaxWalkSpeed = WalkingSpeed;
-    }
 
-    // 버프 기준 속도 동기화
+    if (UCharacterMovementComponent* Move = GetCharacterMovement())
+        Move->MaxWalkSpeed = WalkingSpeed;
+
     if (MovementBuffComponent)
         MovementBuffComponent->SetBaseMaxWalkSpeed(WalkingSpeed);
 
@@ -113,21 +102,29 @@ void ACPlayerCharacter::BeginPlay()
             CLog::Log(TEXT("PlayerWidget create failed"));
         }
     }
-
-    if (WeaponComponent)
-    {
-        WeaponComponent->OnWeaponHit.AddDynamic(this, &ACPlayerCharacter::AddUltimatePoint);
-    }
 }
 
+void ACPlayerCharacter::PostInitializeComponents()
+{
+    Super::PostInitializeComponents();
+    
+    checkf(DashComponent != nullptr, TEXT("DashComponent missing"));
+    checkf(WeaponComponent != nullptr, TEXT("WeaponComponent missing"));
+    checkf(HealthComponent != nullptr, TEXT("HealthComponent missing"));
+    checkf(MovementBuffComponent != nullptr, TEXT("MovementBuffComponent missing"));
+}
 
-
+// ----------------------------------------------------------------------------
+// 입력 바인딩(Enhanced Input + 태그)
+// ----------------------------------------------------------------------------
 void ACPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
     Super::SetupPlayerInputComponent(PlayerInputComponent);
 
+    // 프로젝트 전용 강화 입력 컴포넌트 사용
     UCEnhancedInputComponent* EIC = Cast<UCEnhancedInputComponent>(PlayerInputComponent);
     checkf(EIC, TEXT("UCEnhancedInputComponent required"));
+    checkf(InputConfig, TEXT("InputConfig(UCInputConfig) not set"));
 
     EIC->BindActionByTag(InputConfig, CGameplayTags::InputTag_Move, ETriggerEvent::Triggered, this, &ACPlayerCharacter::Move);
     EIC->BindActionByTag(InputConfig, CGameplayTags::InputTag_Look, ETriggerEvent::Triggered, this, &ACPlayerCharacter::Look);
@@ -135,7 +132,9 @@ void ACPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
     EIC->BindActionByTag(InputConfig, CGameplayTags::InputTag_Attack, ETriggerEvent::Started, this, &ACPlayerCharacter::Attack);
 }
 
-// ─ Input Handlers ─
+// ----------------------------------------------------------------------------
+// 이동/시야
+// ----------------------------------------------------------------------------
 void ACPlayerCharacter::Move(const FInputActionValue& Value)
 {
     const FVector2D Axis = Value.Get<FVector2D>();
@@ -147,8 +146,8 @@ void ACPlayerCharacter::Move(const FInputActionValue& Value)
     const FVector Forward = FRotationMatrix(YawRot).GetUnitAxis(EAxis::X);
     const FVector Right = FRotationMatrix(YawRot).GetUnitAxis(EAxis::Y);
 
-    AddMovementInput(Forward, Axis.Y);
-    AddMovementInput(Right, Axis.X);
+    if (!FMath::IsNearlyZero(Axis.Y)) AddMovementInput(Forward, Axis.Y);
+    if (!FMath::IsNearlyZero(Axis.X)) AddMovementInput(Right, Axis.X);
 }
 
 void ACPlayerCharacter::Look(const FInputActionValue& Value)
@@ -160,87 +159,66 @@ void ACPlayerCharacter::Look(const FInputActionValue& Value)
     AddControllerPitchInput(Axis.Y);
 }
 
+// ----------------------------------------------------------------------------
+// 공격/대시 (입력 및 버퍼/락)
+// ----------------------------------------------------------------------------
 void ACPlayerCharacter::DashStart()
 {
     // 컨트롤러에서 바인딩되는 대시 입력 진입점
-    RequestDash();
-}
-
-// ───────── 대시 버퍼/락 핵심 로직 ─────────
-
-void ACPlayerCharacter::RequestDash()
-{
     const float Now = GetWorld()->GetTimeSeconds();
 
-    // 공격 중이면 실행하지 않고 버퍼에 저장
+    // 공격 중이면 입력을 버퍼
     if (bDashLocked)
     {
-        bDashBuffered    = true;
+        bDashBuffered = true;
         DashBufferExpire = Now + DashBufferWindow;
         return;
     }
 
-    // 쿨타임 중이면 무시
-    if (bDashOnCooldown)
-    {
-        CLog::Print(TEXT("Dash on cooldown"), -1, 0.6f, FColor::Cyan);
-        return;
-    }
-    
-    // 잠금이 아니면 즉시 대시
-    if (DashComponent)
-    {
-        DashComponent->StartDash(); // 내부 쿨타임/중복 체크는 컴포넌트 쪽에서
-        // (2) 6초 쿨타임 무조건 시작
-        bDashOnCooldown = true;
-        DashCooldownRemaining = DashCooldown;
-
-        GetWorldTimerManager().ClearTimer(TimerHandle_DashCooldown);
-        GetWorldTimerManager().SetTimer(
-            TimerHandle_DashCooldown,
-            this, &ACPlayerCharacter::ResetDashCooldown,
-            DashCooldown, false);
-
-        GetWorldTimerManager().ClearTimer(TimerHandle_DashUITick);
-        GetWorldTimerManager().SetTimer(
-            TimerHandle_DashUITick,
-            this, &ACPlayerCharacter::TickDashCooldownUI,
-            0.05f, true);
-
-        TickDashCooldownUI(); // 즉시 1회 갱신
-
-        // (3) 대시 후 이속 버프 2초(+15%)
-        if (MovementBuffComponent)
-            MovementBuffComponent->AddSpeedBuff(DashSpeedMultiplier, DashSpeedBuffDuration);
-    }
+    // 즉시 시도
+    TryCommitDash();
 }
 
-// 애님 노티(마지막 몇 프레임): 여기서 버퍼를 “같은 프레임에” 소모 → 즉발 체감
-void ACPlayerCharacter::OnAttackDashReady()
+
+bool ACPlayerCharacter::TryCommitDash()
 {
-    const float Now = GetWorld()->GetTimeSeconds();
+    //잠금이 아니고 대쉬 컴포넌트가 유효하면 대쉬 진행 아니면 false 반환
+    if (bDashOnCooldown || !IsValid(DashComponent))
+        return false;
+    
+    DashComponent->StartDash(); // 내부 쿨타임/중복 체크는 컴포넌트 쪽에서
 
-    // 공격 종료 직전이므로 락 해제
-    bDashLocked = false;
+    // (2) 6초 쿨타임 무조건 시작
+    bDashOnCooldown = true;
+    DashCooldownRemaining = DashCooldown;
 
-    // 버퍼가 살아 있으면 그 프레임에 즉시 대시
-    if (bDashBuffered && Now <= DashBufferExpire)
-    {
-        bDashBuffered = false;
+    GetWorldTimerManager().ClearTimer(TimerHandle_DashCooldown);
+    GetWorldTimerManager().SetTimer(
+        TimerHandle_DashCooldown,
+        this, &ACPlayerCharacter::ResetDashCooldown,
+        DashCooldown, false);
 
-        // 혹시 공격 중 제어 잠금/루트모션 영향이 남아있다면 정리
-        if (UCharacterMovementComponent* Move = GetCharacterMovement())
-        {
-            if (Move->MovementMode == MOVE_None)
-                Move->SetMovementMode(MOVE_Walking);
-            // 필요 시: Move->StopMovementImmediately();
-        }
+    GetWorldTimerManager().ClearTimer(TimerHandle_DashUITick);
+    GetWorldTimerManager().SetTimer(
+        TimerHandle_DashUITick,
+        this, &ACPlayerCharacter::TickDashCooldownUI,
+        0.05f, true);
 
-        if (DashComponent)
-        {
-            DashComponent->StartDash();
-        }
-    }
+    TickDashCooldownUI(); // 즉시 1회 갱신
+
+    // (3) 대시 후 이속 버프 2초(+15%)
+    if (MovementBuffComponent)
+        MovementBuffComponent->AddSpeedBuff(DashSpeedMultiplier, DashSpeedBuffDuration);
+
+    return true;
+}
+
+void ACPlayerCharacter::Attack()
+{
+    if (IsValid(WeaponComponent))
+        WeaponComponent->DoAttack();
+    else
+        CLog::Log(TEXT("WeaponComponent missing"));
 }
 
 // 무기/애님에서 공격 시작 시점에 호출(있으면 더 견고)
@@ -253,19 +231,54 @@ void ACPlayerCharacter::OnAttackStarted()
 void ACPlayerCharacter::OnAttackEnded()
 {
     bDashLocked = false;
-    // 버퍼를 여기서 바로 소모하지 않는 이유:
-    //  → BlendOut이 약간 남아 있어도 마지막 프레임(DashReady)에서 터뜨리는 게 체감이 가장 좋기 때문
+    ConsumeDashBufferIfValid(true);   // 노티 미스 대비 2차 소비 시도
+
 }
 
-void ACPlayerCharacter::Attack()
+// 애님 노티(마지막 몇 프레임): 여기서 버퍼를 “같은 프레임에” 소모 → 즉발 체감
+void ACPlayerCharacter::OnAttackDashReady()
 {
-    if (IsValid(WeaponComponent))
-        WeaponComponent->DoAttack();
-    else
-        CLog::Log(TEXT("WeaponComponent missing"));
+    bDashLocked = false;
+    ConsumeDashBufferIfValid(false);  // 같은 프레임 즉발
 }
 
-// ─ Health / UI ─
+void ACPlayerCharacter::ConsumeDashBufferIfValid(bool bFallback)
+{
+    const float Now = GetWorld()->GetTimeSeconds();
+
+    if (bDashBuffered && Now <= DashBufferExpire)
+    {
+        bDashBuffered = false;
+
+        // 이동락/루트모션 잔여 방지
+        if (UCharacterMovementComponent* Move = GetCharacterMovement())
+        {
+            if (Move->MovementMode == MOVE_None)
+                Move->SetMovementMode(MOVE_Walking);
+        }
+
+        TryCommitDash();
+        return;
+    }
+
+    // 프레임 드랍 등으로 노티 Begin을 놓친 경우 End에서 짧은 유예 허용
+    if (bFallback && bDashBuffered)
+    {
+        if (Now <= DashBufferExpire + 0.04f) // ≈ 2~3프레임
+        {
+            bDashBuffered = false;
+            TryCommitDash();
+        }
+        else
+        {
+            bDashBuffered = false; // 만료
+        }
+    }
+}
+
+// ----------------------------------------------------------------------------
+// HP UI 연동
+// ----------------------------------------------------------------------------
 void ACPlayerCharacter::HandleHealthChanged(float CurrentHealth, float MaxHealth)
 {
     if (PlayerWidget)
@@ -278,7 +291,9 @@ void ACPlayerCharacter::UpdateHpUI() const
         PlayerWidget->UpdateHpBar(HealthComponent->GetHealth(), HealthComponent->GetMaxHealth());
 }
 
-// ─ Dash Cooldown Helpers ─
+// ----------------------------------------------------------------------------
+// Dash 쿨다운 UI
+// ----------------------------------------------------------------------------
 void ACPlayerCharacter::ResetDashCooldown()
 {
     bDashOnCooldown = false;
@@ -301,52 +316,3 @@ void ACPlayerCharacter::TickDashCooldownUI()
     if (DashCooldownRemaining <= KINDA_SMALL_NUMBER && bDashOnCooldown)
         ResetDashCooldown();
 }
-
-void ACPlayerCharacter::AddUltimatePoint(AActor* HitActor, float Damage)
-{
-    CalculateUltimatePoint(Damage);
-
-    
-    if (PlayerWidget)
-        PlayerWidget->SetUltimatePoints(UltimateCurrentPoints, UltimateMaxPoints);
-}
-
-void ACPlayerCharacter::CalculateUltimatePoint(float AttackDamage)
-{
-    if (UltimateStack >= UltimateMaxStacks && UltimateCurrentPoints >= UltimateMaxPoints)
-        return;
-    
-    float Total = UltimateCurrentPoints + AttackDamage * 2;
-    
-    int32 NewStack = FMath::FloorToInt(Total / UltimateMaxPoints);
-    float Remainder = FMath::Fmod(Total, UltimateMaxPoints);
-
-    UltimateStack += NewStack;
-
-    /*CLog::Log(UltimateCurrentPoints);
-    CLog::Log(UltimateMaxPoints);
-    CLog::Log(UltimateStack);
-    CLog::Log(UltimateMaxStacks);*/
-    
-    // 최대 스택 초과 방지
-    if (UltimateStack >= UltimateMaxStacks)
-    {
-        UltimateStack = UltimateMaxStacks;
-        UltimateCurrentPoints = UltimateMaxPoints;
-    }
-    else
-    {
-        UltimateCurrentPoints = Remainder;
-    }
-}
-
-void ACPlayerCharacter::PostInitializeComponents()
-{
-    Super::PostInitializeComponents();
-    
-    checkf(DashComponent != nullptr, TEXT("DashComponent missing"));
-    checkf(WeaponComponent != nullptr, TEXT("WeaponComponent missing"));
-    checkf(HealthComponent != nullptr, TEXT("HealthComponent missing"));
-    checkf(MovementBuffComponent != nullptr, TEXT("MovementBuffComponent missing"));
-}
-

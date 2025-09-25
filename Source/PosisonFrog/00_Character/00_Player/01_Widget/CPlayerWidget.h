@@ -5,13 +5,13 @@
 #include "CPlayerWidget.generated.h"
 
 class UTextBlock;
+class UProgressBar;  
 class UCPlayerHpBarWidget;
-class UCSkillIconUIWidget;
-class UCTimeCooldownSkillIconWidget;
-class UCUltimateSkillIconWidget;
 
 /**
- * 플레이어 상단 HUD(HP/대시 쿨타임/궁극기)를 갱신하는 위젯
+ * 플레이어 HUD (체력/대시 쿨다운)
+ * - ACPlayerCharacter에서 직접 호출하여 수치 갱신
+ * - UMG는 최소 구성(ProgressBar + Text), 로직은 전부 C++
  */
 UCLASS()
 class POSISONFROG_API UCPlayerWidget : public UUserWidget
@@ -19,63 +19,54 @@ class POSISONFROG_API UCPlayerWidget : public UUserWidget
     GENERATED_BODY()
 
 public:
-    /** HP UI 갱신 */
-    UFUNCTION(BlueprintCallable)
+    // 체력/대시 공개 API (캐릭터에서 호출)
+    UFUNCTION(BlueprintCallable, Category = "PF|HUD")
     void UpdateHpBar(float Current, float Max);
 
-    /** 대시 쿨타임 갱신 (RemainingSeconds가 0이하이면 자동으로 READY 처리) */
-    UFUNCTION(BlueprintCallable)
-    void UpdateDashCooldown(float RemainingSeconds, float TotalSeconds);
+    UFUNCTION(BlueprintCallable, Category = "PF|HUD")
+    void UpdateDashCooldown(float Remaining, float Total);
 
-    /** 대시 READY 상태로 전환 (아이콘/텍스트 모두 정리) */
-    UFUNCTION(BlueprintCallable)
+    UFUNCTION(BlueprintCallable, Category = "PF|HUD")
     void SetDashReady();
 
-    /** 궁극기(게이지) 갱신: 0.0~Max 사이 값 반영 */
-    UFUNCTION(BlueprintCallable)
-    void SetUltimatePoints(float UltimateCurrentPoints, float UltimateMaxPoints);
-
-    /** 대시 쿨타임 텍스트를 보일지 여부(READY 포함) */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Dash")
-    bool bShowDashText = true;
-
-    /** READY 표시 문자열(다국어/프로젝트 스타일에 맞게 교체 가능) */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Dash")
-    FText ReadyText = FText::FromString(TEXT("READY"));
-
 protected:
+    virtual void NativeOnInitialized() override;
     virtual void NativeConstruct() override;
 
-    // ───────── 바운드 위젯(있으면 자동 바인딩) ─────────
+private:
+    // ===== UMG 바인딩(위젯 이름만 맞추면 블루프린트 스크립트 불필요) =====
+    // (BindWidgetOptional: 누락되어 있어도 크래시 방지)
+    UPROPERTY(meta = (BindWidgetOptional))
+    UProgressBar* HealthBar = nullptr;
 
-    /** 남은 쿨타임 숫자/READY 표시용 텍스트 */
-    UPROPERTY(meta=(BindWidgetOptional))
-    TObjectPtr<UTextBlock> DashCooldownText = nullptr;
+    UPROPERTY(meta = (BindWidgetOptional))
+    UTextBlock* HealthText = nullptr;
 
-    /** (구) 일반 스킬 아이콘 위젯 */
-    //UPROPERTY(meta=(BindWidgetOptional))
-    //TObjectPtr<UCSkillIconUIWidget> WBP_DashSkillIconUIWidget = nullptr;
+    UPROPERTY(meta = (BindWidgetOptional))
+    UProgressBar* DashCooldownBar = nullptr;
 
-    /** (신) 원형 타이머 기반 스킬 아이콘 위젯 */
-    UPROPERTY(meta=(BindWidgetOptional))
-    TObjectPtr<UCTimeCooldownSkillIconWidget> WBP_DashSkillIconWidget = nullptr;
+    UPROPERTY(meta = (BindWidgetOptional))
+    UTextBlock* DashText = nullptr;
 
-    /** 궁극기(게이지) 아이콘 위젯 */
-    UPROPERTY(meta=(BindWidgetOptional))
-    TObjectPtr<UCUltimateSkillIconWidget> WBP_UltimateSkillIconWidget = nullptr;
+    // ===== 표시/연출 관련 기본값 =====
+    UPROPERTY(EditAnywhere, Category = "PF|HUD|HP")
+    float HpDangerThreshold = 0.25f; // 25% 이하면 위험색
 
-    /** HP 바 루트 위젯 */
-    UPROPERTY(meta=(BindWidgetOptional))
-    TObjectPtr<UCPlayerHpBarWidget> WBP_PlayerHpBar = nullptr;
+    UPROPERTY(EditAnywhere, Category = "PF|HUD|HP")
+    FLinearColor HpColor_Normal = FLinearColor(0.10f, 0.85f, 0.20f, 1.0f);
+
+    UPROPERTY(EditAnywhere, Category = "PF|HUD|HP")
+    FLinearColor HpColor_Danger = FLinearColor(0.90f, 0.10f, 0.10f, 1.0f);
+
+    UPROPERTY(EditAnywhere, Category = "PF|HUD|Dash")
+    FLinearColor DashColor_Cooldown = FLinearColor(0.20f, 0.45f, 1.0f, 1.0f);
+
+    UPROPERTY(EditAnywhere, Category = "PF|HUD|Dash")
+    FLinearColor DashColor_Ready = FLinearColor(0.95f, 0.80f, 0.15f, 1.0f);
 
 private:
-    /** 내부 헬퍼: 대시 쿨다운 프로그레스(아이콘들)를 일관되게 업데이트 */
-    void UpdateDashProgress_Internal(float ElapsedRatio, float TotalSeconds);
-
-    /** 내부 헬퍼: 대시 텍스트를 “X.Xs”로 포맷해서 표시 */
-    void ShowDashTextSeconds_Internal(float RemainingSeconds);
-
-    /** 내부 헬퍼: 대시 텍스트를 READY 표기로 표시 */
-    void ShowDashTextReady_Internal();
+    // 내부 헬퍼
+    static float SafeRatio(float Num, float Denom);
+    static FText SecsTextOneDecimal(float Seconds);
 };
 

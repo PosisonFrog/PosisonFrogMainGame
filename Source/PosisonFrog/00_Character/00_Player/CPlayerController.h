@@ -4,23 +4,20 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
-#include "01_Item/CHealOrbPoolSubsystem.h"
-#include "00_Character/00_Player/01_Widget/COrbHUDWidget.h"
 #include "CPlayerController.generated.h"
 
-struct FInputActionValue;
+
 class UInputMappingContext;
+class UInputAction;
 class UCInputConfig;
 class UCPlayerWidget;
 class ACPlayerCharacter;
-class UCHealthComponent;
-class UCEnhancedInputComponent;
 
 /**
- * 플레이어 컨트롤러
- * - Enhanced Input 매핑 컨텍스트 적용
- * - 입력 바인딩(컨트롤러 → 캐릭터 위임)
- * - HP UI(플레이어 위젯) 생성/갱신
+ * C++ 중심 컨트롤러
+ * - Enhanced Input Mapping Context를 C++에서 적용
+ * - 일시정지/메뉴 토글과 입력 모드 전환(GameOnly / UIOnly) C++ 처리
+ * - (선택) 캐릭터가 비어 있으면 InputConfig 자동 주입
  */
 UCLASS()
 class POSISONFROG_API ACPlayerController : public APlayerController
@@ -31,67 +28,52 @@ public:
     ACPlayerController();
 
 protected:
-    /** 커스텀 입력 컴포넌트(UCEnhancedInputComponent) 생성 지점 */
-    virtual void CreateInputComponent();
-
     virtual void BeginPlay() override;
-    virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
     virtual void SetupInputComponent() override;
     virtual void OnPossess(APawn* InPawn) override;
-    virtual void OnUnPossess() override;
 
-    // ---- 입력 바인딩 내부 구성 ----
-    void SetupInputBindings();
+    // ────────────── 입력 핸들러 ──────────────
+    UFUNCTION() void HandlePausePressed();
+    UFUNCTION() void HandleToggleMouse();
 
-    // ---- UI ----
-    bool ShouldCreatePlayerWidget() const;
-    void CreatePlayerWidget();
+    // ────────────── 메뉴/입력 모드 ──────────────
+    void ShowPauseMenu();
+    void HidePauseMenu();
+    void SetInputMode_GameOnly();
+    void SetInputMode_UIOnly();
 
-    UFUNCTION()
-    void OnHealOrbCountersChanged(int32 ActiveOrbs, int32 TotalPicked);
-
-    // ---- 입력 핸들러 (컨트롤러에서 받아 캐릭터 함수로 위임) ----
-    UFUNCTION() void HandleMove(const FInputActionValue& Value);
-    UFUNCTION() void HandleLook(const FInputActionValue& Value);
-    UFUNCTION() void HandleDashStart();
-    UFUNCTION() void HandleAttack();
-
-    // ---- HP 갱신 ----
-    UFUNCTION() void HandleHealthChanged(float CurrentHealth, float MaxHealth);
-    void UpdateHpUI() const;
-
-protected:
-    // ===== UI =====
-    UPROPERTY(EditAnywhere, Category = "UI")
-    TSubclassOf<UCPlayerWidget> PlayerWidgetClass;
-
-    UPROPERTY() // GC 안전
-    UCPlayerWidget* PlayerWidget = nullptr;
-
-    UPROPERTY(EditAnywhere, Category = "UI")
-    TSubclassOf<UCOrbHUDWidget> OrbHUDWidgetClass;
-
-    UPROPERTY()
-    UCOrbHUDWidget* OrbHUDWidget = nullptr;
-
-    // ===== 입력(매핑/설정) =====
+private:
+    // ────────────── Enhanced Input ──────────────
+    /** C++에서 적용할 기본 IMC (에디터 자산을 지정하세요) */
     UPROPERTY(EditDefaultsOnly, Category = "Input")
-    UCInputConfig* InputConfig = nullptr;
+    TObjectPtr<UInputMappingContext> DefaultMappingContext = nullptr;
 
+    /** IMC 적용 우선순위 (0: 기본) */
     UPROPERTY(EditDefaultsOnly, Category = "Input")
-    UInputMappingContext* DefaultMappingContext = nullptr;
+    int32 MappingPriority = 0;
 
+    /** 일시정지 액션 (IMC에 매핑되어 있어야 함). 없으면 ESC 키 폴백 */
     UPROPERTY(EditDefaultsOnly, Category = "Input")
-    bool bClearPreviousMappings = true;
+    TObjectPtr<UInputAction> IA_Pause = nullptr;
 
-    /** 실제로 소유하는 입력 컴포넌트(컨트롤러 소유) */
+    /** 마우스 토글 액션(선택). 없으면 기본 키 없음 */
+    UPROPERTY(EditDefaultsOnly, Category = "Input")
+    TObjectPtr<UInputAction> IA_ToggleMouse = nullptr;
+
+    /** (선택) 캐릭터에 주입할 입력 구성 자산 */
+    UPROPERTY(EditDefaultsOnly, Category = "Input")
+    TObjectPtr<const UCInputConfig> DefaultInputConfig = nullptr;
+
+    // ────────────── 메뉴 위젯 ──────────────
+    /** 일시정지 메뉴 위젯 클래스 (WBP 또는 C++ UUserWidget) */
+    UPROPERTY(EditDefaultsOnly, Category = "UI")
+    TSubclassOf<UUserWidget> PauseMenuClass;
+
+    /** 생성된 메뉴 인스턴스 */
     UPROPERTY(Transient)
-    UCEnhancedInputComponent* CEnhancedInputComponent = nullptr;
+    TObjectPtr<UUserWidget> PauseMenuInstance = nullptr;
 
-    // ===== 소유 캐릭터 & 헬스 =====
-    UPROPERTY()
-    TObjectPtr<ACPlayerCharacter> OwnerCharacter = nullptr;
-
-    UPROPERTY()
-    TObjectPtr<UCHealthComponent> HealthComponent = nullptr;
+    /** 현재 일시정지 여부 캐시 */
+    UPROPERTY(VisibleInstanceOnly, Category = "State")
+    bool bIsPausedMenuOpen = false;
 };

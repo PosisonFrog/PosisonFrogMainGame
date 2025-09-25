@@ -1,98 +1,176 @@
+// CEnemyCharacterBase.h
 #pragma once
 
 #include "CoreMinimal.h"
-#include "GameFramework/Character.h"
+#include "00_Character/CBaseCharacter.h"
 #include "CEnemyCharacterBase.generated.h"
 
-class ACHealOrb;
+class UCapsuleComponent;
+class UCharacterMovementComponent;
+class UCHealthComponent;
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnEnemyDamaged, float, NewHealth, float, MaxHealth);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnEnemyDied);
+/** 적 상태(FSM) */
+UENUM(BlueprintType)
+enum class EEnemyState : uint8
+{
+    Patrol,
+    Alert,
+    Chase,
+    Attack,
+    ReturnHome,
+    Dead
+};
 
 /**
- * 공통 적 베이스
- * - HP/피격/사망 처리
- * - 피격 시 가벼운 노크백
- * - 사망 시 체력 구슬 스폰(옵션)
+ * 공통 적 베이스 (보스 제외)
+ * - LoS(거리 + FOV + 라인트레이스) 기반 인지 및 전이
+ * - bUseNavigation: NavMesh 있으면 MoveTo / 없으면 AddMovementInput
+ * - 순찰/추적/공격/귀환/사망 공통 로직
  */
 UCLASS()
-class POSISONFROG_API ACEnemyCharacterBase : public ACharacter
+class POSISONFROG_API ACEnemyCharacterBase : public ACBaseCharacter
 {
     GENERATED_BODY()
-
 public:
     ACEnemyCharacterBase();
 
-    virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent,
-        class AController* EventInstigator, AActor* DamageCauser) override;
+    /** 현재 상태 조회 */
+    UFUNCTION(BlueprintPure) EEnemyState GetState() const { return State; }
 
-    UFUNCTION(BlueprintCallable) FORCEINLINE bool  IsDead()       const { return bIsDead; }
-    UFUNCTION(BlueprintCallable) FORCEINLINE float GetHealth()    const { return CurrentHealth; }
-    UFUNCTION(BlueprintCallable) FORCEINLINE float GetMaxHealth() const { return MaxHealth; }
+    // ───────── 설정(시야/인지) ─────────
+    UPROPERTY(EditAnywhere, Category="PF|AI|Sense", meta=(ClampMin="0"))
+    float SightDistance = 1200.f;          // 시야 거리
+
+    UPROPERTY(EditAnywhere, Category="PF|AI|Sense", meta=(ClampMin="0", ClampMax="180"))
+    float SightFOVDegrees = 80.f;          // 시야 콘(전방 ±FOV/2)
+
+    UPROPERTY(EditAnywhere, Category="PF|AI|Sense")
+    TEnumAsByte<ECollisionChannel> SightTraceChannel = ECC_Visibility;  // 시야 트레이스 채널
+
+    UPROPERTY(EditAnywhere, Category="PF|AI|Sense")
+    float SightHeightOffsetSelf = 60.f;     // 내 시점 높이 보정
+    UPROPERTY(EditAnywhere, Category="PF|AI|Sense")
+    float SightHeightOffsetTarget = 50.f;   // 타겟 시점 높이 보정
+
+    UPROPERTY(EditAnywhere, Category="PF|AI|Sense")
+    float ChaseStartDistance = 1200.f;      // 추적 시작(거리 기준)
+    UPROPERTY(EditAnywhere, Category="PF|AI|Sense")
+    float ChaseStopDistance  = 2000.f;      // 추적 포기(멀어짐)
+    UPROPERTY(EditAnywhere, Category="PF|AI|Sense")
+    float LoseSightGrace     = 1.0f;        // 시야 상실 유예 시간
+
+    // ───────── 설정(공격) ─────────
+    UPROPERTY(EditAnywhere, Category="PF|AI|Attack")
+    float AttackEnterDistance = 160.f;      // 이내면 Attack 진입
+    UPROPERTY(EditAnywhere, Category="PF|AI|Attack")
+    float AttackExitDistance  = 220.f;      // 벗어나면 Chase 복귀
+
+    UPROPERTY(EditAnywhere, Category="PF|AI|Attack")
+    float AttackRange  = 180.f;             // 근접 판정 거리
+    UPROPERTY(EditAnywhere, Category="PF|AI|Attack")
+    float AttackRadius = 60.f;              // (필요 시 사용)
+
+    UPROPERTY(EditAnywhere, Category="PF|AI|Attack")
+    float AttackInterval = 1.0f;            // 기본 공격 주기
+    UPROPERTY(EditAnywhere, Category="PF|Combat")
+    float BaseDamage = 10.f;                // 기본 데미지
+
+    // ───────── 설정(순찰/이동) ─────────
+    UPROPERTY(EditAnywhere, Category="PF|AI|Patrol")
+    float PatrolRoamRadius = 800.f;
+    UPROPERTY(EditAnywhere, Category="PF|AI|Patrol")
+    float PatrolWaitTime = 1.5f;
+    UPROPERTY(EditAnywhere, Category="PF|AI|Patrol")
+    float PatrolPointReachRadius = 120.f;
+
+    /** NavMesh 유무와 무관하게 동작하도록 모드 토글 */
+    UPROPERTY(EditAnywhere, Category="PF|AI|Nav")
+    bool bUseNavigation = true;                 // true: MoveTo, false: 직진 스티어링
+    UPROPERTY(EditAnywhere, Category="PF|AI|Nav", meta=(EditCondition="!bUseNavigation", ClampMin="0"))
+    float DirectMoveSpeed = 360.f;              // 직진 모드 이동 속도
+
+    // ───────── 성능(연산 빈도) ─────────
+    UPROPERTY(EditAnywhere, Category="PF|AI|Perf")
+    float NearThinkDistance   = 2500.f;         // 근거리 고빈도 기준
+    UPROPERTY(EditAnywhere, Category="PF|AI|Perf")
+    float CheapThinkInterval  = 0.25f;          // 원거리 저빈도
+    UPROPERTY(EditAnywhere, Category="PF|AI|Perf")
+    float RichThinkInterval   = 0.05f;          // 근거리 고빈도
+
+    // ───────── 디버그 ─────────
+    UPROPERTY(EditAnywhere, Category="PF|Debug")
+    bool bShowDebugInfo = false;                // 디버그 정보 표시
 
 protected:
+    // AActor
     virtual void BeginPlay() override;
-    virtual void OnDeath();                // 사망 처리
-    void         SpawnHealOrb();           // 체력 구슬 스폰
-    void         ApplyKnockback(const FDamageEvent& DamageEvent, AController* EventInstigator, AActor* Causer);
+    virtual void Tick(float DeltaSeconds) override;
+
+    // FSM 프레임
+    virtual void Think(float DeltaTime);
+    virtual void EnterState(EEnemyState NewState);
+    virtual void ExitState(EEnemyState OldState);
+    void        SetState(EEnemyState NewState);
+
+    // 상태 처리
+    virtual void DoPatrol();
+    virtual void DoAlert();
+    virtual void DoChase();
+    virtual void DoAttack();     // 타입별로 오버라이드 가능
+    virtual void DoReturnHome();
+    virtual void DoDead();
+
+    // 조건/헬퍼
+    virtual bool IsAttackReady() const;
+    virtual bool IsInAttackDistance() const;
+
+    bool  AcquireTarget();
+    bool  HasVisualOnTarget() const;            // 거리+FOV+라인트레이스
+    bool  IsTargetInFOV(const AActor* Other) const;
+    float DistToTarget() const;
+
+    // 이동(Nav/직진 겸용)
+    void  RequestMoveTo(const FVector& Goal, float AcceptanceRadius = 120.f);
+    void  StopMove();
+    bool  Reached(const FVector& P, float Radius) const;
+    void  DirectMoveTick(float DeltaSeconds);
+
+    // 데미지/사망/드랍
+    virtual float TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent,
+                             AController* EventInstigator, AActor* DamageCauser) override;
+    UFUNCTION() void OnHealthChanged(float Cur, float Max);
+    virtual void OnDead();
+    virtual void TryDropHealPack();
+    
+    // 애니메이션 연동
+    UFUNCTION(BlueprintCallable, Category="PF|Combat")
+    void ApplyAttackDamage();                   // 애니메이션 노티파이에서 호출
+    
+    // 디버그
+    void DebugDrawState();
 
 protected:
-    // === Health ===
-    UPROPERTY(EditAnywhere, Category = "Health", meta = (ClampMin = "1.0"))
-    float MaxHealth = 100.f;
+    // 런타임 상태/캐시
+    UPROPERTY(Transient) TObjectPtr<AActor> Target = nullptr;
+    UPROPERTY(VisibleInstanceOnly, Category="PF|AI") EEnemyState State = EEnemyState::Patrol;
 
-    UPROPERTY(VisibleInstanceOnly, Category = "Health")
-    float CurrentHealth = 0.f;
+    FVector HomeLocation = FVector::ZeroVector;
+    FVector PatrolGoal   = FVector::ZeroVector;
 
-    UPROPERTY(VisibleInstanceOnly, Category = "Health")
-    bool  bIsDead = false;
+    float   NextThinkTime = 0.f;
+    float   LastSeenTime  = -1000.f;
+    float   LastAttackTime = -1000.f;
+    float   StateEnterTime = -1000.f;          // 상태 진입 시간
 
-    // === Knockback(피격 반응) ===
-    /** 수평 노크백 속도(cm/s) */
-    UPROPERTY(EditAnywhere, Category = "Hit|Knockback", meta = (ClampMin = "0.0"))
-    float KnockbackSpeedXY = 600.f;
-
-    /** 위로 살짝 튀기는 속도(cm/s) */
-    UPROPERTY(EditAnywhere, Category = "Hit|Knockback", meta = (ClampMin = "0.0"))
-    float KnockbackUpSpeed = 80.f;
-
-    /** 연속 피격 시 노크백 쿨다운(초). 너무 자주 밀리지 않게 함 */
-    UPROPERTY(EditAnywhere, Category = "Hit|Knockback", meta = (ClampMin = "0.0"))
-    float KnockbackCooldown = 0.12f;
-
-    /** 노크백 중 슬라이드 느낌을 주기 위한 임시 마찰값 */
-    UPROPERTY(EditAnywhere, Category = "Hit|Knockback", meta = (ClampMin = "0.0"))
-    float KnockbackGroundFriction = 1.0f;
-
-    /** 임시 마찰 적용 시간(초). 짧게 미끄러지다 멈추는 느낌 */
-    UPROPERTY(EditAnywhere, Category = "Hit|Knockback", meta = (ClampMin = "0.0"))
-    float KnockbackFrictionTime = 0.18f;
-
-    /** 마지막 노크백 시각 */
-    UPROPERTY(VisibleInstanceOnly, Category = "Hit|Knockback")
-    float LastKnockTime = -1000.f;
-
-    // === Death Drop(체력 구슬) ===
-    UPROPERTY(EditDefaultsOnly, Category = "Loot")
-    TSubclassOf<ACHealOrb> HealOrbClass;
-
-    /** 지면 보정 라인트레이스 오프셋(위/아래) */
-    UPROPERTY(EditAnywhere, Category = "Loot")
-    float TraceUpOffset = 30.f;
-
-    UPROPERTY(EditAnywhere, Category = "Loot")
-    float TraceDownOffset = 60.f;
-
-    /** 사망 후 제거까지 대기 시간(즉시 삭제 원하면 0으로) */
-    UPROPERTY(EditAnywhere, Category = "Death")
-    float DeathLifeSpan = 0.15f;
-
-public:
-    // === 이벤트(HP UI/사운드/이펙트 연결용) ===
-    UPROPERTY(BlueprintAssignable, Category = "Events")
-    FOnEnemyDamaged OnEnemyDamaged;
-
-    UPROPERTY(BlueprintAssignable, Category = "Events")
-    FOnEnemyDied OnEnemyDied;
+    // 직진 모드 이동 상태
+    bool    bDirectMoveActive = false;
+    FVector DirectMoveGoal = FVector::ZeroVector;
+    float   DirectAcceptanceRadius = 120.f;
+    
+    // 드롭 설정
+    UPROPERTY(EditAnywhere, Category="PF|Drop")
+    float HealPackDropChance = 0.3f;           // 체력 팩 드롭 확률
+    UPROPERTY(EditAnywhere, Category="PF|Drop")
+    TSubclassOf<AActor> HealPackClass;          // 드롭할 체력 팩 클래스
 };
 

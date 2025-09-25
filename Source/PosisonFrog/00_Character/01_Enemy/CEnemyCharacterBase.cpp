@@ -1,205 +1,457 @@
-#include "00_Character/01_Enemy/CEnemyCharacterBase.h"
-#include "Engine/DamageEvents.h"
-#include "01_Item/CHealOrb.h"
+// CEnemyCharacterBase.cpp
+#include "CEnemyCharacterBase.h"
+
+#include "AIController.h"
+#include "Kismet/GameplayStatics.h"
+#include "NavigationSystem.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
-#include "Kismet/GameplayStatics.h"
-#include "Kismet/KismetSystemLibrary.h"
-#include "Engine/World.h"
-#include "TimerManager.h"
-#include "99_Util/CLog.h"
+#include "DrawDebugHelpers.h"
+#include "Navigation/PathFollowingComponent.h"
+
+
+#include "00_Character/02_Component/CHealthComponent.h"
+#include "00_Character/00_Player/CPlayerCharacter.h"
 
 ACEnemyCharacterBase::ACEnemyCharacterBase()
 {
-    PrimaryActorTick.bCanEverTick = false;
+    PrimaryActorTick.bCanEverTick = true;
+    
+
+    if (UCharacterMovementComponent* M = GetCharacterMovement())
+    {
+        M->MaxWalkSpeed = 360.f;
+        M->bUseControllerDesiredRotation = false;
+        M->bOrientRotationToMovement = true;
+        M->RotationRate = FRotator(0, 420, 0);
+    }
+
+    // 적도 공통 HealthComponent 사용(없으면 생성)
+    if (!FindComponentByClass<UCHealthComponent>())
+    {
+        CreateDefaultSubobject<UCHealthComponent>(TEXT("HealthComponent"));
+    }
 }
 
 void ACEnemyCharacterBase::BeginPlay()
 {
     Super::BeginPlay();
 
-    CurrentHealth = FMath::Max(1.f, MaxHealth);
-    SetCanBeDamaged(true);
-}
+    HomeLocation = GetActorLocation();
 
-float ACEnemyCharacterBase::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent,
-    AController* EventInstigator, AActor* DamageCauser)
-{
-    if (bIsDead)             return 0.f;
-    if (DamageAmount <= 0.f) return 0.f;
-
-    const float OldHealth = CurrentHealth;
-    CurrentHealth = FMath::Clamp(CurrentHealth - DamageAmount, 0.f, MaxHealth);
-
-    // 가벼운 노크백 적용 (너무 잦으면 쿨다운으로 제한)
-    if (CurrentHealth > 0.f) // 사망 타격엔 노크백 생략(원하시면 위치 변경)
+    if (!bUseNavigation)
     {
-        ApplyKnockback(DamageEvent, EventInstigator, DamageCauser);
+        if (UCharacterMovementComponent* M = GetCharacterMovement())
+            M->MaxWalkSpeed = DirectMoveSpeed;
     }
 
-    // HP 이벤트 브로드캐스트
-    OnEnemyDamaged.Broadcast(CurrentHealth, MaxHealth);
-
-    if (CurrentHealth <= 0.f && !bIsDead)
+    if (UCHealthComponent* HP = FindComponentByClass<UCHealthComponent>())
     {
-        bIsDead = true;
-        OnDeath();
+        HP->OnHealthChanged.AddDynamic(this, &ACEnemyCharacterBase::OnHealthChanged);
     }
 
-    return OldHealth - CurrentHealth; // 실제 적용된 데미지 반환
+    SetState(EEnemyState::Patrol);
 }
 
-void ACEnemyCharacterBase::ApplyKnockback(const FDamageEvent& DamageEvent, AController* EventInstigator, AActor* Causer)
+void ACEnemyCharacterBase::Tick(float DeltaSeconds)
 {
-    UWorld* World = GetWorld();
-    if (!World) return;
+    Super::Tick(DeltaSeconds);
 
-    const float Now = World->GetTimeSeconds();
-    if (Now - LastKnockTime < KnockbackCooldown)
-        return;
-    LastKnockTime = Now;
+    if (!bUseNavigation && bDirectMoveActive)
+        DirectMoveTick(DeltaSeconds);
 
-    // 방향 결정: 1) 포인트 데미지의 ShotDirection 사용 → 2) Causer 기준 → 3) 자기 전방의 반대
-    FVector Dir = FVector::ZeroVector;
+    const float Dist = Target ? FVector::Dist(GetActorLocation(), Target->GetActorLocation()) : FLT_MAX;
+    const float Interval = (Dist <= NearThinkDistance) ? RichThinkInterval : CheapThinkInterval;
+
+    if (GetWorld()->GetTimeSeconds() >= NextThinkTime)
+    {
+        NextThinkTime = GetWorld()->GetTimeSeconds() + Interval;
+        Think(DeltaSeconds);
+    }
     
-    if (DamageEvent.GetTypeID() == FPointDamageEvent::ClassID)
+    if (bShowDebugInfo)
     {
-        const FPointDamageEvent* PDE = static_cast<const FPointDamageEvent*>(&DamageEvent);
-        if (PDE)
+        DebugDrawState();
+    }
+}
+
+void ACEnemyCharacterBase::Think(float)
+{
+    AcquireTarget();
+
+    switch (State)
+    {
+    case EEnemyState::Patrol:     DoPatrol();      break;
+    case EEnemyState::Alert:      DoAlert();       break;
+    case EEnemyState::Chase:      DoChase();       break;
+    case EEnemyState::Attack:     DoAttack();      break;
+    case EEnemyState::ReturnHome: DoReturnHome();  break;
+    case EEnemyState::Dead:       DoDead();        break;
+    }
+}
+
+void ACEnemyCharacterBase::EnterState(EEnemyState) {}
+void ACEnemyCharacterBase::ExitState(EEnemyState) {}
+
+void ACEnemyCharacterBase::SetState(EEnemyState NewState)
+{
+    if (State == NewState) return;
+    ExitState(State);
+    State = NewState;
+    StateEnterTime = GetWorld()->GetTimeSeconds();  // 상태 진입 시간 기록
+    EnterState(State);
+}
+
+// ───────────────── 상태별 동작 ─────────────────
+
+void ACEnemyCharacterBase::DoPatrol()
+{
+    // Patrol → Alert : LoS && Dist ≤ ChaseStartDistance
+    if (Target && HasVisualOnTarget() && DistToTarget() <= ChaseStartDistance)
+    {
+        SetState(EEnemyState::Alert);
+        return;
+    }
+
+    // 순찰 목표 없거나 도달 시 새 목표
+    if (PatrolGoal.IsNearlyZero() || Reached(PatrolGoal, PatrolPointReachRadius))
+    {
+        bool bSet = false;
+        if (bUseNavigation)
         {
-            // ShotDirection은 "가해자 → 피해자" 방향(정규화)로 쓰이는 경우가 많음.
-            // 피격자(적이든 나든) 입장에서 뒤로 밀리게 하려면 +ShotDirection이 자연스러워용.
-            Dir = PDE->ShotDirection;
+            if (UNavigationSystemV1* NS = UNavigationSystemV1::GetCurrent(GetWorld()))
+            {
+                FNavLocation NL;
+                if (NS->GetRandomPointInNavigableRadius(HomeLocation, PatrolRoamRadius, NL))
+                {
+                    PatrolGoal = NL.Location; bSet = true;
+                }
+            }
+        }
+        if (!bSet)
+        {
+            // NavMesh 없을 때: 원점 근처 랜덤 2D 오프셋
+            const float R = FMath::FRandRange(PatrolRoamRadius * 0.4f, PatrolRoamRadius);
+            const float A = FMath::FRandRange(0.f, 2*PI);
+            PatrolGoal = HomeLocation + FVector(FMath::Cos(A)*R, FMath::Sin(A)*R, 0.f);
+        }
+        RequestMoveTo(PatrolGoal, PatrolPointReachRadius);
+    }
+}
+
+void ACEnemyCharacterBase::DoAlert()
+{
+    const float AlertDuration = 0.4f;
+    const bool bLoS  = Target && HasVisualOnTarget();
+    const bool bNear = Target && DistToTarget() <= ChaseStartDistance;
+
+    if (!bLoS || !bNear)
+    {
+        SetState(EEnemyState::Patrol);
+        return;
+    }
+
+    if (GetWorld()->GetTimeSeconds() - StateEnterTime >= AlertDuration)
+    {
+        SetState(EEnemyState::Chase);
+    }
+}
+
+void ACEnemyCharacterBase::DoChase()
+{
+    if (!Target)
+    {
+        SetState(EEnemyState::ReturnHome);
+        return;
+    }
+
+    const float Dist = DistToTarget();
+
+    // Chase → Attack : 근접 + 시야
+    if (Dist <= AttackEnterDistance && HasVisualOnTarget())
+    {
+        StopMove();
+        SetState(EEnemyState::Attack);
+        return;
+    }
+
+    // Chase 유지/포기
+    if (!HasVisualOnTarget())
+    {
+        const bool bLoseTooLong = (GetWorld()->GetTimeSeconds() - LastSeenTime) >= LoseSightGrace;
+        if (bLoseTooLong || Dist >= ChaseStopDistance)
+        {
+            SetState(EEnemyState::ReturnHome);
+            return;
         }
     }
-   
-
-    if (Dir.IsNearlyZero() && IsValid(Causer))
-    {
-        // 가해자로부터 멀어지는 방향
-        Dir = (GetActorLocation() - Causer->GetActorLocation());
-    }
-
-    if (Dir.IsNearlyZero())
-    {
-        // 최후의 보루: 내 전방의 반대
-        Dir = -GetActorForwardVector();
-    }
-
-    // 수평만 사용 + 정규화
-    Dir.Z = 0.f;
-    Dir = Dir.GetSafeNormal();
-    if (Dir.IsNearlyZero()) return;
-
-    // 슬라이드 느낌: 잠깐 마찰/제동 낮추기 → 타이머로 복원
-    UCharacterMovementComponent* Move = GetCharacterMovement();
-    float SavedFriction = 0.f;
-    if (Move)
-    {
-        SavedFriction = Move->GroundFriction;
-        Move->GroundFriction = KnockbackGroundFriction;
-
-        FTimerHandle RestoreFrictionTimer;
-        World->GetTimerManager().SetTimer(RestoreFrictionTimer, [this, SavedFriction]()
-            {
-                if (UCharacterMovementComponent* M = GetCharacterMovement())
-                {
-                    M->GroundFriction = SavedFriction;
-                }
-            }, KnockbackFrictionTime, false);
-    }
-
-    // 실제 노크백: LaunchCharacter를 사용 (질량/물리 영향 없이 튜닝 쉬움)
-    const FVector Launch = (Dir * KnockbackSpeedXY) + FVector(0, 0, KnockbackUpSpeed);
-    LaunchCharacter(Launch, /*bXYOverride=*/true, /*bZOverride=*/true);
-}
-
-void ACEnemyCharacterBase::OnDeath()
-{
-    if (!bIsDead) return;
-
-    SetCanBeDamaged(false);
-
-    // 이동/충돌 정리
-    if (UCharacterMovementComponent* Move = GetCharacterMovement())
-    {
-        Move->StopMovementImmediately();
-        Move->DisableMovement();
-    }
-    if (UCapsuleComponent* Capsule = GetCapsuleComponent())
-    {
-        Capsule->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-    }
-
-    // 컨트롤러 분리
-    DetachFromControllerPendingDestroy();
-
-    // 드롭
-    SpawnHealOrb();
-
-    // 외부에 알림
-    OnEnemyDied.Broadcast();
-
-    // 짧게 생존 후 제거(사운드/이펙트 보장)
-    if (DeathLifeSpan > 0.f)
-        SetLifeSpan(DeathLifeSpan);
     else
-        Destroy();
+    {
+        LastSeenTime = GetWorld()->GetTimeSeconds();
+    }
+
+    RequestMoveTo(Target->GetActorLocation(), PatrolPointReachRadius);
 }
 
-void ACEnemyCharacterBase::SpawnHealOrb()
+void ACEnemyCharacterBase::DoAttack()
 {
-    if (!HealOrbClass) return;
+    if (!Target || DistToTarget() >= AttackExitDistance)
+    {
+        SetState(EEnemyState::Chase);
+        return;
+    }
 
-    UWorld* World = GetWorld();
-    if (!World) return;
+    if (IsAttackReady())
+    {
+        LastAttackTime = GetWorld()->GetTimeSeconds();
 
-    // 경사/단차 보정
-    const FVector Start = GetActorLocation() + FVector(0, 0, TraceUpOffset);
-    const FVector End = GetActorLocation() - FVector(0, 0, TraceDownOffset);
-
-    FHitResult Hit;
-    FCollisionQueryParams Params(SCENE_QUERY_STAT(Enemy_DeathTrace), false, this);
-    const bool bHit = World->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params);
-
-    const FVector SpawnLoc = bHit ? (Hit.ImpactPoint + FVector(0, 0, 5.f)) : GetActorLocation();
-    const FRotator SpawnRot = FRotator::ZeroRotator;
-
-    FActorSpawnParameters S;
-    S.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
-    S.Owner = this;
-
-    World->SpawnActor<ACHealOrb>(HealOrbClass, SpawnLoc, SpawnRot, S);
+        // 공격 애니메이션 재생 (애니메이션 몽타주 사용)
+        // PlayAttackMontage(); // 실제 구현은 파생 클래스에서
+    }
 }
 
+void ACEnemyCharacterBase::DoReturnHome()
+{
+    if (Reached(HomeLocation, PatrolPointReachRadius))
+    {
+        SetState(EEnemyState::Patrol);
+        return;
+    }
+    RequestMoveTo(HomeLocation, PatrolPointReachRadius);
+}
 
-/*노크백 방향
+void ACEnemyCharacterBase::DoDead()
+{
+    StopMove();
+    // 사망 애니메이션 재생
+    // PlayDeathMontage(); // 실제 구현은 파생 클래스에서
+}
 
-FPointDamageEvent::ShotDirection(있으면 최우선) →
+// ───────────────── 조건/헬퍼 ─────────────────
 
-DamageCauser 방향에서 멀어지는 벡터 →
+bool ACEnemyCharacterBase::IsAttackReady() const
+{
+    return (GetWorld()->GetTimeSeconds() - LastAttackTime) >= AttackInterval;
+}
 
-마지막으로 내 전방의 반대.
-이렇게 하면 근접/원거리/특수 케이스 모두 무난하게 커버됩니다.
+bool ACEnemyCharacterBase::IsInAttackDistance() const
+{
+    return Target && (DistToTarget() <= AttackEnterDistance);
+}
 
-‘살짝 미끄러짐’ 손맛/타격감
-GroundFriction을 짧게 낮춰서 미끄러지는 느낌을 주고, 타이머로 복원합니다.
-(필요하면 BrakingDecelerationWalking도 함께 낮췄다가 복원하는 방식으로 더 늘릴 수 있습니다.)
+bool ACEnemyCharacterBase::AcquireTarget()
+{
+    // 기존 타겟이 유효한지 확인
+    if (Target && !Target->IsPendingKill() && Target->IsA<ACPlayerCharacter>())
+        return true;
 
-과도한 튕김 방지
-KnockbackCooldown으로 너무 자주 밀리지 않도록 제한했습니다.
-(콤보 히트가 매우 촘촘할 때 물리적으로 던져지거나 떨림이 생기는 문제 방지)
+    // 모든 플레이어 캐릭터 찾기
+    TArray<AActor*> Players;
+    UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACPlayerCharacter::StaticClass(), Players);
+    
+    if (Players.Num() == 0)
+    {
+        Target = nullptr;
+        return false;
+    }
+    
+    // 가장 가까운 플레이어 선택
+    AActor* ClosestPlayer = nullptr;
+    float MinDistance = FLT_MAX;
+    
+    for (AActor* Player : Players)
+    {
+        float Distance = FVector::Dist(GetActorLocation(), Player->GetActorLocation());
+        if (Distance < MinDistance)
+        {
+            MinDistance = Distance;
+            ClosestPlayer = Player;
+        }
+    }
+    
+    Target = ClosestPlayer;
+    return (Target != nullptr);
+}
 
-사망 처리 안정성
-이동/충돌/컨트롤러를 정리하고 체력 구슬을 안정적으로 드롭한 뒤,
-SetLifeSpan으로 짧게 유지 후 제거하여 이펙트/사운드가 안전하게 재생됩니다.
+bool ACEnemyCharacterBase::IsTargetInFOV(const AActor* Other) const
+{
+    if (!Other) return false;
+    FVector Fwd = GetActorForwardVector(); Fwd.Z = 0.f; Fwd.Normalize();
+    FVector To  = (Other->GetActorLocation() - GetActorLocation()); To.Z = 0.f;
+    if (!To.Normalize()) return false;
 
-튜닝 티티티티티이이이ㅣ이이이이비비비ㅣ비빕 ㅣㅏ러 ㅗㅇㅂ노란ㅇ모러
+    const float CosHalf = FMath::Cos(FMath::DegreesToRadians(SightFOVDegrees * 0.5f));
+    const float Dot     = FVector::DotProduct(Fwd, To);
+    return (Dot >= CosHalf);
+}
 
-노크백 세기: KnockbackSpeedXY = 500~800부터 시작하세요.
+bool ACEnemyCharacterBase::HasVisualOnTarget() const
+{
+    if (!Target) return false;
 
-위로 튐: KnockbackUpSpeed = 50~120 (원치 않으면 0)
+    // 1) 거리
+    const float DistSq = FVector::DistSquared(GetActorLocation(), Target->GetActorLocation());
+    if (DistSq > FMath::Square(SightDistance)) return false;
 
-슬라이드 정도: KnockbackGroundFriction = 0.5~1.5 / KnockbackFrictionTime = 0.15~0.25
+    // 2) FOV
+    if (!IsTargetInFOV(Target)) return false;
 
-노크백 빈도 제한: KnockbackCooldown = 0.1~0.2*/
+    // 3) 라인트레이스(가림)
+    FHitResult Hit;
+    FCollisionQueryParams Params(SCENE_QUERY_STAT(AI_LOS), false, this);
+    const FVector S = GetActorLocation() + FVector(0,0, SightHeightOffsetSelf);
+    const FVector E = Target->GetActorLocation() + FVector(0,0, SightHeightOffsetTarget);
+    const bool bHit = GetWorld()->LineTraceSingleByChannel(Hit, S, E, SightTraceChannel, Params);
+    return !bHit || Hit.GetActor() == Target;
+}
+
+float ACEnemyCharacterBase::DistToTarget() const
+{
+    return Target ? FVector::Dist(GetActorLocation(), Target->GetActorLocation()) : FLT_MAX;
+}
+
+void ACEnemyCharacterBase::RequestMoveTo(const FVector& Goal, float AcceptanceRadius)
+{
+    if (bUseNavigation)
+    {
+        if (AAIController* AI = Cast<AAIController>(GetController()))
+        {
+            FAIMoveRequest Req(Goal);
+            Req.SetAcceptanceRadius(AcceptanceRadius);
+            
+            // 이동 요청 결과 처리
+            FPathFollowingRequestResult Result = AI->MoveTo(Req);
+            if (Result.Code == EPathFollowingRequestResult::Failed)
+            {
+                // 네비게이션 실패 시 직접 이동으로 전환
+                bUseNavigation = false;
+                DirectMoveGoal = Goal;
+                DirectAcceptanceRadius = AcceptanceRadius;
+                bDirectMoveActive = true;
+            }
+        }
+    }
+    else
+    {
+        DirectMoveGoal = Goal;
+        DirectAcceptanceRadius = AcceptanceRadius;
+        bDirectMoveActive = true;
+    }
+}
+
+void ACEnemyCharacterBase::StopMove()
+{
+    if (bUseNavigation)
+    {
+        if (AAIController* AI = Cast<AAIController>(GetController()))
+            AI->StopMovement();
+    }
+    else
+    {
+        bDirectMoveActive = false;
+        if (UCharacterMovementComponent* M = GetCharacterMovement())
+            M->StopMovementImmediately();
+    }
+}
+
+bool ACEnemyCharacterBase::Reached(const FVector& P, float Radius) const
+{
+    return FVector::DistSquared(GetActorLocation(), P) <= FMath::Square(Radius);
+}
+
+void ACEnemyCharacterBase::DirectMoveTick(float /*DeltaSeconds*/)
+{
+    if (!bDirectMoveActive) return;
+
+    if (Reached(DirectMoveGoal, DirectAcceptanceRadius))
+    {
+        bDirectMoveActive = false;
+        return;
+    }
+
+    FVector Dir = (DirectMoveGoal - GetActorLocation()); Dir.Z = 0.f;
+    if (Dir.Normalize())
+        AddMovementInput(Dir, 1.f);
+}
+
+// ───────────────── 데미지/사망/드랍 ─────────────────
+
+float ACEnemyCharacterBase::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent,
+                                       AController* EventInstigator, AActor* DamageCauser)
+{
+    // 실제 HP 변화는 UCHealthComponent가 처리한다고 가정
+    return Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+}
+
+void ACEnemyCharacterBase::OnHealthChanged(float Cur, float /*Max*/)
+{
+    if (Cur <= 0.f && State != EEnemyState::Dead)
+    {
+        SetState(EEnemyState::Dead);
+        OnDead();
+    }
+}
+
+void ACEnemyCharacterBase::OnDead()
+{
+    // 이동 및 충돌 비활성화
+    GetCharacterMovement()->DisableMovement();
+    GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    
+    TryDropHealPack();
+    
+    // 애니메이션 재생 후 파괴 (3초 후)
+    SetLifeSpan(3.0f);
+}
+
+void ACEnemyCharacterBase::TryDropHealPack()
+{
+    if (FMath::FRand() > HealPackDropChance) return;
+    if (!HealPackClass) return;
+    
+    FActorSpawnParameters SpawnParams;
+    SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+    
+    FVector SpawnLocation = GetActorLocation() + FVector(0, 0, 50);
+    FRotator SpawnRotation = FRotator::ZeroRotator;
+    
+    GetWorld()->SpawnActor<AActor>(HealPackClass, SpawnLocation, SpawnRotation, SpawnParams);
+}
+
+void ACEnemyCharacterBase::ApplyAttackDamage()
+{
+    if (!Target) return;
+    
+    // 공격 범위 내에 있는지 확인
+    if (FVector::Dist(GetActorLocation(), Target->GetActorLocation()) <= AttackRange)
+    {
+        UGameplayStatics::ApplyDamage(Target, BaseDamage, GetController(), this, UDamageType::StaticClass());
+    }
+}
+
+void ACEnemyCharacterBase::DebugDrawState()
+{
+#if ENABLE_DRAW_DEBUG
+    // 상태 정보 표시
+    FString StateName = UEnum::GetValueAsString(State);
+    FString DebugText = FString::Printf(TEXT("State: %s"), *StateName);
+    GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Yellow, DebugText);
+    
+    // 시야 범위 시각화
+    FVector Start = GetActorLocation() + FVector(0, 0, SightHeightOffsetSelf);
+    float AngleRad = FMath::DegreesToRadians(SightFOVDegrees);
+    FVector LeftDir = GetActorForwardVector().RotateAngleAxis(SightFOVDegrees * 0.5f, FVector::UpVector);
+    FVector RightDir = GetActorForwardVector().RotateAngleAxis(-SightFOVDegrees * 0.5f, FVector::UpVector);
+    
+    DrawDebugLine(GetWorld(), Start, Start + LeftDir * SightDistance, FColor::Green, false, 0.0f, 0, 1.0f);
+    DrawDebugLine(GetWorld(), Start, Start + RightDir * SightDistance, FColor::Green, false, 0.0f, 0, 1.0f);
+    
+    // 타겟과의 연결선
+    if (Target)
+    {
+        DrawDebugLine(GetWorld(), Start, Target->GetActorLocation(), 
+                      HasVisualOnTarget() ? FColor::Red : FColor::Blue, false, 0.0f, 0, 1.0f);
+    }
+#endif
+}
+

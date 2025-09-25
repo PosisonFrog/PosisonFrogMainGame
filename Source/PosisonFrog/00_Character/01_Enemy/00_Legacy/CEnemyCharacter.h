@@ -4,13 +4,13 @@
 
 #include "CoreMinimal.h"
 #include "00_Character/00_Player/CPlayerCharacter.h"
-#include "00_Character/01_Enemy/CEnemyCharacterBase.h"
+#include "00_Character/01_Enemy/00_Legacy/CEnemyCharacterBaseLegacy.h"
 #include "CEnemyCharacter.generated.h"
 
 class ACPlayerCharacter;
 
 UENUM(BlueprintType)
-enum class EEnemyState : uint8
+enum class EEnemyStateLegacy : uint8
 {
 	Patrol,
 	Alert,
@@ -20,11 +20,10 @@ enum class EEnemyState : uint8
 	Dead
 };
 
-/**
- * 
- */
+
+
 UCLASS()
-class POSISONFROG_API ACEnemyCharacter : public ACEnemyCharacterBase
+class POSISONFROG_API ACEnemyCharacter : public ACEnemyCharacterBaseLegacy
 {
 	GENERATED_BODY()
 
@@ -41,7 +40,7 @@ protected:
 private:
 	// ===== FSM =====
 	void UpdateFSM(float DeltaTime);
-	void EnterState(EEnemyState NewState);
+	void EnterState(EEnemyStateLegacy NewState);
 	bool ShouldUpdateAI(float DeltaTime);
 	bool HasSightToPlayer() const;
 
@@ -66,7 +65,7 @@ private:
 private:
 	// ===== State =====
 	UPROPERTY(VisibleAnywhere, Category = "Enemy|State")
-	EEnemyState State = EEnemyState::Patrol;
+	EEnemyStateLegacy State = EEnemyStateLegacy::Patrol;
 
 	UPROPERTY()
 	ACPlayerCharacter* Player = nullptr;

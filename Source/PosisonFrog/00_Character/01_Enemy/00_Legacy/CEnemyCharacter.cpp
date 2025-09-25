@@ -1,7 +1,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "00_Character/01_Enemy/CEnemyCharacter.h"
+#include "00_Character/01_Enemy/00_Legacy/CEnemyCharacter.h"
 
 #include "01_Item/CHealOrbPoolSubsystem.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -35,7 +35,7 @@ void ACEnemyCharacter::BeginPlay()
 	// 순찰 시작 목표 보장
 	EnsurePatrolGoal();
 
-	EnterState(EEnemyState::Patrol);
+	EnterState(EEnemyStateLegacy::Patrol);
 }
 
 void ACEnemyCharacter::Tick(float DeltaTime)
@@ -73,14 +73,14 @@ void ACEnemyCharacter::UpdateFSM(float DeltaTime)
 
 	// Leash: 원점에서 너무 멀리 벗어났으면 복귀 강제
 	const float FromHome = FVector::Dist2D(MyLoc, HomeLocation);
-	if (State != EEnemyState::Dead && FromHome >= LeashMaxDistance)
+	if (State != EEnemyStateLegacy::Dead && FromHome >= LeashMaxDistance)
 	{
-	    EnterState(EEnemyState::ReturnHome);
+	    EnterState(EEnemyStateLegacy::ReturnHome);
 	}
 
 	switch (State)
 	{
-	case EEnemyState::Patrol:
+	case EEnemyStateLegacy::Patrol:
 	{
 	    // 순찰 이동
 	    MoveTowards(CurrentPatrolGoal, PatrolMoveSpeed);
@@ -96,22 +96,22 @@ void ACEnemyCharacter::UpdateFSM(float DeltaTime)
 
 	    // 인지 → 경계 진입
 	    if (Dist <= ChaseStartDistance && bLOS)
-	        EnterState(EEnemyState::Alert);
+	        EnterState(EEnemyStateLegacy::Alert);
 	    break;
 	}
 
-	case EEnemyState::Alert:
+	case EEnemyStateLegacy::Alert:
 	    AlertAcc += DeltaTime;
 	    if (AlertAcc >= AlertDuration)
-	        EnterState(EEnemyState::Chase);
+	        EnterState(EEnemyStateLegacy::Chase);
 	    break;
 
-	case EEnemyState::Chase:
+	case EEnemyStateLegacy::Chase:
 	{
 	    // 공격 진입
 	    if (Dist <= AttackEnterDistance)
 	    {
-	        EnterState(EEnemyState::Attack);
+	        EnterState(EEnemyStateLegacy::Attack);
 	        break;
 	    }
 
@@ -121,7 +121,7 @@ void ACEnemyCharacter::UpdateFSM(float DeltaTime)
 	        LoseSightAcc += DeltaTime;
 	        if (LoseSightAcc >= LoseSightGrace)
 	        {
-	            EnterState(EEnemyState::ReturnHome);
+	            EnterState(EEnemyStateLegacy::ReturnHome);
 	            break;
 	        }
 	    }
@@ -133,7 +133,7 @@ void ACEnemyCharacter::UpdateFSM(float DeltaTime)
 	    // 너무 멀어지면 추격 포기
 	    if (Dist >= ChaseStopDistance)
 	    {
-	        EnterState(EEnemyState::ReturnHome);
+	        EnterState(EEnemyStateLegacy::ReturnHome);
 	        break;
 	    }
 
@@ -142,12 +142,12 @@ void ACEnemyCharacter::UpdateFSM(float DeltaTime)
 	    break;
 	}
 
-	case EEnemyState::Attack:
+	case EEnemyStateLegacy::Attack:
 	{
 	    // 공격 범위 이탈 → 다시 추격
 	    if (Dist > AttackEnterDistance * 1.3f)
 	    {
-	        EnterState(EEnemyState::Chase);
+	        EnterState(EEnemyStateLegacy::Chase);
 	        break;
 	    }
 
@@ -155,28 +155,28 @@ void ACEnemyCharacter::UpdateFSM(float DeltaTime)
 	    break;
 	}
 
-	case EEnemyState::ReturnHome:
+	case EEnemyStateLegacy::ReturnHome:
 	{
 	    MoveTowards(HomeLocation, PatrolMoveSpeed);
 	    if (Reached(HomeLocation, ReturnHomeReachDist))
 	    {
-	        EnterState(EEnemyState::Patrol);
+	        EnterState(EEnemyStateLegacy::Patrol);
 	    }
 	    break;
 	}
 
-	case EEnemyState::Dead:
+	case EEnemyStateLegacy::Dead:
 	    break;
 	}
 }
 
-void ACEnemyCharacter::EnterState(EEnemyState NewState)
+void ACEnemyCharacter::EnterState(EEnemyStateLegacy NewState)
 {
 	State = NewState;
 
 	switch (State)
 	{
-	case EEnemyState::Patrol:
+	case EEnemyStateLegacy::Patrol:
 		AlertAcc = 0.f;
 		LoseSightAcc = 0.f;
 		if (UCharacterMovementComponent* Move = GetCharacterMovement())
@@ -184,28 +184,28 @@ void ACEnemyCharacter::EnterState(EEnemyState NewState)
 		EnsurePatrolGoal();
 		break;
 
-	case EEnemyState::Alert:
+	case EEnemyStateLegacy::Alert:
 		AlertAcc = 0.f;
 		if (UCharacterMovementComponent* Move = GetCharacterMovement())
 			Move->StopMovementImmediately();
 		break;
 
-	case EEnemyState::Chase:
+	case EEnemyStateLegacy::Chase:
 		LoseSightAcc = 0.f;
 		if (UCharacterMovementComponent* Move = GetCharacterMovement())
 			Move->MaxWalkSpeed = ChaseMoveSpeed;
 		break;
 
-	case EEnemyState::Attack:
+	case EEnemyStateLegacy::Attack:
 		// 실제 타격은 DoMeleeHit()에서 1회 스윕 + 쿨다운
 		break;
 
-	case EEnemyState::ReturnHome:
+	case EEnemyStateLegacy::ReturnHome:
 		if (UCharacterMovementComponent* Move = GetCharacterMovement())
 			Move->MaxWalkSpeed = PatrolMoveSpeed;
 		break;
 
-	case EEnemyState::Dead:
+	case EEnemyStateLegacy::Dead:
 		break;
 	}
 }
@@ -344,7 +344,7 @@ void ACEnemyCharacter::Die()
 	}
 	DetachFromControllerPendingDestroy();
 
-	EnterState(EEnemyState::Dead);
+	EnterState(EEnemyStateLegacy::Dead);
 
 	// 힐 오브 드랍(풀 우선)
 	const FVector  SpawnLoc = GetActorLocation();

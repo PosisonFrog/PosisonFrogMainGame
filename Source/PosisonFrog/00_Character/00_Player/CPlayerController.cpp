@@ -1,23 +1,18 @@
 // CPlayerController.cpp
 
 #include "00_Character/00_Player/CPlayerController.h"
-
 #include "00_Character/00_Player/CPlayerCharacter.h"
 
 // Enhanced Input
 #include "EnhancedInputSubsystems.h"
-#include "InputActionValue.h"
-
-// 우리 프로젝트 컴포넌트/유틸
-#include "00_Character/02_Component/CEnhancedInputComponent.h"
-#include "00_Character/02_Component/CGameplayTags.h"
-#include "00_Character/02_Component/CHealthComponent.h"
+#include "InputAction.h"
+#include "00_Character/02_Component/CEnhancedInputComponent.h" // 프로젝트용(선택)
+#include "00_Character/02_Component/CInputConfig.h"           // 프로젝트용(선택)
 
 // 위젯 (프로젝트 경로에 맞춰 통일)
 #include "01_Widget/CPlayerWidget.h"
 
 #include "99_Util/CLog.h"
-#include "Kismet/GameplayStatics.h"
 #include "Engine/LocalPlayer.h"
 #include "Engine/World.h"
 
@@ -26,23 +21,11 @@
 // ------------------------------------------------------------------
 ACPlayerController::ACPlayerController()
 {
-    // 여기선 아무 것도 하지 않아도 됩니다.
-    // 커스텀 입력 컴포넌트 생성은 CreateInputComponent()에서 수행합니다.
+    bShowMouseCursor = false;
+    bEnableClickEvents = false;
+    bEnableMouseOverEvents = false;
 }
 
-// ------------------------------------------------------------------
-// 커스텀 입력 컴포넌트 생성
-// ------------------------------------------------------------------
-void ACPlayerController::CreateInputComponent()
-{
-    // UCEnhancedInputComponent를 직접 생성하여 컨트롤러에 장착
-    CEnhancedInputComponent = NewObject<UCEnhancedInputComponent>(this, UCEnhancedInputComponent::StaticClass(), TEXT("PCInputComponent"));
-    InputComponent = CEnhancedInputComponent;
-    InputComponent->RegisterComponent();
-
-    // 컨트롤러의 입력 스택에 Push
-    PushInputComponent(InputComponent);
-}
 
 // ------------------------------------------------------------------
 // BeginPlay
@@ -55,25 +38,25 @@ void ACPlayerController::BeginPlay()
     FInputModeGameOnly Mode;
     SetInputMode(Mode);
     bShowMouseCursor = false;
+    
 
-    // Enhanced Input MappingContext 등록
+    // Enhanced Input IMC를 C++에서 적용
     if (ULocalPlayer* LP = GetLocalPlayer())
     {
-        if (UEnhancedInputLocalPlayerSubsystem* Subsys =
-            ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(LP))
+        if (UEnhancedInputLocalPlayerSubsystem* Subsys = LP->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>())
         {
-            if (bClearPreviousMappings)
-                Subsys->ClearAllMappings();
-
             if (DefaultMappingContext)
             {
-                // 우선순위 0
-                Subsys->AddMappingContext(DefaultMappingContext, 0);
+                Subsys->AddMappingContext(DefaultMappingContext, MappingPriority);
             }
         }
     }
+
+    // 시작은 게임 전용 입력 모드
+    SetInputMode_GameOnly();
+
     
-    // UI 생성은 로컬 컨트롤러 + 게임플레이 맵에서만
+    /*// UI 생성은 로컬 컨트롤러 + 게임플레이 맵에서만
     if (IsLocalController() && ShouldCreatePlayerWidget())
     {
         CreatePlayerWidget();
@@ -88,17 +71,22 @@ void ACPlayerController::BeginPlay()
         {
             OrbHUDWidget->UpdateCounters(Pool->GetActiveCount(), Pool->GetTotalPicked());
         }
-    }
+    }*/
 }
 
-void ACPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
+void ACPlayerController::OnPossess(APawn* InPawn)
 {
-    if (UCHealOrbPoolSubsystem* Pool = GetGameInstance()->GetSubsystem<UCHealOrbPoolSubsystem>())
-    {
-        Pool->OnCountersChanged.RemoveDynamic(this, &ACPlayerController::OnHealOrbCountersChanged);
-    }
+    Super::OnPossess(InPawn);
 
-    Super::EndPlay(EndPlayReason);
+    // (선택) 캐릭터에 InputConfig 자동 주입
+    if (ACPlayerCharacter* PC = Cast<ACPlayerCharacter>(InPawn))
+    {
+        if (DefaultInputConfig && PC->GetClass()->FindPropertyByName(TEXT("InputConfig")))
+        {
+            // 리플렉션을 피하고 싶으면 캐릭터에 Setter 함수를 노출해 직접 주입하세요.
+            // 여기서는 안전한 캐스팅을 가정하지 않으니, 프로젝트에 맞게 보완하셔도 됩니다.
+        }
+    }
 }
 
 // ------------------------------------------------------------------
@@ -108,23 +96,112 @@ void ACPlayerController::SetupInputComponent()
 {
     Super::SetupInputComponent();
 
-    if (!CEnhancedInputComponent)
+    // Enhanced Input 컴포넌트
+    if (UEnhancedInputComponent* EIC = Cast<UEnhancedInputComponent>(InputComponent))
     {
-        CLog::Log(TEXT("[PC] UCEnhancedInputComponent가 없습니다(생성 실패)."));
-        return;
+        if (IA_Pause)
+        {
+            EIC->BindAction(IA_Pause, ETriggerEvent::Started, this, &ACPlayerController::HandlePausePressed);
+        }
+        if (IA_ToggleMouse)
+        {
+            EIC->BindAction(IA_ToggleMouse, ETriggerEvent::Started, this, &ACPlayerController::HandleToggleMouse);
+        }
     }
-    if (!InputConfig)
+    else
     {
-        CLog::Log(TEXT("[PC] InputConfig(UCInputConfig)가 설정되지 않았습니다."));
-        return;
+        // 폴백: ESC로 일시정지 (Enhanced Input 미사용 시)
+        InputComponent->BindAction("Pause", IE_Pressed, this, &ACPlayerController::HandlePausePressed);
     }
-    
-    SetupInputBindings();
+}
+
+// ─────────────────────────────────────────────────────────────
+// 입력 핸들러
+// ─────────────────────────────────────────────────────────────
+void ACPlayerController::HandlePausePressed()
+{
+    if (bIsPausedMenuOpen)
+        HidePauseMenu();
+    else
+        ShowPauseMenu();
+}
+
+void ACPlayerController::HandleToggleMouse()
+{
+    bShowMouseCursor = !bShowMouseCursor;
+
+    if (bShowMouseCursor)
+        SetInputMode(FInputModeGameAndUI().SetHideCursorDuringCapture(false).SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock));
+    else
+        SetInputMode_GameOnly();
+}
+
+
+// ─────────────────────────────────────────────────────────────
+// 메뉴/입력 모드
+// ─────────────────────────────────────────────────────────────
+void ACPlayerController::ShowPauseMenu()
+{
+    if (bIsPausedMenuOpen) return;
+
+    // 게임 일시정지
+    SetPause(true);
+
+    // 위젯 생성/표시
+    if (PauseMenuClass && !PauseMenuInstance)
+    {
+        PauseMenuInstance = CreateWidget<UUserWidget>(this, PauseMenuClass);
+    }
+
+    if (PauseMenuInstance && !PauseMenuInstance->IsInViewport())
+    {
+        PauseMenuInstance->AddToViewport(1000);
+    }
+
+    bIsPausedMenuOpen = true;
+    SetInputMode_UIOnly();
+}
+
+void ACPlayerController::HidePauseMenu()
+{
+    if (!bIsPausedMenuOpen) return;
+
+    // 위젯 제거
+    if (PauseMenuInstance && PauseMenuInstance->IsInViewport())
+    {
+        PauseMenuInstance->RemoveFromParent();
+    }
+
+    // 게임 재개
+    SetPause(false);
+
+    bIsPausedMenuOpen = false;
+    SetInputMode_GameOnly();
+}
+
+void ACPlayerController::SetInputMode_GameOnly()
+{
+    FInputModeGameOnly Mode;
+    SetInputMode(Mode);
+    bShowMouseCursor = false;
+    bEnableClickEvents = false;
+    bEnableMouseOverEvents = false;
+}
+
+void ACPlayerController::SetInputMode_UIOnly()
+{
+    FInputModeUIOnly Mode;
+    Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+    SetInputMode(Mode);
+    bShowMouseCursor = true;
+    bEnableClickEvents = true;
+    bEnableMouseOverEvents = true;
 }
 
 // ------------------------------------------------------------------
 // Pawn 소유 시작/해제
 // ------------------------------------------------------------------
+/*
 void ACPlayerController::OnPossess(APawn* InPawn)
 {
     Super::OnPossess(InPawn);
@@ -150,6 +227,7 @@ void ACPlayerController::OnPossess(APawn* InPawn)
         }
     }
 }
+
 
 void ACPlayerController::OnUnPossess()
 {
@@ -295,3 +373,4 @@ void ACPlayerController::UpdateHpUI() const
         PlayerWidget->UpdateHpBar(HealthComponent->GetHealth(), HealthComponent->GetMaxHealth());
     }
 }
+*/

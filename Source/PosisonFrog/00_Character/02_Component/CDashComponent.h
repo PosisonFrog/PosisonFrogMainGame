@@ -4,96 +4,138 @@
 #include "Components/ActorComponent.h"
 #include "CDashComponent.generated.h"
 
-class UCharacterMovementComponent;
 class ACharacter;
+class UCharacterMovementComponent;
+class UCurveFloat;
 
+/** 대시 시작/종료 이벤트(이펙트/사운드 트리거 용) */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDashEvent);
 
-
-UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
+/**
+ * 순수 "이동/물리"만 담당하는 대시 컴포넌트
+ * - 쿨다운/버프/UI는 캐릭터(ACPlayerCharacter)가 관리합니다.
+ * - Tick 고정 속도 모드 / LaunchCharacter 모드 지원
+ */
+UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class POSISONFROG_API UCDashComponent : public UActorComponent
 {
     GENERATED_BODY()
 
 public:
     UCDashComponent();
-    
-    // 대시 시작(이미 대시 중이면 무시)
+
+    /** 대시 시작(외부에서 쿨다운 등 선 체크 후 호출) */
+    UFUNCTION(BlueprintCallable, Category = "Dash")
     void StartDash();
 
-    // 진행중 여부/설정 조회
-    bool  IsDashing() const { return bIsDashing; }
-    float GetDashDuration() const { return DashDuration; }
+    /** 대시 강제 종료(예외 상황용) */
+    UFUNCTION(BlueprintCallable, Category = "Dash")
+    void CancelDash();
 
-    // ─ 튜닝 파라미터 ─
-    UPROPERTY(EditAnywhere, Category="Dash", meta=(ClampMin="0"))
-    float DashDuration = 0.25f;               // 대시 지속시간
+    UFUNCTION(BlueprintPure, Category = "Dash")
+    bool IsDashing() const { return bIsDashing; }
 
-    UPROPERTY(EditAnywhere, Category="Dash", meta=(ClampMin="0"))
-    float DashSpeed = 2400.f;                  // 대시 중 목표 속도(수평 cm/s)
+    /** 카메라 Yaw 기준 방향 사용(기본: 캐릭터 Forward) */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dash|Direction")
+    bool bUseCameraYaw = false;
 
-    UPROPERTY(EditAnywhere, Category="Dash")
-    bool bClearZVelocity = true;               // Z 속도 제거 여부
+    /** 외부가 명시적으로 방향을 주입하고 싶을 때 */
+    UFUNCTION(BlueprintCallable, Category = "Dash|Direction")
+    void SetExplicitDirection(const FVector& WorldDir) { ExplicitDir = WorldDir; bUseExplicitDir = true; }
 
-    UPROPERTY(EditAnywhere, Category="Dash|Control")
-    bool bLockMoveInput = true;                // 대시 중 이동입력 무시
+    /** LaunchCharacter 기반 즉시 추진 모드(루트모션/네트 예측 친화) */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dash|Mode")
+    bool bUseLaunchMode = false;
 
-    // 물리 파라미터 임시 오버라이드(대시 손맛)
-    UPROPERTY(EditAnywhere, Category="Dash|Physics", meta=(ClampMin="0"))
-    float Override_GroundFriction = 0.f;
+    /** Tick 고정 속도 모드 파라미터 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dash", meta = (EditCondition = "!bUseLaunchMode"))
+    float DashSpeed = 1600.f;
 
-    UPROPERTY(EditAnywhere, Category="Dash|Physics", meta=(ClampMin="0"))
+    /** LaunchCharacter 모드 파라미터 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dash|Launch", meta = (EditCondition = "bUseLaunchMode"))
+    float LaunchStrength = 1400.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dash|Launch", meta = (EditCondition = "bUseLaunchMode"))
+    float LaunchUpward = 50.f;
+
+    /** 공통: 대시 지속 시간 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dash", meta = (ClampMin = "0"))
+    float DashDuration = 0.25f;
+
+    /** 시작 시 Z 속도 제거 여부 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dash")
+    bool bClearZVelocity = true;
+
+    /** (선택) 시간 정규화(0~1)에 대한 속도 배율 곡선 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dash")
+    TObjectPtr<UCurveFloat> SpeedCurve = nullptr;
+
+    /** 대시 중 물리 오버라이드(직진 손맛) */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dash|Physics", meta = (ClampMin = "0"))
+    float Override_GroundFriction = 0.1f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dash|Physics", meta = (ClampMin = "0"))
     float Override_BrakingFrictionFactor = 0.f;
 
-    UPROPERTY(EditAnywhere, Category="Dash|Physics", meta=(ClampMin="0"))
-    float Override_BrakingDecelWalking = 0.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dash|Physics", meta = (ClampMin = "0"))
+    float Override_BrakingDecelWalking = 100.f;
+
+    /** 대시 종료 직후의 빠른 감속감 파라미터 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dash|Physics", meta = (ClampMin = "0"))
+    float End_GroundFriction = 8.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dash|Physics", meta = (ClampMin = "0"))
+    float End_BrakingDecelWalking = 4096.f;
+
+    /** 종료 시 수평속도 감쇠 적용 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dash|Physics")
+    bool bApplyStopForceOnEnd = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dash|Physics", meta = (ClampMin = "0", ClampMax = "1"))
+    float StopForceMultiplier = 0.5f;
+
+    /** 이벤트 */
+    UPROPERTY(BlueprintAssignable) FOnDashEvent OnDashStarted;
+    UPROPERTY(BlueprintAssignable) FOnDashEvent OnDashEnded;
 
 protected:
+    // UObject
     virtual void BeginPlay() override;
-    virtual void TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+    virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
+    // UActorComponent
+    virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
 private:
     void BeginDash_Internal();
     void EndDash_Internal();
-    void ApplyPhysicsOverrides();
-    void RestorePhysicsOverrides();
 
+    void ApplyPhysicsOverrides();
+    void RestorePhysicsOverrides_Immediate();
+    void RestorePhysicsOverrides_Delayed();
+
+    FVector ResolveDashDirection() const;
 
 private:
-    UPROPERTY() ACharacter* OwnerChar = nullptr;
-    UPROPERTY() UCharacterMovementComponent* MoveComp = nullptr;
+    // 캐시
+    TWeakObjectPtr<ACharacter> OwnerChar;
+    TWeakObjectPtr<UCharacterMovementComponent> MoveComp;
 
     // 상태
-    bool  bIsDashing = false;
-    bool  bIsOnCoolDown = false;
-    float DashTimeAcc = 0.f;
+    bool   bIsDashing = false;
+    float  DashTimeAcc = 0.f;
     FVector DashDir2D = FVector::ForwardVector;
 
-    //쿨다운
-    float DashCooldown = 4.0f;
-    float CooldownTimeRemaining = 0.0f;
+    // 외부 지정 방향
+    bool    bUseExplicitDir = false;
+    FVector ExplicitDir = FVector::ZeroVector;
 
-    //이속 증가
-    float MaxSpeedUp = 700.0f;
-    float SpeedUpActiveTime = 2.0f;
-
-    // 원복을 위한 스냅샷
+    // 저장해둘 물리값
     float Saved_GroundFriction = 0.f;
     float Saved_BrakingFrictionFactor = 0.f;
     float Saved_BrakingDecelWalking = 0.f;
-    float Saved_DefaultMovementSpeed = 0.f;
     bool  Saved_bOrientRotationToMovement = false;
 
-public:
-    //마찰 구현
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dash Physics")
-    float DashEndFriction = 2.0f; // 적용할 마찰계수
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dash Physics")
-    float DashEndBrakingDecel = 50.0f; // 제동력
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dash Physics")
-    bool bApplyStopForceOnDashEnd = true; // 강제감속 여부
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dash Physics")
-    float StopForceMultiplier = 0.6f; // 속도 감소 비율 (0.3 = 70% 감소)
+    // 지연 복구 타이머
+    FTimerHandle TimerHandle_DelayedRestore;
 };
