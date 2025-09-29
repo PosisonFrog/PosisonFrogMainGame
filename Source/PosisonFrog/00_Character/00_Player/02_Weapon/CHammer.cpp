@@ -6,6 +6,7 @@
 #include "99_Util/CLog.h"
 #include "Components/BoxComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "GameFramework/Character.h"
 
 // Sets default values
 ACHammer::ACHammer()
@@ -21,7 +22,7 @@ ACHammer::ACHammer()
 	
 	DamageBox = CreateDefaultSubobject<UBoxComponent>(TEXT("DamageBox"));
 	DamageBox->SetupAttachment(HammerMesh);
-	
+
 	DamageBox->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	DamageBox->SetGenerateOverlapEvents(false);
 	DamageBox->SetCollisionObjectType(ECC_WorldDynamic);
@@ -36,10 +37,55 @@ ACHammer::ACHammer()
 		DamageTypeClass = UDamageType::StaticClass();
 }
 
+ACharacter* ACHammer::GetOwnerCharacter() const
+{
+	return CachedOwnerCharacter.Get();
+}
+
+float ACHammer::GetOwnerSpeed() const
+{
+	if (ACharacter* OwnerChar = CachedOwnerCharacter.Get())
+	{
+		return OwnerChar->GetVelocity().Size();
+	}
+	return 0.0f;
+}
+
 // Called when the game starts or when spawned
 void ACHammer::BeginPlay()
 {
 	Super::BeginPlay();
+    
+	if (AActor* MyOwner = GetOwner())
+	{
+		CachedOwnerCharacter = Cast<ACharacter>(MyOwner);
+	}
+
+	// Socket에 DamageBox 부착
+	if (HammerMesh && DamageBox && !DamageBoxSocketName.IsNone())
+	{
+		if (HammerMesh->DoesSocketExist(DamageBoxSocketName))
+		{
+			DamageBox->AttachToComponent(
+				HammerMesh,
+				FAttachmentTransformRules::SnapToTargetNotIncludingScale,
+				DamageBoxSocketName
+			);
+
+			//위치, 회전, 크기 적용
+			DamageBox->SetRelativeLocation(DamageBoxRelativeLocation);
+			DamageBox->SetRelativeRotation(DamageBoxRelativeRotation); // 회전 추가
+			DamageBox->SetBoxExtent(DamageBoxExtent);
+            
+			if (bDebugLog)
+				CLog::Log(FString::Printf(TEXT("데미지 박스가 소켓에 붙여짐: %s"), *DamageBoxSocketName.ToString()));
+		}
+		else
+		{
+			if (bDebugLog)
+				CLog::Log(FString::Printf(TEXT("Socket '%s' 메쉬가 없음!"), *DamageBoxSocketName.ToString()));
+		}
+	}
 
 	if (!IsValid(DamageBox))
 	{
@@ -50,8 +96,7 @@ void ACHammer::BeginPlay()
 	// 중복 바인딩 방지 후 overlap 바인딩
 	DamageBox->OnComponentBeginOverlap.RemoveAll(this);
 	DamageBox->OnComponentBeginOverlap.AddDynamic(this, &ACHammer::OnDamageBoxBeginOverlap);
-	
-
+    
 	// 기본 데미지 적용 핸들러 델리게이트에 바인딩 (한번만)
 	OnHammerHit.RemoveAll(this);
 	OnHammerHit.AddDynamic(this, &ACHammer::ApplyDamageHandler);
@@ -103,6 +148,8 @@ void ACHammer::ResetHitActors()
 	HitActors.Reset();
 }
 
+
+
 void ACHammer::OnDamageBoxBeginOverlap(UPrimitiveComponent* OverlapComponent, AActor* OtherActor,
                                        UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
@@ -113,9 +160,8 @@ void ACHammer::OnDamageBoxBeginOverlap(UPrimitiveComponent* OverlapComponent, AA
 	{
 		if (const AActor* MyOwner = GetOwner())
 		{
-			const APawn* OwnerPawn = Cast<APawn>(MyOwner);
 			
-			if (OwnerPawn && !OwnerPawn->HasAuthority())
+			if (CachedOwnerCharacter.IsValid() && !CachedOwnerCharacter->HasAuthority())
 				return;
 		}
 	}
