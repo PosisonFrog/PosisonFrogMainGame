@@ -2,6 +2,7 @@
 
 #include "PosisonFrog.h"
 #include "Modules/ModuleManager.h"
+#include "ShaderCore.h"
+#include "Misc/Paths.h"
 
-IMPLEMENT_PRIMARY_GAME_MODULE( FDefaultGameModuleImpl, PosisonFrog, "PosisonFrog" );
- 
+IMPLEMENT_PRIMARY_GAME_MODULE(FDefaultGameModuleImpl, PosisonFrog, "PosisonFrog" );

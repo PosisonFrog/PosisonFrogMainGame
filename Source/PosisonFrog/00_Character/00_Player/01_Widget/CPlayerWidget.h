@@ -53,10 +53,12 @@ private:
     float HpDangerThreshold = 0.25f; // 25% 이하면 위험색
 
     UPROPERTY(EditAnywhere, Category = "PF|HUD|HP")
-    FLinearColor HpColor_Normal = FLinearColor(0.10f, 0.85f, 0.20f, 1.0f);
+    FLinearColor HpColor_Normal = FLinearColor(1.0f, 1.0f, 1.0f, 1.0f);
+    //FLinearColor HpColor_Normal = FLinearColor(0.10f, 0.85f, 0.20f, 1.0f);
 
     UPROPERTY(EditAnywhere, Category = "PF|HUD|HP")
-    FLinearColor HpColor_Danger = FLinearColor(0.90f, 0.10f, 0.10f, 1.0f);
+    FLinearColor HpColor_Danger = FLinearColor(1.0f, 1.0f, 1.0f, 1.0f);
+    //FLinearColor HpColor_Danger = FLinearColor(0.90f, 0.10f, 0.10f, 1.0f);
 
     UPROPERTY(EditAnywhere, Category = "PF|HUD|Dash")
     FLinearColor DashColor_Cooldown = FLinearColor(0.20f, 0.45f, 1.0f, 1.0f);
