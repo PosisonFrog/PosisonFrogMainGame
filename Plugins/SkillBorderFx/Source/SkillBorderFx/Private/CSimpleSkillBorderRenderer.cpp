@@ -52,24 +52,24 @@ void FSimpleSkillBorderRenderer::Copy_RT(FRHICommandListImmediate& RHICmdList, F
         ComputeTargetRDG = GraphBuilder.CreateTexture(UAVDesc, TEXT("SkillBorder_ComputeUAV"));
     }
 
-    // 중간 입력(소스와 완전 호환 Desc라 복사 안전)
+    /*// 중간 입력(소스와 완전 호환 Desc라 복사 안전)
     FRDGTextureDesc IntermediateDesc = SourceRDG->Desc;
     IntermediateDesc.Flags &= ~TexCreate_UAV;
     FRDGTextureRef IntermediateRDG = GraphBuilder.CreateTexture(IntermediateDesc, TEXT("SkillBorder_Intermediate"));
 
     // 소스 → 중간 복사 (호환)
-    AddCopyTexturePass(GraphBuilder, SourceRDG, IntermediateRDG);
+    AddCopyTexturePass(GraphBuilder, SourceRDG, IntermediateRDG);*/
 
+    const FIntPoint OutSize = OutputRDG->Desc.Extent;
+    
     // 컴퓨트 디스패치
     TShaderMapRef<CSimpleSkillBorderCS> CS(GetGlobalShaderMap(GMaxRHIFeatureLevel));
     if (CS.IsValid())
     {
         auto* Params = GraphBuilder.AllocParameters<CSimpleSkillBorderCS::FParameters>();
-        Params->InputTexture  = IntermediateRDG;
+        Params->InputTexture  = SourceRDG;
         Params->InputSampler  = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
-
         Params->OutputTexture = GraphBuilder.CreateUAV(ComputeTargetRDG);
-        const FIntPoint OutSize = OutputRDG->Desc.Extent;
         Params->TextureSize = FVector2f((float)OutSize.X, (float)OutSize.Y);
 
         const FIntVector GroupCount(
