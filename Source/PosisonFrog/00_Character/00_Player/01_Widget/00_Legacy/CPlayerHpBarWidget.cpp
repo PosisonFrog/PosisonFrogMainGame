@@ -1,7 +1,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "00_Character/00_Player/01_Widget/CPlayerHpBarWidget.h"
+#include "00_Character/00_Player/01_Widget/00_Legacy/CPlayerHpBarWidget.h"
 
 #include "Components/ProgressBar.h"
 

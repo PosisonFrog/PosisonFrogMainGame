@@ -1,6 +1,6 @@
 // CTimeCooldownSkillIconWidget.cpp
 
-#include "00_Character/00_Player/01_Widget/CTimeCooldownSkillIconWidget.h"
+#include "00_Character/00_Player/01_Widget/00_Legacy/CTimeCooldownSkillIconWidget.h"
 
 #include "Components/Image.h"
 #include "Components/ProgressBar.h"

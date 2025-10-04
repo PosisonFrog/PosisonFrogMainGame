@@ -1,4 +1,4 @@
-#include "00_Character/00_Player/01_Widget/CUltimateSkillIconWidget.h"
+#include "00_Character/00_Player/01_Widget/00_Legacy/CUltimateSkillIconWidget.h"
 
 #include "Components/ProgressBar.h"
 #include "Blueprint/WidgetTree.h"

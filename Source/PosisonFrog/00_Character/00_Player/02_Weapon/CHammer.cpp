@@ -233,5 +233,3 @@ bool ACHammer::ShouldHitActor(AActor* OtherActor) const
 	
 	return true;
 }
-
-

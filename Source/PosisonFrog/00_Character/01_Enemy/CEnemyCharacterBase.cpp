@@ -241,10 +241,14 @@ bool ACEnemyCharacterBase::IsInAttackDistance() const
 
 bool ACEnemyCharacterBase::AcquireTarget()
 {
-    // 기존 타겟이 유효한지 확인
-    if (Target && !Target->IsPendingKill() && Target->IsA<ACPlayerCharacter>())
-        return true;
+    // IsPendingKill은 C4996을 발생 시켜서 변경했습니다.
+    //if (Target && !Target->IsPendingKill() && Target->IsA<ACPlayerCharacter>())
+    //    return true;
 
+    // 기존 타겟이 유효한지 확인
+    if (IsValid(Target) && Target->IsA<ACPlayerCharacter>())
+        return true;
+    
     // 모든 플레이어 캐릭터 찾기
     TArray<AActor*> Players;
     UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACPlayerCharacter::StaticClass(), Players);

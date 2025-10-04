@@ -1,7 +1,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "00_Character/00_Player/01_Widget/COrbHUDWidget.h"
+#include "00_Character/00_Player/01_Widget/00_Legacy/COrbHUDWidget.h"
 #include "Components/TextBlock.h"
 
 

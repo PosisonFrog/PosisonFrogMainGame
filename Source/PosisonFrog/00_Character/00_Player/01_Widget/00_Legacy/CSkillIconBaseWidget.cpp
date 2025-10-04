@@ -1,5 +1,5 @@
 // CSkillIconBaseWidget.cpp
-#include "00_Character/00_Player/01_Widget/CSkillIconBaseWidget.h"
+#include "00_Character/00_Player/01_Widget/00_Legacy/CSkillIconBaseWidget.h"
 
 #include "Components/ProgressBar.h"
 #include "Components/Image.h"

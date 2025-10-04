@@ -1,0 +1,21 @@
+#include "/Engine/Public/Platform.ush"
+//#include "/Engine/Public/ShaderPermutation.ush"
+
+#define THREADGROUP_SIZE_X 8
+#define THREADGROUP_SIZE_Y 8
+
+RWTexture2D<float4> OutputTexture;
+Texture2D<float4>   InputTexture;
+SamplerState        InputSampler;
+float2              TextureSize;
+
+[numthreads(THREADGROUP_SIZE_X, THREADGROUP_SIZE_Y, 1)]
+void MainCS(uint3 DTid : SV_DispatchThreadID)
+{
+    if (DTid.x >= (uint)TextureSize.x || DTid.y >= (uint)TextureSize.y) return;
+
+    float2 uv = (float2(DTid.xy) + 0.5) / TextureSize;
+    float4 src = InputTexture.SampleLevel(InputSampler, uv, 0);
+
+    OutputTexture[DTid.xy] = src;
+}

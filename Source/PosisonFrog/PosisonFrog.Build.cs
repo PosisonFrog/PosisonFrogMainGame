@@ -24,7 +24,10 @@ public class PosisonFrog : ModuleRules
 			"UMG",
 			"Niagara",
 			"Slate",        
-            "SlateCore"
+            "SlateCore",
+            "RHI",
+            "RenderCore",
+            "SkillBorderFx"
 		});
 		
 		PrivateDependencyModuleNames.AddRange(new string[] 
