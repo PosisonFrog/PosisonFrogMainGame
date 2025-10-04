@@ -210,6 +210,9 @@ bool ACPlayerCharacter::TryCommitDash()
     if (MovementBuffComponent)
         MovementBuffComponent->AddSpeedBuff(DashSpeedMultiplier, DashSpeedBuffDuration);
 
+    if (PlayerWidget)
+        PlayerWidget->PlayDashFX(DashSpeedBuffDuration);
+    
     return true;
 }
 

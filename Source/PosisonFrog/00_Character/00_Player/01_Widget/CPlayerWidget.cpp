@@ -1,4 +1,6 @@
 #include "CPlayerWidget.h"
+
+#include "Components/Image.h"
 #include "Components/ProgressBar.h"
 #include "Components/TextBlock.h"
 
@@ -26,7 +28,7 @@ void UCPlayerWidget::NativeConstruct()
 
     // 위젯 생성 직후 기본 텍스트/수치 정리
     if (HealthBar)      HealthBar->SetPercent(1.0f);
-    if (HealthText)     HealthText->SetText(FText::FromString(TEXT("HP 100%")));
+    //if (HealthText)     HealthText->SetText(FText::FromString(TEXT("HP 100%")));
 
     SetDashReady(); // 대시는 처음엔 Ready 상태로
 }
@@ -41,12 +43,12 @@ void UCPlayerWidget::UpdateHpBar(float Current, float Max)
         HealthBar->SetFillColorAndOpacity(UseColor);
     }
 
-    if (HealthText)
+    /*if (HealthText)
     {
         const int32 ICur = FMath::Max(0, FMath::RoundToInt(Current));
         const int32 IMax = FMath::Max(1, FMath::RoundToInt(Max));
         HealthText->SetText(FText::FromString(FString::Printf(TEXT("%d / %d"), ICur, IMax)));
-    }
+    }*/
 }
 
 
@@ -64,7 +66,7 @@ void UCPlayerWidget::UpdateDashCooldown(float Remaining, float Total)
         DashCooldownBar->SetFillColorAndOpacity(P > 0.f ? DashColor_Cooldown : DashColor_Ready);
     }
 
-    if (DashText)
+    /*if (DashText)
     {
         if (P > 0.f)
         {
@@ -76,7 +78,7 @@ void UCPlayerWidget::UpdateDashCooldown(float Remaining, float Total)
         {
             DashText->SetText(NSLOCTEXT("PF", "DashReady", "Dash READY"));
         }
-    }
+    }*/
 }
 
 void UCPlayerWidget::SetDashReady()
@@ -86,13 +88,34 @@ void UCPlayerWidget::SetDashReady()
         DashCooldownBar->SetPercent(0.f);
         DashCooldownBar->SetFillColorAndOpacity(DashColor_Ready);
     }
-    if (DashText)
+    /*if (DashText)
     {
         DashText->SetText(NSLOCTEXT("PF", "DashReady_Init", "Dash READY"));
+    }*/
+
+    if (DashFXImage)
+    {
+        DashFXImage->SetVisibility(ESlateVisibility::Hidden);
     }
 }
 
+void UCPlayerWidget::PlayDashFX(float Duration)
+{
+    if (DashFXImage)
+        DashFXImage->SetVisibility(ESlateVisibility::HitTestInvisible);
 
+    GetWorld()->GetTimerManager().ClearTimer(TimerHandle_DashFX);
+    if (Duration > 0.0f)
+    {
+        GetWorld()->GetTimerManager().SetTimer(TimerHandle_DashFX, this, &UCPlayerWidget::StopDashFX, Duration, false);
+    }
+}
+
+void UCPlayerWidget::StopDashFX()
+{
+    if (DashFXImage)
+        DashFXImage->SetVisibility(ESlateVisibility::Hidden);
+}
 
 float UCPlayerWidget::SafeRatio(float Num, float Denom)
 {
@@ -105,5 +128,3 @@ FText UCPlayerWidget::SecsTextOneDecimal(float Seconds)
     // "0.0" 형식으로 1자리 소수 출력
     return FText::FromString(FString::Printf(TEXT("%.1f"), Seconds));
 }
-
-

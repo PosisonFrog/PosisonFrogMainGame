@@ -4,6 +4,7 @@
 #include "Blueprint/UserWidget.h"
 #include "CPlayerWidget.generated.h"
 
+class UImage;
 class UTextBlock;
 class UProgressBar;  
 class UCPlayerHpBarWidget;
@@ -29,6 +30,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "PF|HUD")
     void SetDashReady();
 
+    UFUNCTION(BlueprintCallable, Category = "PF|HUD")
+    void PlayDashFX(float Duration);
+
 protected:
     virtual void NativeOnInitialized() override;
     virtual void NativeConstruct() override;
@@ -36,17 +40,32 @@ protected:
 private:
     // ===== UMG 바인딩(위젯 이름만 맞추면 블루프린트 스크립트 불필요) =====
     // (BindWidgetOptional: 누락되어 있어도 크래시 방지)
+    // HP
     UPROPERTY(meta = (BindWidgetOptional))
     UProgressBar* HealthBar = nullptr;
 
-    UPROPERTY(meta = (BindWidgetOptional))
-    UTextBlock* HealthText = nullptr;
+    /*UPROPERTY(meta = (BindWidgetOptional))
+    UTextBlock* HealthText = nullptr;*/
 
+    // Dash
     UPROPERTY(meta = (BindWidgetOptional))
     UProgressBar* DashCooldownBar = nullptr;
 
+    /*UPROPERTY(meta = (BindWidgetOptional))
+    UTextBlock* DashText = nullptr;*/
+
     UPROPERTY(meta = (BindWidgetOptional))
-    UTextBlock* DashText = nullptr;
+    UImage* DashFXImage = nullptr;
+
+    FTimerHandle TimerHandle_DashFX;
+    
+    // Ultimate
+    UPROPERTY(meta = (BindWidgetOptional))
+    UProgressBar* UltimateBar = nullptr;
+
+    // Skill1
+    UPROPERTY(meta = (BindWidgetOptional))
+    UProgressBar* Skill1Bar = nullptr;
 
     // ===== 표시/연출 관련 기본값 =====
     UPROPERTY(EditAnywhere, Category = "PF|HUD|HP")
@@ -67,6 +86,8 @@ private:
     FLinearColor DashColor_Ready = FLinearColor(0.95f, 0.80f, 0.15f, 1.0f);
 
 private:
+    void StopDashFX();
+    
     // 내부 헬퍼
     static float SafeRatio(float Num, float Denom);
     static FText SecsTextOneDecimal(float Seconds);

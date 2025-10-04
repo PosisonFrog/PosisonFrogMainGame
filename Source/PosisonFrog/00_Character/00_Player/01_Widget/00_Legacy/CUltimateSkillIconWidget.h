@@ -1,7 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "00_Character/00_Player/01_Widget/CSkillIconBaseWidget.h"
+#include "00_Character/00_Player/01_Widget/00_Legacy/CSkillIconBaseWidget.h"
 #include "CUltimateSkillIconWidget.generated.h"
 
 class UProgressBar;
