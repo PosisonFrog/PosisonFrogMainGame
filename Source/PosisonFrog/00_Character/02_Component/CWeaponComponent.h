@@ -75,9 +75,12 @@ protected:
     FName AttachSocketName = TEXT("Hand_Hammer");
 
     // ---- 콤보 설정 ----
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Attack")
-    TArray<UAnimMontage*> ComboMontages;
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "PlayerMontages")
+    TArray<UAnimMontage*> PlayerComboMontages;
 
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "HammerMontages")
+    TArray<UAnimMontage*> HammerComboMontages;
+    
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Attack", meta = (ClampMin = "0.1"))
     float ComboResetTime = 1.5f;
 

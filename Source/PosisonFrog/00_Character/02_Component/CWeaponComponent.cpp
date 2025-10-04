@@ -104,14 +104,16 @@ void UCWeaponComponent::AttachWeaponToCharacter()
 
 void UCWeaponComponent::DoAttack()
 {
-    if (!IsValid(OwnerCharacter) || ComboMontages.Num() == 0)
+    if (!IsValid(OwnerCharacter) || PlayerComboMontages.Num() == 0)
         return;
 
+    if (!IsValid(Hammer) || HammerComboMontages.Num() == 0)
+        return;
 
     // 이미 공격 중: 창이 열려 있으면 즉시 다음 스텝, 아니면 큐잉
     if (bIsAttacking)
     {
-       	if (bCanNextCombo && CurrentCombo < ComboMontages.Num() - 1)
+       	if (bCanNextCombo && CurrentCombo < PlayerComboMontages.Num() - 1 && CurrentCombo < HammerComboMontages.Num() - 1)
        	{
        	    StepToNextCombo();
        	}
@@ -131,38 +133,53 @@ void UCWeaponComponent::DoAttack()
 
 void UCWeaponComponent::PlayComboAttack()
 {
-    if (!ComboMontages.IsValidIndex(CurrentCombo))
+    if (!PlayerComboMontages.IsValidIndex(CurrentCombo))
     {
         CLog::Log(TEXT("[WeaponComp] PlayComboAttack: invalid index"));
         ResetCombo();
         return;
     }
 
-    UAnimMontage* Montage = ComboMontages[CurrentCombo];
-    if (!IsValid(Montage))
+    UAnimMontage* PlayerMontage = PlayerComboMontages[CurrentCombo];
+    UAnimMontage* HammerMontage = HammerComboMontages[CurrentCombo];
+
+    if (!IsValid(PlayerMontage))
     {
-        CLog::Log(TEXT("[WeaponComp] PlayComboAttack: montage null"));
+        CLog::Log(TEXT("[WeaponComp] PlayComboAttack: Player montage null"));
         ResetCombo();
         return;
     }
 
-    UAnimInstance* AnimInst = (OwnerCharacter && OwnerCharacter->GetMesh())
+    if (!IsValid(HammerMontage))
+    {
+        CLog::Log(TEXT("[WeaponComp] PlayComboAttack: Hammer montage null"));
+        ResetCombo();
+        return;
+    }
+
+    UAnimInstance* PlayerAnimInst = (OwnerCharacter && OwnerCharacter->GetMesh())
         ? OwnerCharacter->GetMesh()->GetAnimInstance()
         : nullptr;
-    if (!AnimInst)
+
+    UAnimInstance* HammerAnimInst = (Hammer && Hammer->GetHammerMesh())
+        ? Hammer->GetHammerMesh()->GetAnimInstance()
+        : nullptr;
+    if (!PlayerAnimInst || !HammerAnimInst)
     {
         CLog::Log(TEXT("[WeaponComp] PlayComboAttack: AnimInstance null"));
         ResetCombo();
         return;
     }
  
-    AnimInst->Montage_Play(Montage);
+    PlayerAnimInst->Montage_Play(PlayerMontage);
+    HammerAnimInst->Montage_Play(HammerMontage);
     
     // 종료시 정리(인터럽트/블렌드아웃 포함)
     FOnMontageEnded EndDelegate;
     EndDelegate.BindUObject(this, &UCWeaponComponent::OnMontageEnded);
-    AnimInst->Montage_SetEndDelegate(EndDelegate, Montage);
-
+    PlayerAnimInst->Montage_SetEndDelegate(EndDelegate, PlayerMontage);
+    HammerAnimInst->Montage_SetEndDelegate(EndDelegate, HammerMontage);
+    
     // 콤보 리셋 타이머
     GetWorld()->GetTimerManager().ClearTimer(ComboResetTimer);
     GetWorld()->GetTimerManager().SetTimer(ComboResetTimer, this, &UCWeaponComponent::ResetCombo, ComboResetTime, false);
@@ -170,7 +187,7 @@ void UCWeaponComponent::PlayComboAttack()
 
 void UCWeaponComponent::StepToNextCombo()
 {
-    if (CurrentCombo >= ComboMontages.Num() - 1)
+    if (CurrentCombo >= PlayerComboMontages.Num() - 1)
         return;
 
     ++CurrentCombo;
@@ -228,7 +245,7 @@ void UCWeaponComponent::EnableComboInput()
     bCanNextCombo = true;
 
     // 입력이 미리 들어와 있으면 즉시 다음 스텝으로
-    if (bQueuedNextInput && bIsAttacking && CurrentCombo < ComboMontages.Num() - 1)
+    if (bQueuedNextInput && bIsAttacking && CurrentCombo < PlayerComboMontages.Num() - 1)
     {
         StepToNextCombo();
     }
