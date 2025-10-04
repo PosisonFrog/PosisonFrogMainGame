@@ -6,6 +6,7 @@
 
 class UCameraComponent;
 class USpringArmComponent;
+class UTransparentCameraComponent;
 
 class UCDashComponent;
 class UCWeaponComponent;
@@ -131,4 +132,7 @@ private:
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Camera", meta = (AllowPrivateAccess = "true"))
     TObjectPtr<UCameraComponent> PlayerCamera = nullptr;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Camera", meta = (AllowPrivateAccess = "true"))
+    TObjectPtr<UTransparentCameraComponent> TransparentCameraComponent = nullptr;
 };

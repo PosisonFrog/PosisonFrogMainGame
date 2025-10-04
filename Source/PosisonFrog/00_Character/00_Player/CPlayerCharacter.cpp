@@ -16,6 +16,7 @@
 #include "00_Character/02_Component/CMovementBuffComponent.h"
 #include "00_Character/02_Component/CEnhancedInputComponent.h"
 #include "00_Character/02_Component/CGameplayTags.h"
+#include "00_Character/00_Player/03_Camera/TransparentCameraComponent.h"
 
 #include "01_Widget/CPlayerWidget.h"
 #include "99_Util/CLog.h"
@@ -49,6 +50,10 @@ ACPlayerCharacter::ACPlayerCharacter()
     PlayerCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
     PlayerCamera->SetupAttachment(SpringArm, USpringArmComponent::SocketName);
     PlayerCamera->bUsePawnControlRotation = false;
+
+    TransparentCameraComponent = CreateDefaultSubobject<UTransparentCameraComponent>(TEXT("TransparentCamera"));
+    TransparentCameraComponent->SetupAttachment(RootComponent);
+    
     
     // 이동(3인칭 기본값)
     bUseControllerRotationPitch = false;
@@ -112,6 +117,22 @@ void ACPlayerCharacter::PostInitializeComponents()
     checkf(WeaponComponent != nullptr, TEXT("WeaponComponent missing"));
     checkf(HealthComponent != nullptr, TEXT("HealthComponent missing"));
     checkf(MovementBuffComponent != nullptr, TEXT("MovementBuffComponent missing"));
+    // TransparentCameraComponent 설정 개선
+    if (TransparentCameraComponent)
+    {
+        // SpringArm 먼저 설정 (CalibrateIdleView 호출하므로)
+        if (SpringArm)
+            TransparentCameraComponent->SetSpringArmComponent(SpringArm);
+        
+        if (PlayerCamera)
+            TransparentCameraComponent->SetCameraComponent(PlayerCamera);
+        
+        CLog::Log(TEXT("TransparentCameraComponent initialized successfully"));
+    }
+    else
+    {
+        CLog::Log(TEXT("TransparentCameraComponent missing"));
+    }
 }
 
 // ----------------------------------------------------------------------------
