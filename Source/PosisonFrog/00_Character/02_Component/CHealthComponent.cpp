@@ -1,7 +1,11 @@
 // CHealthComponent.cpp
 
 #include "00_Character/02_Component/CHealthComponent.h"
+
+#include "CUltimateBuffComponent.h"
+#include "00_Character/00_Player/CPlayerCharacter.h"
 #include "00_Character/03_AssetData/CPlayerStatAssetData.h"
+#include "99_Util/CLog.h"
 
 UCHealthComponent::UCHealthComponent()
 {
@@ -12,6 +16,16 @@ void UCHealthComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
+	OwnerChar = Cast<ACharacter>(GetWorld());
+	if (!IsValid(OwnerChar))
+	{
+		CLog::Log(TEXT("[HealthComp] OwnerCharacter invalid"));
+		return;
+	}
+
+	if (!UltimateBuffComponent)
+		UltimateBuffComponent = OwnerChar->FindComponentByClass<UCUltimateBuffComponent>();
+	
 	// 1) 에셋 기반 최대 체력 반영
 	if (PlayerStatAssetData)
 	{
@@ -26,7 +40,7 @@ void UCHealthComponent::BeginPlay()
 	// 2) 시작 체력 결정
 	if (bStartAtMaxHealth)
 	{
-		//CurrentHealth = MaxHealth;
+		CurrentHealth = MaxHealth;
 	}
 	else
 	{
@@ -62,9 +76,18 @@ float UCHealthComponent::Damage(float InAmount)
 	if (InAmount <= 0.f || bIsDead)
 		return 0.f;
 
+	float Scale = 1.0f;
+	if (UltimateBuffComponent && UltimateBuffComponent->IsUltActive())
+	{
+		Scale = UltimateBuffComponent->GetIncomingDamageScale();
+		InAmount *= Scale;
+
+		UE_LOG(LogTemp, Log, TEXT("[ULT][Health] Scale=%.2f, Applied=%.2f"), Scale, InAmount);
+	}
+	
 	const float Old = CurrentHealth;
 	const float New = FMath::Clamp(CurrentHealth - InAmount, 0.f, MaxHealth);
-
+	
 	if (FMath::IsNearlyEqual(New, Old))
 		return 0.f;
 

@@ -4,6 +4,7 @@
 #include "00_Character/CBaseCharacter.h"
 #include "CPlayerCharacter.generated.h"
 
+class UCUltimateBuffComponent;
 class UCameraComponent;
 class USpringArmComponent;
 class UTransparentCameraComponent;
@@ -16,6 +17,7 @@ class UCMovementBuffComponent;
 class UCInputConfig;
 class UCPlayerWidget;
 struct FInputActionValue;
+
 
 /**
  * 플레이어 캐릭터:
@@ -64,6 +66,14 @@ private: // Dash 쿨다운/UI 틱
     UFUNCTION() void ResetDashCooldown();
     UFUNCTION() void TickDashCooldownUI();
 
+private: // 궁극기 UI/버프 적용
+    void UpdateUltimateUI();
+    UFUNCTION() void UseUltimate();
+
+public:
+    void AddUltimateGain(float Gain);
+    float GetMaxUltimateGauge() const { return MaxUltGauge; }
+    
 private:
     // ─ 입력 설정(태그→액션, Enhanced Input용 DataAsset) ─
     UPROPERTY(EditDefaultsOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
@@ -113,10 +123,35 @@ private:
     UPROPERTY(EditDefaultsOnly, Category = "Dash|Buff", meta = (ClampMin = "0"))
     float DashSpeedBuffDuration = 2.0f;      // 2초
 
+    // ─ Ultimate  ─
+    UPROPERTY(EditDefaultsOnly, Category = "Ultimate|State")
+    float MaxUltGauge = 100.0f;
+    
+    UPROPERTY(EditDefaultsOnly, Category = "Ultimate|State")
+    float CurUltGauge = 0.0f;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Ultimate|State")
+    bool bUltActive = false;
+
+    // 게이지 소모 관련
+    UPROPERTY(EditAnywhere, Category = "Ultimate|State")
+    float UltDrainPerSec = 20.0f; // 5초면 소모 100 / 5 = 20
+
+    UPROPERTY(EditAnywhere, Category = "Ultimate|State")
+    float UltDrainTickInterval = 0.05f;
+
+    FTimerHandle TimerHandle_UltDrain;
+
+    UFUNCTION()
+    void OnUltimateDrainTimer();
+    
+    void StartUltimateDrain();
+    void StopUltimateDrain();
+    
     // ─ 구성 컴포넌트 ─
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
     TObjectPtr<UCDashComponent> DashComponent = nullptr;
-
+    
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
     TObjectPtr<UCWeaponComponent> WeaponComponent = nullptr;
 
@@ -126,6 +161,9 @@ private:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
     TObjectPtr<UCMovementBuffComponent> MovementBuffComponent = nullptr;
 
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+    TObjectPtr<UCUltimateBuffComponent> UltimateBuffComponent = nullptr;
+    
     // ─ 카메라 ─
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Camera", meta = (AllowPrivateAccess = "true"))
     TObjectPtr<USpringArmComponent> SpringArm = nullptr;

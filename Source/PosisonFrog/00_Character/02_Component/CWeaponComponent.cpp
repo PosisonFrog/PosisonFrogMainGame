@@ -1,4 +1,6 @@
 #include "00_Character/02_Component/CWeaponComponent.h"
+
+#include "00_Character/02_Component/CUltimateBuffComponent.h"
 #include "00_Character/00_Player/CPlayerCharacter.h"
 #include "00_Character/00_Player/02_Weapon/CHammer.h"
 #include "GameFramework/Character.h"
@@ -7,6 +9,7 @@
 #include "TimerManager.h"
 #include "Engine/World.h"
 #include "99_Util/CLog.h"
+#include "Kismet/GameplayStatics.h"
 
 UCWeaponComponent::UCWeaponComponent()
 {
@@ -24,6 +27,9 @@ void UCWeaponComponent::BeginPlay()
         return;
     }
 
+    if (!UltimateBuffComponent)
+        UltimateBuffComponent = OwnerCharacter->FindComponentByClass<UCUltimateBuffComponent>();
+    
     if (!HammerClass)
     {
         CLog::Log(TEXT("[WeaponComp] HammerClass not set"));
@@ -40,6 +46,52 @@ void UCWeaponComponent::BeginPlay()
 
 void UCWeaponComponent::HandleHammerHit(AActor* InstigatorActor, AActor* HitActor, float Damage, FHitResult Hit)
 {
+    float Before = Damage;
+    float OutMul = 1.0f;
+    
+    if (UltimateBuffComponent && UltimateBuffComponent->IsUltActive())
+    {
+        OutMul = UltimateBuffComponent->GetOutgoingDamageMultiplier();
+        Damage *= OutMul;
+
+        UE_LOG(LogTemp, Log, TEXT("[ULT][Weapon] Hit=%s, Base=%.1f, Mul=%.2f, Final=%.1f"), *GetNameSafe(HitActor), Before, OutMul, Damage);
+    }
+
+    // 만약 여기 적이 WeaponComponent를 가지게 된다면
+    // WeaponComponentBase를 만들고 상속 받아서 Player하고 Enemy 따로 Component를 만들어줘야 작업이 편해짐
+    if (ACPlayerCharacter* PlayerChar = Cast<ACPlayerCharacter>(GetOwner()))
+    {
+        if (IsValid(HitActor) && HitActor != OwnerCharacter)
+        {
+            const float gain = PlayerChar->GetMaxUltimateGauge() * AddUltGaugeMul;
+            PlayerChar->AddUltimateGain(gain);
+        }
+    }
+
+    AController* InstigatorCtrl = InstigatorActor ? InstigatorActor->GetInstigatorController() : nullptr;
+
+    // HitInfo가 유효하면 포인트 데미지로 위치/노멀 전달
+    if (Hit.bBlockingHit)
+    {
+        UGameplayStatics::ApplyPointDamage(
+            HitActor,
+            Damage,
+            Hit.TraceStart.IsNearlyZero() ? FVector::ZeroVector : (Hit.ImpactPoint - Hit.TraceStart).GetSafeNormal(),
+            Hit,
+            InstigatorCtrl,
+            InstigatorActor,
+            UDamageType::StaticClass());
+    }
+    else
+    {
+        UGameplayStatics::ApplyDamage(
+        HitActor,
+        Damage,
+        InstigatorCtrl,
+        InstigatorActor,
+        UDamageType::StaticClass());
+    }
+    
     OnWeaponHit.Broadcast(HitActor, Damage);
 }
 

@@ -28,6 +28,9 @@ public:
     void UpdateDashCooldown(float Remaining, float Total);
 
     UFUNCTION(BlueprintCallable, Category = "PF|HUD")
+    void UpdateUltimateBar(float Current, float Max);
+    
+    UFUNCTION(BlueprintCallable, Category = "PF|HUD")
     void SetDashReady();
 
     UFUNCTION(BlueprintCallable, Category = "PF|HUD")
@@ -44,15 +47,9 @@ private:
     UPROPERTY(meta = (BindWidgetOptional))
     UProgressBar* HealthBar = nullptr;
 
-    /*UPROPERTY(meta = (BindWidgetOptional))
-    UTextBlock* HealthText = nullptr;*/
-
     // Dash
     UPROPERTY(meta = (BindWidgetOptional))
     UProgressBar* DashCooldownBar = nullptr;
-
-    /*UPROPERTY(meta = (BindWidgetOptional))
-    UTextBlock* DashText = nullptr;*/
 
     UPROPERTY(meta = (BindWidgetOptional))
     UImage* DashFXImage = nullptr;

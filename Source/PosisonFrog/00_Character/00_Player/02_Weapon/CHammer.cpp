@@ -98,8 +98,8 @@ void ACHammer::BeginPlay()
 	DamageBox->OnComponentBeginOverlap.AddDynamic(this, &ACHammer::OnDamageBoxBeginOverlap);
     
 	// 기본 데미지 적용 핸들러 델리게이트에 바인딩 (한번만)
-	OnHammerHit.RemoveAll(this);
-	OnHammerHit.AddDynamic(this, &ACHammer::ApplyDamageHandler);
+	//OnHammerHit.RemoveAll(this);
+	//OnHammerHit.AddDynamic(this, &ACHammer::ApplyDamageHandler);
 }
 
 void ACHammer::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -110,7 +110,7 @@ void ACHammer::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	if (IsValid(DamageBox))
 		DamageBox->OnComponentBeginOverlap.RemoveAll(this);
 
-	OnHammerHit.RemoveDynamic(this, &ACHammer::ApplyDamageHandler);
+	//OnHammerHit.RemoveDynamic(this, &ACHammer::ApplyDamageHandler);
 
 	Super::EndPlay(EndPlayReason);
 }
@@ -148,8 +148,6 @@ void ACHammer::ResetHitActors()
 	HitActors.Reset();
 }
 
-
-
 void ACHammer::OnDamageBoxBeginOverlap(UPrimitiveComponent* OverlapComponent, AActor* OtherActor,
                                        UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
@@ -181,7 +179,7 @@ void ACHammer::OnDamageBoxBeginOverlap(UPrimitiveComponent* OverlapComponent, AA
 	OnHammerHit.Broadcast(InstigatorActor, OtherActor, Damage, SweepResult);
 }
 
-void ACHammer::ApplyDamageHandler(AActor* InstigatorActor, AActor* HitActor, float InDamage, FHitResult HitInfo)
+/*void ACHammer::ApplyDamageHandler(AActor* InstigatorActor, AActor* HitActor, float InDamage, FHitResult HitInfo)
 {
 	if (!IsValid(HitActor) || !IsValid(InstigatorActor))
 	{
@@ -215,7 +213,7 @@ void ACHammer::ApplyDamageHandler(AActor* InstigatorActor, AActor* HitActor, flo
 	
 	if (bDebugLog)
 		CLog::Log(FString::Printf(TEXT("CHammer - 데미지 적용: %.1f to %s"), InDamage, *HitActor->GetName()));
-}
+}*/
 
 bool ACHammer::ShouldHitActor(AActor* OtherActor) const
 {
