@@ -6,6 +6,7 @@
 #include "Components/ActorComponent.h"
 #include "CHealthComponent.generated.h"
 
+class UCUltimateBuffComponent;
 class UCPlayerStatAssetData;
 
 // 체력 변경/사망 이벤트
@@ -86,5 +87,10 @@ protected:
 	/** 플레이어/적 등 초기 스탯이 담긴 에셋(있으면 MaxHealth를 여기서 가져옴) */
 	UPROPERTY(EditDefaultsOnly, Category = "Health")
 	TObjectPtr<const UCPlayerStatAssetData> PlayerStatAssetData = nullptr;
+
+private:
+	// 캐싱용
+	UPROPERTY() ACharacter* OwnerChar = nullptr;
+	UPROPERTY() UCUltimateBuffComponent* UltimateBuffComponent = nullptr;
 };
 

@@ -4,6 +4,7 @@
 #include "Components/ActorComponent.h"
 #include "CWeaponComponent.generated.h"
 
+class UCUltimateBuffComponent;
 class ACharacter;
 class ACHammer;
 class UAnimMontage;
@@ -99,6 +100,13 @@ protected:
     UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Attack")
     bool bQueuedNextInput = false;
 
+    UPROPERTY(EditAnywhere, Category = "Ultimate|State")
+    float AddUltGaugeMul = 0.02f;
+
     FTimerHandle ComboResetTimer;
+
+private:
+    UPROPERTY()
+    UCUltimateBuffComponent* UltimateBuffComponent = nullptr;
 };
 

@@ -2,7 +2,6 @@
 
 #include "Components/Image.h"
 #include "Components/ProgressBar.h"
-#include "Components/TextBlock.h"
 
 namespace
 {
@@ -28,7 +27,7 @@ void UCPlayerWidget::NativeConstruct()
 
     // 위젯 생성 직후 기본 텍스트/수치 정리
     if (HealthBar)      HealthBar->SetPercent(1.0f);
-    //if (HealthText)     HealthText->SetText(FText::FromString(TEXT("HP 100%")));
+    if (UltimateBar)    UltimateBar->SetPercent(0.0f);
 
     SetDashReady(); // 대시는 처음엔 Ready 상태로
 }
@@ -42,13 +41,6 @@ void UCPlayerWidget::UpdateHpBar(float Current, float Max)
         const FLinearColor UseColor = (Ratio <= HpDangerThreshold) ? HpColor_Danger : HpColor_Normal;
         HealthBar->SetFillColorAndOpacity(UseColor);
     }
-
-    /*if (HealthText)
-    {
-        const int32 ICur = FMath::Max(0, FMath::RoundToInt(Current));
-        const int32 IMax = FMath::Max(1, FMath::RoundToInt(Max));
-        HealthText->SetText(FText::FromString(FString::Printf(TEXT("%d / %d"), ICur, IMax)));
-    }*/
 }
 
 
@@ -65,20 +57,13 @@ void UCPlayerWidget::UpdateDashCooldown(float Remaining, float Total)
         DashCooldownBar->SetPercent(P);
         DashCooldownBar->SetFillColorAndOpacity(P > 0.f ? DashColor_Cooldown : DashColor_Ready);
     }
+}
 
-    /*if (DashText)
-    {
-        if (P > 0.f)
-        {
-            // 남은 시간 소수 1자리
-            const FText T = SecsTextOneDecimal(Remaining);
-            DashText->SetText(FText::Format(NSLOCTEXT("PF", "DashRemainFmt", "Dash {0}s"), T));
-        }
-        else
-        {
-            DashText->SetText(NSLOCTEXT("PF", "DashReady", "Dash READY"));
-        }
-    }*/
+void UCPlayerWidget::UpdateUltimateBar(float Current, float Max)
+{
+    const float Ratio = SafeRatio(Current, Max);
+    if (UltimateBar)
+        UltimateBar->SetPercent(Ratio);
 }
 
 void UCPlayerWidget::SetDashReady()
@@ -88,10 +73,6 @@ void UCPlayerWidget::SetDashReady()
         DashCooldownBar->SetPercent(0.f);
         DashCooldownBar->SetFillColorAndOpacity(DashColor_Ready);
     }
-    /*if (DashText)
-    {
-        DashText->SetText(NSLOCTEXT("PF", "DashReady_Init", "Dash READY"));
-    }*/
 
     if (DashFXImage)
     {

@@ -34,7 +34,6 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Weapon")
 	FOnHammerHit OnHammerHit;
 
-
 	// AnimBP에서 호출할 수 있는 함수들 추가
 	//캐싱된 플레이어 사용
 	UFUNCTION(BlueprintCallable, Category = "PlayerAnimBP")
@@ -52,8 +51,8 @@ protected:
 								 UPrimitiveComponent* OtherComp, int32 OtherBodyIndex,
 								 bool bFromSweep, const FHitResult& SweepResult);
 
-	UFUNCTION()
-	void ApplyDamageHandler(AActor* InstigatorActor, AActor* HitActor, float InDamage, FHitResult HitInfo);
+	//UFUNCTION()
+	//void ApplyDamageHandler(AActor* InstigatorActor, AActor* HitActor, float InDamage, FHitResult HitInfo);
 
 	bool ShouldHitActor(AActor* OtherActor) const;
 	

@@ -9,6 +9,7 @@ namespace CGameplayTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputTag_Look);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputTag_Dash);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputTag_Attack);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputTag_Ultimate);
 }
 
 struct POSISONFROG_API FCGameplayTags

@@ -17,6 +17,7 @@
 #include "00_Character/02_Component/CEnhancedInputComponent.h"
 #include "00_Character/02_Component/CGameplayTags.h"
 #include "00_Character/00_Player/03_Camera/TransparentCameraComponent.h"
+#include "00_Character/02_Component/CUltimateBuffComponent.h"
 
 #include "01_Widget/CPlayerWidget.h"
 #include "99_Util/CLog.h"
@@ -34,12 +35,13 @@ ACPlayerCharacter::ACPlayerCharacter()
     WeaponComponent = CreateDefaultSubobject<UCWeaponComponent>(TEXT("WeaponComponent"));
     HealthComponent = CreateDefaultSubobject<UCHealthComponent>(TEXT("HealthComponent"));
     MovementBuffComponent = CreateDefaultSubobject<UCMovementBuffComponent>(TEXT("MovementBuff"));
-
+    UltimateBuffComponent = CreateDefaultSubobject<UCUltimateBuffComponent>(TEXT("UltimateBuffComponent"));
+    
     check(DashComponent);
     check(WeaponComponent);
     check(HealthComponent);
     check(MovementBuffComponent);
-
+    check(UltimateBuffComponent);
 
     SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
     SpringArm->SetupAttachment(RootComponent);
@@ -78,10 +80,6 @@ void ACPlayerCharacter::BeginPlay()
 {
     Super::BeginPlay();
 
-
-    if (UCharacterMovementComponent* Move = GetCharacterMovement())
-        Move->MaxWalkSpeed = WalkingSpeed;
-
     if (MovementBuffComponent)
         MovementBuffComponent->SetBaseMaxWalkSpeed(WalkingSpeed);
 
@@ -117,6 +115,7 @@ void ACPlayerCharacter::PostInitializeComponents()
     checkf(WeaponComponent != nullptr, TEXT("WeaponComponent missing"));
     checkf(HealthComponent != nullptr, TEXT("HealthComponent missing"));
     checkf(MovementBuffComponent != nullptr, TEXT("MovementBuffComponent missing"));
+    checkf(UltimateBuffComponent != nullptr, TEXT("UltimateBuffComponent missing"));
     // TransparentCameraComponent 설정 개선
     if (TransparentCameraComponent)
     {
@@ -151,6 +150,7 @@ void ACPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
     EIC->BindActionByTag(InputConfig, CGameplayTags::InputTag_Look, ETriggerEvent::Triggered, this, &ACPlayerCharacter::Look);
     EIC->BindActionByTag(InputConfig, CGameplayTags::InputTag_Dash, ETriggerEvent::Started, this, &ACPlayerCharacter::DashStart);
     EIC->BindActionByTag(InputConfig, CGameplayTags::InputTag_Attack, ETriggerEvent::Started, this, &ACPlayerCharacter::Attack);
+    EIC->BindActionByTag(InputConfig, CGameplayTags::InputTag_Ultimate, ETriggerEvent::Started, this, &ACPlayerCharacter::UseUltimate);
 }
 
 // ----------------------------------------------------------------------------
@@ -256,7 +256,6 @@ void ACPlayerCharacter::OnAttackEnded()
 {
     bDashLocked = false;
     ConsumeDashBufferIfValid(true);   // 노티 미스 대비 2차 소비 시도
-
 }
 
 // 애님 노티(마지막 몇 프레임): 여기서 버퍼를 “같은 프레임에” 소모 → 즉발 체감
@@ -339,6 +338,88 @@ void ACPlayerCharacter::TickDashCooldownUI()
 
     if (DashCooldownRemaining <= KINDA_SMALL_NUMBER && bDashOnCooldown)
         ResetDashCooldown();
+}
+
+void ACPlayerCharacter::UpdateUltimateUI()
+{
+    if (PlayerWidget)
+        PlayerWidget->UpdateUltimateBar(CurUltGauge, MaxUltGauge);
+}
+
+void ACPlayerCharacter::AddUltimateGain(float Gain)
+{
+    if (bUltActive || CurUltGauge >= MaxUltGauge)
+        return;
+
+    CurUltGauge = FMath::Clamp(CurUltGauge + Gain, 0.0f, MaxUltGauge);
+    UE_LOG(LogTemp, Log, TEXT("[ULT][Gain] +%.2f -> %.2f/%.2f"), Gain, CurUltGauge, MaxUltGauge);
+
+    UpdateUltimateUI();
+}
+
+void ACPlayerCharacter::OnUltimateDrainTimer()
+{
+    if (!bUltActive)
+    {
+        StopUltimateDrain();
+        return;    
+    }
+
+    const float Step = UltDrainPerSec * UltDrainTickInterval;
+    const float Prev = CurUltGauge;
+    CurUltGauge = FMath::Max(0.0f, CurUltGauge - Step);
+    UE_LOG(LogTemp, Log, TEXT("[ULT][Drain] step=%.2f %.1f -> %.1f"), Step, Prev, CurUltGauge);
+
+    if (!FMath::IsNearlyEqual(Prev, CurUltGauge))
+        UpdateUltimateUI();
+
+    if (CurUltGauge <= 0.0f)
+    {
+        bUltActive = false;
+        StopUltimateDrain();
+
+        if (UltimateBuffComponent)
+            UltimateBuffComponent->DeactivateUltimate();
+
+        UE_LOG(LogTemp, Log, TEXT("[ULT] UseUltimate Off"));
+        UpdateHpUI();
+        UpdateUltimateUI();
+    }
+}
+
+void ACPlayerCharacter::StartUltimateDrain()
+{
+    GetWorldTimerManager().ClearTimer(TimerHandle_UltDrain);
+    
+    GetWorldTimerManager().SetTimer(
+        TimerHandle_UltDrain,
+        this, &ACPlayerCharacter::OnUltimateDrainTimer,
+        UltDrainTickInterval, true);
+}
+
+void ACPlayerCharacter::StopUltimateDrain()
+{
+    GetWorldTimerManager().ClearTimer(TimerHandle_UltDrain);
+}
+
+void ACPlayerCharacter::UseUltimate()
+{
+    if (bUltActive)
+        return;
+    
+    if (!UltimateBuffComponent)
+        return;
+
+    if (CurUltGauge < MaxUltGauge)
+        return;
+
+    bUltActive = true;
+    UltimateBuffComponent->ActivateUltimate();
+    UE_LOG(LogTemp, Log, TEXT("[ULT] UseUltimate On Gauge=%.1f/%.1f"), CurUltGauge, MaxUltGauge);
+
+    UpdateHpUI();
+    StartUltimateDrain();
+    UpdateUltimateUI();
 }
 
 
