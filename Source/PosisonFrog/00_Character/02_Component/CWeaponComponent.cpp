@@ -20,15 +20,12 @@ void UCWeaponComponent::BeginPlay()
 {
     Super::BeginPlay();
 
-    OwnerCharacter = Cast<ACharacter>(GetOwner());
-    if (!IsValid(OwnerCharacter))
+    OwnerChar = Cast<ACharacter>(GetOwner());
+    if (!IsValid(OwnerChar))
     {
         CLog::Log(TEXT("[WeaponComp] OwnerCharacter invalid"));
         return;
     }
-
-    if (!UltimateBuffComponent)
-        UltimateBuffComponent = OwnerCharacter->FindComponentByClass<UCUltimateBuffComponent>();
     
     if (!HammerClass)
     {
@@ -47,21 +44,23 @@ void UCWeaponComponent::BeginPlay()
 void UCWeaponComponent::HandleHammerHit(AActor* InstigatorActor, AActor* HitActor, float Damage, FHitResult Hit)
 {
     float Before = Damage;
-    float OutMul = 1.0f;
-    
-    if (UltimateBuffComponent && UltimateBuffComponent->IsUltActive())
-    {
-        OutMul = UltimateBuffComponent->GetOutgoingDamageMultiplier();
-        Damage *= OutMul;
 
-        UE_LOG(LogTemp, Log, TEXT("[ULT][Weapon] Hit=%s, Base=%.1f, Mul=%.2f, Final=%.1f"), *GetNameSafe(HitActor), Before, OutMul, Damage);
+    if (IBuffable* Buffable = Cast<IBuffable>(OwnerChar))
+    {
+        if (Buffable->IsBuffActive())
+        {
+            const float OutMul = Buffable->GetOutgoingDamageMultiplier();
+            Damage *= OutMul;
+
+            UE_LOG(LogTemp, Log, TEXT("[ULT][Weapon] Hit=%s, Base=%.1f, Mul=%.2f, Final=%.1f"), *GetNameSafe(HitActor), Before, OutMul, Damage);
+        }
     }
 
     // 만약 여기 적이 WeaponComponent를 가지게 된다면
     // WeaponComponentBase를 만들고 상속 받아서 Player하고 Enemy 따로 Component를 만들어줘야 작업이 편해짐
     if (ACPlayerCharacter* PlayerChar = Cast<ACPlayerCharacter>(GetOwner()))
     {
-        if (IsValid(HitActor) && HitActor != OwnerCharacter)
+        if (IsValid(HitActor) && HitActor != OwnerChar)
         {
             const float gain = PlayerChar->GetMaxUltimateGauge() * AddUltGaugeMul;
             PlayerChar->AddUltimateGain(gain);
@@ -99,17 +98,17 @@ void UCWeaponComponent::HandleHammerHit(AActor* InstigatorActor, AActor* HitActo
 void UCWeaponComponent::SpawnWeapon()
 {
     UWorld* World = GetWorld();
-    if (!IsValid(World) || !IsValid(OwnerCharacter))
+    if (!IsValid(World) || !IsValid(OwnerChar))
         return;
 
     FActorSpawnParameters Params;
-    Params.Owner = OwnerCharacter;
-    Params.Instigator = OwnerCharacter;
+    Params.Owner = OwnerChar;
+    Params.Instigator = OwnerChar;
     Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
     Hammer = World->SpawnActor<ACHammer>(HammerClass,
-        OwnerCharacter->GetActorLocation(),
-        OwnerCharacter->GetActorRotation(),
+        OwnerChar->GetActorLocation(),
+        OwnerChar->GetActorRotation(),
         Params);
     if (!IsValid(Hammer))
     {
@@ -123,9 +122,9 @@ void UCWeaponComponent::SpawnWeapon()
 
 void UCWeaponComponent::AttachWeaponToCharacter()
 {
-    if (!IsValid(Hammer) || !IsValid(OwnerCharacter)) return;
+    if (!IsValid(Hammer) || !IsValid(OwnerChar)) return;
 
-    USkeletalMeshComponent* Mesh = OwnerCharacter->GetMesh();
+    USkeletalMeshComponent* Mesh = OwnerChar->GetMesh();
     if (!IsValid(Mesh))
     {
         CLog::Log(TEXT("[WeaponComp] Owner mesh invalid"));
@@ -156,7 +155,7 @@ void UCWeaponComponent::AttachWeaponToCharacter()
 
 void UCWeaponComponent::DoAttack()
 {
-    if (!IsValid(OwnerCharacter) || PlayerComboMontages.Num() == 0)
+    if (!IsValid(OwnerChar) || PlayerComboMontages.Num() == 0)
         return;
 
     if (!IsValid(Hammer) || HammerComboMontages.Num() == 0)
@@ -209,8 +208,8 @@ void UCWeaponComponent::PlayComboAttack()
         return;
     }
 
-    UAnimInstance* PlayerAnimInst = (OwnerCharacter && OwnerCharacter->GetMesh())
-        ? OwnerCharacter->GetMesh()->GetAnimInstance()
+    UAnimInstance* PlayerAnimInst = (OwnerChar && OwnerChar->GetMesh())
+        ? OwnerChar->GetMesh()->GetAnimInstance()
         : nullptr;
 
     UAnimInstance* HammerAnimInst = (Hammer && Hammer->GetHammerMesh())
@@ -276,7 +275,7 @@ void UCWeaponComponent::BeginAction()
 {
     bIsAttacking = true;
     
-    if (ACharacter* Ch = OwnerCharacter)
+    if (ACharacter* Ch = OwnerChar)
     {
         if (ACPlayerCharacter* PC = Cast<ACPlayerCharacter>(Ch))
             PC->OnAttackStarted();
@@ -285,7 +284,7 @@ void UCWeaponComponent::BeginAction()
 void UCWeaponComponent::EndAction()
 {
     ResetCombo();
-    if (ACharacter* Ch = OwnerCharacter)
+    if (ACharacter* Ch = OwnerChar)
     {
         if (ACPlayerCharacter* PC = Cast<ACPlayerCharacter>(Ch))
             PC->OnAttackEnded();

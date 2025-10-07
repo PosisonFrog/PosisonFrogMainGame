@@ -366,12 +366,8 @@ void ACPlayerCharacter::OnUltimateDrainTimer()
     }
 
     const float Step = UltDrainPerSec * UltDrainTickInterval;
-    const float Prev = CurUltGauge;
     CurUltGauge = FMath::Max(0.0f, CurUltGauge - Step);
-    UE_LOG(LogTemp, Log, TEXT("[ULT][Drain] step=%.2f %.1f -> %.1f"), Step, Prev, CurUltGauge);
-
-    if (!FMath::IsNearlyEqual(Prev, CurUltGauge))
-        UpdateUltimateUI();
+    UpdateUltimateUI();
 
     if (CurUltGauge <= 0.0f)
     {
@@ -383,7 +379,6 @@ void ACPlayerCharacter::OnUltimateDrainTimer()
 
         UE_LOG(LogTemp, Log, TEXT("[ULT] UseUltimate Off"));
         UpdateHpUI();
-        UpdateUltimateUI();
     }
 }
 
@@ -422,5 +417,23 @@ void ACPlayerCharacter::UseUltimate()
     UpdateUltimateUI();
 }
 
+float ACPlayerCharacter::GetOutgoingDamageMultiplier() const
+{
+    if (bUltActive && UltimateBuffComponent)
+        return UltimateBuffComponent->GetOutgoingDamageMultiplier();
+    
+    return 1.0f;
+}
 
+float ACPlayerCharacter::GetIncomingDamageScale() const
+{
+    if (bUltActive && UltimateBuffComponent)
+        return UltimateBuffComponent->GetIncomingDamageScale();
+    
+    return 1.0f;
+}
 
+bool ACPlayerCharacter::IsBuffActive() const
+{
+    return bUltActive;
+}

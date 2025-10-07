@@ -64,7 +64,7 @@ private:
 
 private:
     // ---- 소유자/무기 ----
-    UPROPERTY() ACharacter* OwnerCharacter = nullptr;
+    UPROPERTY() ACharacter* OwnerChar = nullptr;
     UPROPERTY() ACHammer* Hammer = nullptr;
 
 protected:
@@ -104,9 +104,5 @@ protected:
     float AddUltGaugeMul = 0.02f;
 
     FTimerHandle ComboResetTimer;
-
-private:
-    UPROPERTY()
-    UCUltimateBuffComponent* UltimateBuffComponent = nullptr;
 };
 

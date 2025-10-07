@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "00_Character/CBaseCharacter.h"
+#include "00_Character/02_Component/Buffable.h"
 #include "CPlayerCharacter.generated.h"
 
 class UCUltimateBuffComponent;
@@ -26,7 +27,7 @@ struct FInputActionValue;
  * - 쿨다운/UI/버프는 캐릭터가 관리, 이동/물리는 UCDashComponent가 담당
  */
 UCLASS(config = Game)
-class POSISONFROG_API ACPlayerCharacter : public ACBaseCharacter
+class POSISONFROG_API ACPlayerCharacter : public ACBaseCharacter, public IBuffable
 {
     GENERATED_BODY()
 
@@ -71,6 +72,11 @@ private: // 궁극기 UI/버프 적용
     UFUNCTION() void UseUltimate();
 
 public:
+    // IBuffable 인터페이스 구현
+    virtual float GetOutgoingDamageMultiplier() const override;
+    virtual float GetIncomingDamageScale() const override;
+    virtual bool IsBuffActive() const override;
+    
     void AddUltimateGain(float Gain);
     float GetMaxUltimateGauge() const { return MaxUltGauge; }
     
