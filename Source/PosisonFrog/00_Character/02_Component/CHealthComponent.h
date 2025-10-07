@@ -91,6 +91,5 @@ protected:
 private:
 	// 캐싱용
 	UPROPERTY() ACharacter* OwnerChar = nullptr;
-	UPROPERTY() UCUltimateBuffComponent* UltimateBuffComponent = nullptr;
 };
 
