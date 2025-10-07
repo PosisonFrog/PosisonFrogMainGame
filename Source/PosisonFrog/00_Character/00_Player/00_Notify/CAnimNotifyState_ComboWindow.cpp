@@ -1,5 +1,5 @@
 ﻿#include "00_Character/00_Player/00_Notify/CAnimNotifyState_ComboWindow.h"
-#include "00_Character/02_Component/CWeaponComponent.h"
+#include "00_Character/02_Component/00_PlayerComponent/CPlayerWeaponComponent.h"
 #include "GameFramework/Character.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "99_Util/CLog.h"
@@ -15,7 +15,7 @@ void UCAnimNotifyState_ComboWindow::NotifyBegin(USkeletalMeshComponent* MeshComp
 	ACharacter* Char = MeshComp->GetOwner<ACharacter>();
 	if (!Char) return;
 
-	if (UCWeaponComponent* Weapon = Char->FindComponentByClass<UCWeaponComponent>())
+	if (UCPlayerWeaponComponent* Weapon = Char->FindComponentByClass<UCPlayerWeaponComponent>())
 	{
 		Weapon->EnableComboInput();
 		if (bDebugLog) CLog::Log(TEXT("[ComboWindow] Begin"));
@@ -32,7 +32,7 @@ void UCAnimNotifyState_ComboWindow::NotifyEnd(USkeletalMeshComponent* MeshComp,
 	ACharacter* Char = MeshComp->GetOwner<ACharacter>();
 	if (!Char) return;
 
-	if (UCWeaponComponent* Weapon = Char->FindComponentByClass<UCWeaponComponent>())
+	if (UCPlayerWeaponComponent* Weapon = Char->FindComponentByClass<UCPlayerWeaponComponent>())
 	{
 		Weapon->DisableComboInput();
 		if (bDebugLog) CLog::Log(TEXT("[ComboWindow] End"));

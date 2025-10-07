@@ -6,8 +6,8 @@
 // Enhanced Input
 #include "EnhancedInputSubsystems.h"
 #include "InputAction.h"
-#include "00_Character/02_Component/CEnhancedInputComponent.h" // 프로젝트용(선택)
-#include "00_Character/02_Component/CInputConfig.h"           // 프로젝트용(선택)
+#include "00_Character/02_Component/00_PlayerComponent/CEnhancedInputComponent.h" // 프로젝트용(선택)
+#include "00_Character/02_Component/00_PlayerComponent/CInputConfig.h"           // 프로젝트용(선택)
 
 // 위젯 (프로젝트 경로에 맞춰 통일)
 #include "01_Widget/CPlayerWidget.h"

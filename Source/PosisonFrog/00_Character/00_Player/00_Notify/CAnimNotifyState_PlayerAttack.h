@@ -4,7 +4,7 @@
 #include "Animation/AnimNotifies/AnimNotifyState.h"
 #include "CAnimNotifyState_PlayerAttack.generated.h"
 
-class UCWeaponComponent;
+class UCPlayerWeaponComponent;
 
 /**
  * 플레이어 공격 히트창(NotifyState)
@@ -42,20 +42,20 @@ public:
 private:
     /** 현재 Notify 인스턴스가 마지막에 참조한 무기 컴포넌트(디버그용) */
     UPROPERTY()
-    TWeakObjectPtr<UCWeaponComponent> LastWeaponComp;
+    TWeakObjectPtr<UCPlayerWeaponComponent> LastWeaponComp;
 
 private:
     // ----- Ref-Count 관리: 컴포넌트별로 Begin/End 중첩을 안전하게 처리 -----
-    static int32 GetRefCount(UCWeaponComponent* Comp);
-    static int32 IncRef(UCWeaponComponent* Comp);
-    static int32 DecRef(UCWeaponComponent* Comp);
+    static int32 GetRefCount(UCPlayerWeaponComponent* Comp);
+    static int32 IncRef(UCPlayerWeaponComponent* Comp);
+    static int32 DecRef(UCPlayerWeaponComponent* Comp);
 
-    static void EnableIfFirst(UCWeaponComponent* Comp, bool bDebug);
-    static void DisableIfNone(UCWeaponComponent* Comp, bool bDebug);
+    static void EnableIfFirst(UCPlayerWeaponComponent* Comp, bool bDebug);
+    static void DisableIfNone(UCPlayerWeaponComponent* Comp, bool bDebug);
 
 private:
     /** 전용 Ref-Count 테이블 (Weak 포인터 키) */
-    static TMap<TWeakObjectPtr<UCWeaponComponent>, int32> RefTable;
+    static TMap<TWeakObjectPtr<UCPlayerWeaponComponent>, int32> RefTable;
 };
 
 /*요 코드의 핵심은 “겹치는 공격 히트창을 안전하게” 처리하기 위해

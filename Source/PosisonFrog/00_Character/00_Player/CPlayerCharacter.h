@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "00_Character/CBaseCharacter.h"
-#include "00_Character/02_Component/Buffable.h"
+#include "00_Character/02_Component/00_PlayerComponent/Buffable.h"
 #include "CPlayerCharacter.generated.h"
 
 class UCUltimateBuffComponent;
@@ -10,10 +10,10 @@ class UCameraComponent;
 class USpringArmComponent;
 class UTransparentCameraComponent;
 
-class UCDashComponent;
-class UCWeaponComponent;
-class UCHealthComponent;
-class UCMovementBuffComponent;
+class UCPlayerDashComponent;
+class UCPlayerWeaponComponent;
+class UCPlayerHealthComponent;
+class UCPlayerMovementBuffComponent;
 
 class UCInputConfig;
 class UCPlayerWidget;
@@ -156,16 +156,16 @@ private:
     
     // ─ 구성 컴포넌트 ─
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
-    TObjectPtr<UCDashComponent> DashComponent = nullptr;
+    TObjectPtr<UCPlayerDashComponent> DashComponent = nullptr;
     
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
-    TObjectPtr<UCWeaponComponent> WeaponComponent = nullptr;
+    TObjectPtr<UCPlayerWeaponComponent> WeaponComponent = nullptr;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
-    TObjectPtr<UCHealthComponent> HealthComponent = nullptr;
+    TObjectPtr<UCPlayerHealthComponent> HealthComponent = nullptr;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
-    TObjectPtr<UCMovementBuffComponent> MovementBuffComponent = nullptr;
+    TObjectPtr<UCPlayerMovementBuffComponent> MovementBuffComponent = nullptr;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
     TObjectPtr<UCUltimateBuffComponent> UltimateBuffComponent = nullptr;

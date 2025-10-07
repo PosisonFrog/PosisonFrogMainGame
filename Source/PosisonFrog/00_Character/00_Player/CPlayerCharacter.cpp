@@ -10,14 +10,14 @@
 #include "InputActionValue.h"
 
 // 프로젝트 컴포넌트/유틸
-#include "00_Character/02_Component/CDashComponent.h"
-#include "00_Character/02_Component/CWeaponComponent.h"            // 파일명이 CWeaponComponent라면 헤더명을 맞춰주세요 -> 까먹어버렸지 몹니까
-#include "00_Character/02_Component/CHealthComponent.h"
-#include "00_Character/02_Component/CMovementBuffComponent.h"
-#include "00_Character/02_Component/CEnhancedInputComponent.h"
-#include "00_Character/02_Component/CGameplayTags.h"
+#include "00_Character/02_Component/00_PlayerComponent/CPlayerDashComponent.h"
+#include "00_Character/02_Component/00_PlayerComponent/CPlayerWeaponComponent.h"
+#include "00_Character/02_Component/00_PlayerComponent/CPlayerHealthComponent.h"
+#include "00_Character/02_Component/00_PlayerComponent/CPlayerMovementBuffComponent.h"
+#include "00_Character/02_Component/00_PlayerComponent/CEnhancedInputComponent.h"
+#include "00_Character/02_Component/00_PlayerComponent/CGameplayTags.h"
+#include "00_Character/02_Component/00_PlayerComponent/CUltimateBuffComponent.h"
 #include "00_Character/00_Player/03_Camera/TransparentCameraComponent.h"
-#include "00_Character/02_Component/CUltimateBuffComponent.h"
 
 #include "01_Widget/CPlayerWidget.h"
 #include "99_Util/CLog.h"
@@ -31,10 +31,10 @@ ACPlayerCharacter::ACPlayerCharacter()
     GetCapsuleComponent()->InitCapsuleSize(42.f, 96.f);
 
     // 서브오브젝트
-    DashComponent = CreateDefaultSubobject<UCDashComponent>(TEXT("DashComponent"));
-    WeaponComponent = CreateDefaultSubobject<UCWeaponComponent>(TEXT("WeaponComponent"));
-    HealthComponent = CreateDefaultSubobject<UCHealthComponent>(TEXT("HealthComponent"));
-    MovementBuffComponent = CreateDefaultSubobject<UCMovementBuffComponent>(TEXT("MovementBuff"));
+    DashComponent = CreateDefaultSubobject<UCPlayerDashComponent>(TEXT("DashComponent"));
+    WeaponComponent = CreateDefaultSubobject<UCPlayerWeaponComponent>(TEXT("WeaponComponent"));
+    HealthComponent = CreateDefaultSubobject<UCPlayerHealthComponent>(TEXT("HealthComponent"));
+    MovementBuffComponent = CreateDefaultSubobject<UCPlayerMovementBuffComponent>(TEXT("MovementBuff"));
     UltimateBuffComponent = CreateDefaultSubobject<UCUltimateBuffComponent>(TEXT("UltimateBuffComponent"));
     
     check(DashComponent);

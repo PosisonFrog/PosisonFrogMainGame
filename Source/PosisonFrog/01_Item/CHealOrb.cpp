@@ -2,7 +2,7 @@
 #include "01_Item/CHealOrb.h"
 
 #include "01_Item/CHealOrbPoolSubsystem.h"
-#include "00_Character/02_Component/CHealthComponent.h"
+#include "00_Character/02_Component/00_PlayerComponent/CPlayerHealthComponent.h"
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Kismet/GameplayStatics.h"
@@ -547,7 +547,7 @@ void ACHealOrb::OnPickupOverlap(UPrimitiveComponent* Overlapped, AActor* OtherAc
     if (!IsValid(OtherActor) || OtherActor == this) return;
     if (State == HealOrbState::Spawn && bSpawnPickupLocked) return;
 
-    if (UCHealthComponent* Health = OtherActor->FindComponentByClass<UCHealthComponent>())
+    if (UCPlayerHealthComponent* Health = OtherActor->FindComponentByClass<UCPlayerHealthComponent>())
     {
         // 치유
         Health->Healing(HealAmount);
@@ -608,7 +608,7 @@ void ACHealOrb::OnDetectOverlap(UPrimitiveComponent* Overlapped, AActor* OtherAc
     if (bReleased) return;
     if (!IsValid(OtherActor) || OtherActor == this) return;
 
-    if (OtherActor->FindComponentByClass<UCHealthComponent>())
+    if (OtherActor->FindComponentByClass<UCPlayerHealthComponent>())
     {
         if (!bChaseAllowed)
         {

@@ -9,8 +9,8 @@
 #include "GameFramework/DamageType.h"
 #include "Navigation/PathFollowingComponent.h"
 
-#include "00_Character/02_Component/CHealthComponent.h"
 #include "00_Character/00_Player/CPlayerCharacter.h"
+#include "00_Character/02_Component/01_EnemyComponent/CEnemyHealthComponent.h"
 #include "01_Item/CHealOrbPoolSubsystem.h"
 
 #include "99_Util/CLog.h"
@@ -19,9 +19,7 @@ ACEnemyCharacterBase::ACEnemyCharacterBase()
 {
 	PrimaryActorTick.bCanEverTick = true;
 
-	HealthComponent = CreateDefaultSubobject<UCHealthComponent>(TEXT("HealthComponent"));
-
-
+	HealthComponent = CreateDefaultSubobject<UCEnemyHealthComponent>(TEXT("HealthComponent"));
 
 	if (UCapsuleComponent* Cap = GetCapsuleComponent())
 	{
@@ -322,9 +320,13 @@ bool ACEnemyCharacterBase::IsInAttackDistance() const
 bool ACEnemyCharacterBase::AcquireTarget()
 {
 	// 기존 타겟 유효성
-	if (Target && !Target->IsPendingKill() && Target->IsA<ACPlayerCharacter>())
-		return true;
+	// if (Target && !Target->IsPendingKill() && Target->IsA<ACPlayerCharacter>())
+	// 	  return true;
 
+	// IsPendingKill() -> C4996 Warning 발생으로 코드 변경
+	if (IsValid(Target) && Target->IsA<ACPlayerCharacter>())
+		return true;
+	
 	// 가장 가까운 플레이어 탐색
 	TArray<AActor*> Players;
 	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACPlayerCharacter::StaticClass(), Players);

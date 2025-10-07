@@ -1,6 +1,6 @@
 #include "00_Character/00_Player/00_Notify/CAnimNotifyState_PlayerAttack.h"
 
-#include "00_Character/02_Component/CWeaponComponent.h"
+#include "00_Character/02_Component/00_PlayerComponent/CPlayerWeaponComponent.h"
 #include "GameFramework/Character.h"
 #include "Engine/World.h"
 #include "Logging/LogMacros.h"
@@ -8,7 +8,7 @@
 // 로컬 로그 카테고리 (원하시면 프로젝트 공용 로그 사용)
 DEFINE_LOG_CATEGORY_STATIC(LogPF_PlayerAttackNotify, Log, All);
 
-/* static */ TMap<TWeakObjectPtr<UCWeaponComponent>, int32> UCAnimNotifyState_PlayerAttack::RefTable;
+/* static */ TMap<TWeakObjectPtr<UCPlayerWeaponComponent>, int32> UCAnimNotifyState_PlayerAttack::RefTable;
 
 static bool PF_IsGameWorldSafe(const USkeletalMeshComponent* MeshComp, bool bAllowPreview)
 {
@@ -19,7 +19,7 @@ static bool PF_IsGameWorldSafe(const USkeletalMeshComponent* MeshComp, bool bAll
     return World->IsGameWorld();
 }
 
-/* static */ int32 UCAnimNotifyState_PlayerAttack::GetRefCount(UCWeaponComponent* Comp)
+/* static */ int32 UCAnimNotifyState_PlayerAttack::GetRefCount(UCPlayerWeaponComponent* Comp)
 {
     if (!IsValid(Comp)) return 0;
     if (int32* Found = RefTable.Find(Comp))
@@ -27,7 +27,7 @@ static bool PF_IsGameWorldSafe(const USkeletalMeshComponent* MeshComp, bool bAll
     return 0;
 }
 
-/* static */ int32 UCAnimNotifyState_PlayerAttack::IncRef(UCWeaponComponent* Comp)
+/* static */ int32 UCAnimNotifyState_PlayerAttack::IncRef(UCPlayerWeaponComponent* Comp)
 {
     if (!IsValid(Comp)) return 0;
     int32& Cnt = RefTable.FindOrAdd(Comp);
@@ -35,7 +35,7 @@ static bool PF_IsGameWorldSafe(const USkeletalMeshComponent* MeshComp, bool bAll
     return Cnt;
 }
 
-/* static */ int32 UCAnimNotifyState_PlayerAttack::DecRef(UCWeaponComponent* Comp)
+/* static */ int32 UCAnimNotifyState_PlayerAttack::DecRef(UCPlayerWeaponComponent* Comp)
 {
     if (!IsValid(Comp)) return 0;
     int32& Cnt = RefTable.FindOrAdd(Comp);
@@ -48,7 +48,7 @@ static bool PF_IsGameWorldSafe(const USkeletalMeshComponent* MeshComp, bool bAll
     return Cnt;
 }
 
-/* static */ void UCAnimNotifyState_PlayerAttack::EnableIfFirst(UCWeaponComponent* Comp, bool bDebug)
+/* static */ void UCAnimNotifyState_PlayerAttack::EnableIfFirst(UCPlayerWeaponComponent* Comp, bool bDebug)
 {
     if (!IsValid(Comp)) return;
 
@@ -69,7 +69,7 @@ static bool PF_IsGameWorldSafe(const USkeletalMeshComponent* MeshComp, bool bAll
     }
 }
 
-/* static */ void UCAnimNotifyState_PlayerAttack::DisableIfNone(UCWeaponComponent* Comp, bool bDebug)
+/* static */ void UCAnimNotifyState_PlayerAttack::DisableIfNone(UCPlayerWeaponComponent* Comp, bool bDebug)
 {
     if (!IsValid(Comp)) return;
 
@@ -107,7 +107,7 @@ void UCAnimNotifyState_PlayerAttack::NotifyBegin(USkeletalMeshComponent* MeshCom
     if (bServerOnlyCollision && !OwnerCharacter->HasAuthority())
         return;
 
-    UCWeaponComponent* WeaponComp = OwnerCharacter->FindComponentByClass<UCWeaponComponent>();
+    UCPlayerWeaponComponent* WeaponComp = OwnerCharacter->FindComponentByClass<UCPlayerWeaponComponent>();
     if (!WeaponComp) return;
 
     LastWeaponComp = WeaponComp;
@@ -117,7 +117,7 @@ void UCAnimNotifyState_PlayerAttack::NotifyBegin(USkeletalMeshComponent* MeshCom
 
     if (AActor* Owner = MeshComp->GetOwner())
     {
-        if (UCWeaponComponent* WeaponComponent = Owner->FindComponentByClass<UCWeaponComponent>())
+        if (UCPlayerWeaponComponent* WeaponComponent = Owner->FindComponentByClass<UCPlayerWeaponComponent>())
         {
             WeaponComponent->BeginAction();
         }
@@ -140,7 +140,7 @@ void UCAnimNotifyState_PlayerAttack::NotifyEnd(USkeletalMeshComponent* MeshComp,
         return;
 
     // 가능하면 같은 무기 기준으로 Ref-Count 감소
-    UCWeaponComponent* WeaponComp = nullptr;
+    UCPlayerWeaponComponent* WeaponComp = nullptr;
 
     if (LastWeaponComp.IsValid())
     {
@@ -148,7 +148,7 @@ void UCAnimNotifyState_PlayerAttack::NotifyEnd(USkeletalMeshComponent* MeshComp,
     }
     else if (AActor* Owner = OwnerCharacter)
     {
-        WeaponComp = Owner->FindComponentByClass<UCWeaponComponent>();
+        WeaponComp = Owner->FindComponentByClass<UCPlayerWeaponComponent>();
     }
 
     if (!WeaponComp) return;
@@ -158,7 +158,7 @@ void UCAnimNotifyState_PlayerAttack::NotifyEnd(USkeletalMeshComponent* MeshComp,
 
     if (AActor* Owner = MeshComp->GetOwner())
     {
-        if (UCWeaponComponent* WeaponComponent = Owner->FindComponentByClass<UCWeaponComponent>())
+        if (UCPlayerWeaponComponent* WeaponComponent = Owner->FindComponentByClass<UCPlayerWeaponComponent>())
         {
             WeaponComponent->EndAction();
         }
