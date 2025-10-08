@@ -10,10 +10,13 @@
 #include "Navigation/PathFollowingComponent.h"
 
 #include "00_Character/00_Player/CPlayerCharacter.h"
+#include "00_Character/02_Component/00_PlayerComponent/CFuryGaugeComponent.h"
 #include "00_Character/02_Component/01_EnemyComponent/CEnemyHealthComponent.h"
 #include "01_Item/CHealOrbPoolSubsystem.h"
+#include "03_Combat/Damage/DamageType_FuryCountable.h"
 
 #include "99_Util/CLog.h"
+#include "Engine/DamageEvents.h"
 
 ACEnemyCharacterBase::ACEnemyCharacterBase()
 {
@@ -507,13 +510,24 @@ float ACEnemyCharacterBase::TakeDamage(float DamageAmount, FDamageEvent const& D
 	UE_LOG(LogTemp, Warning, TEXT("[%s] TakeDamage 호출됨! 데미지: %.1f, 공격자: %s"), 
 		   *GetName(), DamageAmount, *GetNameSafe(DamageCauser));
     
-	float ActualDamage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
-    
-	// HealthComponent 찾아서 데미지 적용
+	float Applied = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+	if (Applied <= 0.0f) return Applied;
+
+	const bool bCountsForFury = DamageEvent.DamageTypeClass && DamageEvent.DamageTypeClass->IsChildOf(UDamageType_FuryCountable::StaticClass());
+
+	if (bCountsForFury && EventInstigator)
+	{
+		if (APawn* InstPawn = EventInstigator->GetPawn())
+		{
+			if (UCFuryGaugeComponent* Fury = InstPawn->FindComponentByClass<UCFuryGaugeComponent>())
+				Fury->AddStack(1);
+		}
+	}
+
 	if (HealthComponent)
 	{
 		float OldHealth = HealthComponent->GetHealth();
-		HealthComponent->Damage(ActualDamage);
+		HealthComponent->Damage(Applied);
 		float NewHealth = HealthComponent->GetHealth();
         
 		UE_LOG(LogTemp, Warning, TEXT("[%s] 체력 변화: %.1f -> %.1f"), 
@@ -523,8 +537,8 @@ float ACEnemyCharacterBase::TakeDamage(float DamageAmount, FDamageEvent const& D
 	{
 		UE_LOG(LogTemp, Error, TEXT("[%s] HealthComponent를 찾을 수 없음!"), *GetName());
 	}
-    
-	return ActualDamage;
+	
+	return Applied;
 }
 
 void ACEnemyCharacterBase::OnHealthChanged(float Cur, float Max)

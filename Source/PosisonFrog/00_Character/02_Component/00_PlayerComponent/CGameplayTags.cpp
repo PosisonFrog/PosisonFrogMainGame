@@ -7,4 +7,9 @@ namespace CGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(InputTag_Dash, "InputTag.Dash");
 	UE_DEFINE_GAMEPLAY_TAG(InputTag_Attack, "InputTag.Attack");
 	UE_DEFINE_GAMEPLAY_TAG(InputTag_Ultimate, "InputTag.Ultimate");
+	UE_DEFINE_GAMEPLAY_TAG(InputTag_FuryAction, "InputTag.FuryAction");
+	UE_DEFINE_GAMEPLAY_TAG(InputTag_FuryCancel, "InputTag.FuryCancel");
+	UE_DEFINE_GAMEPLAY_TAG(InputTag_Spin, "InputTag.Spin");
+	//UE_DEFINE_GAMEPLAY_TAG(InputTag_SpinPressed, "InputTag.SpinPressed");
+	//UE_DEFINE_GAMEPLAY_TAG(InputTag_SpinReleased, "InputTag.SpinReleased");
 }
