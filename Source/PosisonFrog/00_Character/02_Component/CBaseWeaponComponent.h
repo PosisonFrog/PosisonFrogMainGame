@@ -51,6 +51,13 @@ protected:
 
 	// --- 내부 헬퍼 ---
 	void AttachWeaponToCharacter();
+
+	// --- 무기 회전 제어 (애니메이션 루트본 회전값 세팅이 다른 경우가 생겼음.)---
+	/** 무기에 추가 회전 적용 */
+	void RotateWeapon(const FRotator& AdditionalRotation);
+	
+	/** 무기 회전을 원래대로 복구 */
+	void RestoreWeaponRotation();
 	
 protected:
 	// --- 소유자/무기 ---
@@ -63,4 +70,11 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon")
 	FName AttachSocketName = TEXT("WeaponSocket");
+
+protected:
+	// ----원래 회전값 저장----
+	FRotator OriginalWeaponRotation;
+	bool bWeaponRotationModified = false;
+
+	
 };

@@ -176,7 +176,10 @@ void UCPlayerWeaponComponent::StepToNextCombo()
 void UCPlayerWeaponComponent::ResetCombo()
 {
     GetWorld()->GetTimerManager().ClearTimer(ComboResetTimer);
-
+    
+    // 안전장치: 무기 회전 복구
+    RestoreWeaponRotation();
+    
     bIsAttacking = false;
     bCanNextCombo = false;
     bQueuedNextInput = false;
@@ -200,6 +203,9 @@ void UCPlayerWeaponComponent::BeginAction()
 {
     bIsAttacking = true;
     
+    // 무기 180도 회전
+    RotateWeapon(FRotator(0, 180, 0));
+    
     if (ACharacter* Ch = OwnerChar.Get())
     {
         if (ACPlayerCharacter* PC = Cast<ACPlayerCharacter>(Ch))
@@ -208,6 +214,9 @@ void UCPlayerWeaponComponent::BeginAction()
 }
 void UCPlayerWeaponComponent::EndAction()
 {
+    // 무기 회전 복구
+    RestoreWeaponRotation();
+
     ResetCombo();
     if (ACharacter* Ch = OwnerChar.Get())
     {

@@ -53,6 +53,8 @@ private:
     UFUNCTION() void OnMontageEnded(UAnimMontage* Montage, bool bInterrupted);
 
 protected:
+
+protected:
     // ---- 콤보 설정 ----
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "PlayerMontages")
     TArray<UAnimMontage*> PlayerComboMontages;
@@ -83,5 +85,6 @@ protected:
     bool bQueuedNextInput = false;
 
     FTimerHandle ComboResetTimer;
+    
 };
 

@@ -98,6 +98,10 @@ void UCBaseWeaponComponent::AttachWeaponToCharacter()
 		return;
 	}
 
+	// 원래 회전값 저장
+	OriginalWeaponRotation = CurrentWeapon->GetActorRotation();
+	bWeaponRotationModified = false;
+
 	const bool bOk = CurrentWeapon->AttachToComponent(
 		Mesh,
 		FAttachmentTransformRules::SnapToTargetNotIncludingScale,
@@ -109,3 +113,27 @@ void UCBaseWeaponComponent::AttachWeaponToCharacter()
 		CurrentWeapon->AttachToComponent(Mesh, FAttachmentTransformRules::KeepRelativeTransform);
 	}
 }
+
+void UCBaseWeaponComponent::RotateWeapon(const FRotator& AdditionalRotation)
+{
+	if (!IsValid(CurrentWeapon) || bWeaponRotationModified)
+		return;
+	FRotator NewRotation = OriginalWeaponRotation + AdditionalRotation;
+	CurrentWeapon->SetActorRelativeRotation(NewRotation);
+	bWeaponRotationModified = true;
+	
+	UE_LOG(LogTemp, Log, TEXT("[WeaponComp] Weapon rotated by %s"), *AdditionalRotation.ToString());
+}
+
+void UCBaseWeaponComponent::RestoreWeaponRotation()
+{
+	if (!IsValid(CurrentWeapon) || !bWeaponRotationModified)
+		return;
+	
+	CurrentWeapon->SetActorRelativeRotation(OriginalWeaponRotation);
+	bWeaponRotationModified = false;
+	
+	UE_LOG(LogTemp, Log, TEXT("[WeaponComp] Weapon rotation restored"));
+}
+
+
