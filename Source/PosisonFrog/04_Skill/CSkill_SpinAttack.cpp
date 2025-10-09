@@ -7,24 +7,52 @@
 #include "Animation/AnimInstance.h"
 #include "Camera/CameraShakeBase.h"
 #include "TimerManager.h"
+#include "00_Character/00_Player/CPlayerCharacter.h"
+#include "00_Character/00_Player/02_Weapon/CHammer.h"
 #include "00_Character/02_Component/00_PlayerComponent/CFuryGaugeComponent.h"
+#include "00_Character/02_Component/00_PlayerComponent/CPlayerWeaponComponent.h"
+#include "99_Util/CLog.h"
 #include "Engine/World.h"
 #include "Engine/EngineTypes.h"
 #include "GameFramework/DamageType.h"
 
-#include "03_Combat/Damage/DamageType_FuryCountable.h"
 
 UCSkill_SpinAttack::UCSkill_SpinAttack()
 {
     PrimaryComponentTick.bCanEverTick = false;
 
-    /*if (!DamageTypeClass)
-        DamageTypeClass = UDamageType_FuryCountable::StaticClass();
+    OwnerChar = Cast<ACharacter>(GetOwner());
+    if (!OwnerChar.IsValid())
+    {
+        CLog::Log(TEXT("[UCSkill_SpinAttack] OwnerCharacter invalid"));
+        return;
+    }
+    
+    if (!DamageTypeClass)
+        DamageTypeClass = UDamageType::StaticClass();
     if (!FinisherDamageTypeClass)
-        FinisherDamageTypeClass = UDamageType_FuryCountable::StaticClass();*/
+        FinisherDamageTypeClass = UDamageType::StaticClass();
+}
 
-    DamageTypeClass = UDamageType::StaticClass();
-    FinisherDamageTypeClass = UDamageType::StaticClass();
+void UCSkill_SpinAttack::TryStartSpin()
+{
+    StacksAtActivation = FuryRef->CurrentStacks;
+    
+    if (FuryRef && StacksAtActivation >= 1)
+    {
+        ActivateSkill();
+        FuryRef->ActivateEffect();
+    }
+}
+
+void UCSkill_SpinAttack::StopSpin()
+{
+    CancelSkill();
+
+    if (FuryRef)
+    {
+        FuryRef->CancelEffect();
+    }
 }
 
 bool UCSkill_SpinAttack::DoActivate()
@@ -35,6 +63,22 @@ bool UCSkill_SpinAttack::DoActivate()
     // 발동 시점 Fury 스냅샷(원하시면 OnFuryStarted/Ended에서 동적 갱신)
     bFuryActiveSnapshot = (FuryRef && FuryRef->IsEffectActive());
 
+    if (ACPlayerCharacter* PlayerChar = Cast<ACPlayerCharacter>(OwnerChar))
+    {
+        if (CharSpinMontage)
+            PlayerChar->PlayAnimMontage(CharSpinMontage);
+
+        ACHammer* Hammer = nullptr;
+        if (UCPlayerWeaponComponent* WeaponComp = PlayerChar->FindComponentByClass<UCPlayerWeaponComponent>())
+            Hammer = WeaponComp->GetHammer();
+
+        if (Hammer && HammerSpinMontage)
+        {
+            if (UAnimInstance* HammerAnim = Hammer->GetHammerMesh()->GetAnimInstance())
+                HammerAnim->Montage_Play(HammerSpinMontage);
+        }
+    }
+    
     LastTickTime = GetWorld()->GetTimeSeconds();
 
     GetWorld()->GetTimerManager().SetTimer(
@@ -52,6 +96,7 @@ bool UCSkill_SpinAttack::DoCancel()
         return false;
 
     GetWorld()->GetTimerManager().ClearTimer(TimerHandle_SpinTick);
+    
     return true;
 }
 
@@ -155,9 +200,6 @@ void UCSkill_SpinAttack::ApplyDamageTo(AActor* Target, float DamageAmount, TSubc
     if (APawn* Pawn = Cast<APawn>(Owner))
         InstController = Pawn->GetController();
 
-    /*UGameplayStatics::ApplyDamage(Target, DamageAmount, InstController, Owner,
-        InDamageType ? InDamageType : UDamageType_FuryCountable::StaticClass());*/
-
     // 일반 데미지 타입 -> 스택 증가 없음
     if (!InDamageType)
         InDamageType = UDamageType::StaticClass();
@@ -172,33 +214,37 @@ void UCSkill_SpinAttack::ApplyDamageTo(AActor* Target, float DamageAmount, TSubc
 
 void UCSkill_SpinAttack::PlayFinisherMontageAndScheduleImpact(float FinisherDamage)
 {
-    ACharacter* OwnerChar = Cast<ACharacter>(GetOwner());
     float ImpactDelay = FinisherImpactDelay;
 
-    if (OwnerChar && FinisherMontage)
+    if (ACPlayerCharacter* PlayerChar = Cast<ACPlayerCharacter>(OwnerChar))
     {
-        if (UAnimInstance* Anim = OwnerChar->GetMesh()->GetAnimInstance())
+        // ※ 애님 노티파이로 정확 타이밍을 주면 더 좋지만(완전 C++라면),
+        //   여기서는 간단히 FinisherImpactDelay 초 후에 충격 판정.
+        
+        if (CharFinisherMontage)
         {
-            Anim->Montage_Play(FinisherMontage);
+            if (UAnimInstance* Anim = OwnerChar->GetMesh()->GetAnimInstance())
+                Anim->Montage_Play(CharFinisherMontage);
+        }
 
-            // ※ 애님 노티파이로 정확 타이밍을 주면 더 좋지만(완전 C++라면),
-            //   여기서는 간단히 FinisherImpactDelay 초 후에 충격 판정.
+        ACHammer* Hammer = nullptr;
+        if (UCPlayerWeaponComponent* WeaponComp = PlayerChar->FindComponentByClass<UCPlayerWeaponComponent>())
+            Hammer = WeaponComp->GetHammer();
+
+        if (Hammer && HammerFinisherMontage)
+        {
+            if (UAnimInstance* HammerAnim = Hammer->GetHammerMesh()->GetAnimInstance())
+                HammerAnim->Montage_Play(HammerFinisherMontage);
         }
     }
 
     // 타이머로 충격 판정 예약
-    /*GetWorld()->GetTimerManager().SetTimerForNextTick([this, ImpactDelay]()
-    {
-        GetWorld()->GetTimerManager().SetTimer(FTimerHandle(), [this]() { DoFinisherImpact(); }, ImpactDelay, false);
-    });*/
-    
     FTimerHandle TempHandle;
     FTimerDelegate TimerDel;
     TimerDel.BindLambda([this]()
     {
         DoFinisherImpact();
     });
-
     GetWorld()->GetTimerManager().SetTimer(TempHandle, TimerDel, ImpactDelay, false);
 }
 
@@ -217,13 +263,6 @@ void UCSkill_SpinAttack::DoFinisherImpact()
     if (APawn* P = Cast<APawn>(Owner)) Inst = P->GetController();
     
     // 피해 적용
-    /*for (AActor* T : Targets)
-    {
-        ApplyDamageTo(T, PendingFinisherDamage > 0.f ? PendingFinisherDamage : FinisherDamageDefault,
-                      FinisherDamageTypeClass ? FinisherDamageTypeClass : UDamageType_FuryCountable::StaticClass());
-    }*/
-
-
     if (!FinisherDamageTypeClass)
         FinisherDamageTypeClass = UDamageType::StaticClass();
     
@@ -234,7 +273,7 @@ void UCSkill_SpinAttack::DoFinisherImpact()
             PendingFinisherDamage,
             Inst,
             Owner,
-            FinisherDamageTypeClass);    // 일반 타입
+            FinisherDamageTypeClass);
     }
     
     // 연출(선택)

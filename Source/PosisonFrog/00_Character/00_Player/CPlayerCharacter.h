@@ -51,9 +51,7 @@ public: // 입력 핸들러 (Enhanced Input 바인딩 대상)
     UFUNCTION() void Look(const FInputActionValue& Value);
     UFUNCTION() void DashStart();   // 입력 진입점(버퍼 or 즉시)
     UFUNCTION() void Attack();
-
-    void OnFuryActivate();     // 게이지 발동(전량 소모)
-    void OnFuryCancel();       // 발동 취소(10칸이면 바로 피니시)
+    
     void OnSpinPressed();      // 스핀 시작(홀드)
     void OnSpinReleased();     // 스핀 종료
     

@@ -20,15 +20,14 @@ class POSISONFROG_API UCPlayerWidget : public UUserWidget
     GENERATED_BODY()
 
 public:
-    // 체력/대시 공개 API (캐릭터에서 호출)
+    // --- 공개 API (캐릭터에서 호출) ---
+    // 체력
     UFUNCTION(BlueprintCallable, Category = "PF|HUD")
     void UpdateHpBar(float Current, float Max);
 
+    // 대쉬
     UFUNCTION(BlueprintCallable, Category = "PF|HUD")
     void UpdateDashCooldown(float Remaining, float Total);
-
-    UFUNCTION(BlueprintCallable, Category = "PF|HUD")
-    void UpdateUltimateBar(float Current, float Max);
     
     UFUNCTION(BlueprintCallable, Category = "PF|HUD")
     void SetDashReady();
@@ -36,6 +35,14 @@ public:
     UFUNCTION(BlueprintCallable, Category = "PF|HUD")
     void PlayDashFX(float Duration);
 
+    // 궁극기
+    UFUNCTION(BlueprintCallable, Category = "PF|HUD")
+    void UpdateUltimateBar(float Current, float Max);
+
+    // 스핀 스킬
+    UFUNCTION(BlueprintCallable, Category = "PF|HUD")
+    void UpdateFuryStacks(int32 NewStacks, int32 MaxStacks);
+    
 protected:
     virtual void NativeOnInitialized() override;
     virtual void NativeConstruct() override;
@@ -60,10 +67,10 @@ private:
     UPROPERTY(meta = (BindWidgetOptional))
     UProgressBar* UltimateBar = nullptr;
 
-    // Skill1
+    // 스핀
     UPROPERTY(meta = (BindWidgetOptional))
-    UProgressBar* Skill1Bar = nullptr;
-
+    UProgressBar* FuryGaugeBar = nullptr;
+    
     // ===== 표시/연출 관련 기본값 =====
     UPROPERTY(EditAnywhere, Category = "PF|HUD|HP")
     float HpDangerThreshold = 0.25f; // 25% 이하면 위험색
@@ -73,8 +80,7 @@ private:
     //FLinearColor HpColor_Normal = FLinearColor(0.10f, 0.85f, 0.20f, 1.0f);
 
     UPROPERTY(EditAnywhere, Category = "PF|HUD|HP")
-    FLinearColor HpColor_Danger = FLinearColor(1.0f, 1.0f, 1.0f, 1.0f);
-    //FLinearColor HpColor_Danger = FLinearColor(0.90f, 0.10f, 0.10f, 1.0f);
+    FLinearColor HpColor_Danger = FLinearColor(0.90f, 0.10f, 0.10f, 1.0f);
 
     UPROPERTY(EditAnywhere, Category = "PF|HUD|Dash")
     FLinearColor DashColor_Cooldown = FLinearColor(0.20f, 0.45f, 1.0f, 1.0f);

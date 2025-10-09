@@ -25,6 +25,9 @@ class POSISONFROG_API UCSkill_SpinAttack : public UCSkillComponent
 public:
     UCSkill_SpinAttack();
 
+    void TryStartSpin();
+    void StopSpin();
+    
 protected:
     // 홀드 시작/종료
     virtual bool DoActivate() override;
@@ -51,6 +54,12 @@ private:
 
 private:
     // ───────── 스핀 파라미터 ─────────
+    UPROPERTY(EditDefaultsOnly, Category="Finisher|Anim")
+    UAnimMontage* CharSpinMontage = nullptr;
+
+    UPROPERTY(EditDefaultsOnly, Category="Finisher|Anim")
+    UAnimMontage* HammerSpinMontage = nullptr;
+    
     UPROPERTY(EditDefaultsOnly, Category="Spin|Timing", meta=(ClampMin="0.02", ClampMax="0.2"))
     float TickInterval = 0.05f;
 
@@ -79,8 +88,11 @@ private:
     // ───────── 피니시(망치 내려찍기) ─────────
     // Finisher (선택, 스택 금지)
     UPROPERTY(EditDefaultsOnly, Category="Finisher|Anim")
-    UAnimMontage* FinisherMontage = nullptr;
+    UAnimMontage* CharFinisherMontage = nullptr;
 
+    UPROPERTY(EditDefaultsOnly, Category="Finisher|Anim")
+    UAnimMontage* HammerFinisherMontage = nullptr;
+    
     /** 내려찍기 낙하→충격 타이밍(초). 몽타주를 사용하지 않으면 이 시간 뒤에 피해 발생 */
     UPROPERTY(EditDefaultsOnly, Category="Finisher|Anim", meta=(ClampMin="0"))
     float FinisherImpactDelay = 0.35f;
@@ -106,11 +118,15 @@ private:
     TSubclassOf<UCameraShakeBase> FinisherCameraShake;
 
 private:
+    TWeakObjectPtr<ACharacter> OwnerChar;
+    
     FTimerHandle TimerHandle_SpinTick;
     float        LastTickTime = 0.f;
     bool         bFuryActiveSnapshot = false;
-
+    
     // 피니시 임시 저장
     float        PendingFinisherDamage = 0.f;
+
+    int32 StacksAtActivation = 0;
 };
 

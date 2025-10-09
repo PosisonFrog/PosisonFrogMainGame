@@ -4,6 +4,7 @@
 #include "00_Character/02_Component/CBaseWeaponComponent.h"
 
 #include "00_Character/CWeaponBase.h"
+#include "03_Combat/Damage/DamageType_FuryCountable.h"
 #include "99_Util/CLog.h"
 #include "GameFramework/Character.h"
 #include "Kismet/GameplayStatics.h"
@@ -64,7 +65,7 @@ void UCBaseWeaponComponent::HandleWeaponHit(AActor* InstigatorActor, AActor* Hit
 			Hit,
 			InstigatorCtrl,
 			InstigatorActor,
-			UDamageType::StaticClass());
+			UDamageType_FuryCountable::StaticClass());
 	}
 	else
 	{
@@ -73,7 +74,7 @@ void UCBaseWeaponComponent::HandleWeaponHit(AActor* InstigatorActor, AActor* Hit
 			Damage,
 			InstigatorCtrl,
 			InstigatorActor,
-			UDamageType::StaticClass());
+			UDamageType_FuryCountable::StaticClass());
 	}
     
 	OnWeaponHit.Broadcast(HitActor, Damage);

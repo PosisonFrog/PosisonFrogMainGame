@@ -18,6 +18,9 @@ void UCPlayerWidget::NativeOnInitialized()
 
     if (DashCooldownBar)
         DashCooldownBar->SetFillColorAndOpacity(DashColor_Ready);
+
+    if (FuryGaugeBar)
+        FuryGaugeBar->SetPercent(0.0f);
 }
 
 // 초기 상태는 READY로 세팅(에디터 미리보기/런타임 모두 안전)
@@ -59,13 +62,6 @@ void UCPlayerWidget::UpdateDashCooldown(float Remaining, float Total)
     }
 }
 
-void UCPlayerWidget::UpdateUltimateBar(float Current, float Max)
-{
-    const float Ratio = SafeRatio(Current, Max);
-    if (UltimateBar)
-        UltimateBar->SetPercent(Ratio);
-}
-
 void UCPlayerWidget::SetDashReady()
 {
     if (DashCooldownBar)
@@ -90,6 +86,24 @@ void UCPlayerWidget::PlayDashFX(float Duration)
     {
         GetWorld()->GetTimerManager().SetTimer(TimerHandle_DashFX, this, &UCPlayerWidget::StopDashFX, Duration, false);
     }
+}
+
+void UCPlayerWidget::UpdateUltimateBar(float Current, float Max)
+{
+    if (UltimateBar)
+    {
+        const float Ratio = SafeRatio(Current, Max);
+        UltimateBar->SetPercent(Ratio);
+    }
+}
+
+void UCPlayerWidget::UpdateFuryStacks(int32 NewStacks, int32 MaxStacks)
+{
+    if (!FuryGaugeBar)
+        return;
+
+    const float Ratio = static_cast<float>(NewStacks) / static_cast<float>(MaxStacks);
+    FuryGaugeBar->SetPercent(Ratio);
 }
 
 void UCPlayerWidget::StopDashFX()

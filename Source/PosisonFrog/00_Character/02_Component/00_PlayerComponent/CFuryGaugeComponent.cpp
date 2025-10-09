@@ -32,7 +32,7 @@ void UCFuryGaugeComponent::AddStack(int32 Amount)
     if (NewStacks != CurrentStacks)
     {
         CurrentStacks = NewStacks;
-        OnStacksChanged.Broadcast(CurrentStacks);
+        OnStacksChanged.Broadcast(CurrentStacks, MaxStacks);
     }
 }
 
@@ -67,7 +67,7 @@ bool UCFuryGaugeComponent::ActivateEffect()
 
     // 발동과 동시에 전량 소모
     CurrentStacks = 0;
-    OnStacksChanged.Broadcast(CurrentStacks);
+    OnStacksChanged.Broadcast(CurrentStacks, MaxStacks);
 
     // 자동 종료 타이머
     GetWorld()->GetTimerManager().ClearTimer(TimerHandle_EffectEnd);
@@ -116,7 +116,7 @@ void UCFuryGaugeComponent::EndEffectInternal(bool bCanceled, float /*CanceledRem
     if (bShouldFinisher)
     {
         bFinisherTriggered = true;
-        OnFinisherTriggered.Broadcast(FinisherDamageAtMaxStacks); // ★ ‘망치 내려찍기’ 1타
+        OnFinisherTriggered.Broadcast(FinisherDamageAtMaxStacks); // ‘망치 내려찍기’ 1타
     }
 
     bEffectActive       = false;

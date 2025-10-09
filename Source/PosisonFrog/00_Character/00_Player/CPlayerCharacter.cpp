@@ -107,6 +107,7 @@ void ACPlayerCharacter::BeginPlay()
             PlayerWidget->AddToViewport();
             UpdateHpUI();
             PlayerWidget->SetDashReady(); // 시작 상태
+            FuryGauge->OnStacksChanged.AddDynamic(PlayerWidget, &UCPlayerWidget::UpdateFuryStacks);
         }
         else
         {
@@ -163,9 +164,6 @@ void ACPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
     EIC->BindActionByTag(InputConfig, CGameplayTags::InputTag_Dash, ETriggerEvent::Started, this, &ACPlayerCharacter::DashStart);
     EIC->BindActionByTag(InputConfig, CGameplayTags::InputTag_Attack, ETriggerEvent::Started, this, &ACPlayerCharacter::Attack);
     EIC->BindActionByTag(InputConfig, CGameplayTags::InputTag_Ultimate, ETriggerEvent::Started, this, &ACPlayerCharacter::UseUltimate);
-    
-    EIC->BindActionByTag(InputConfig, CGameplayTags::InputTag_FuryAction, ETriggerEvent::Started, this, &ACPlayerCharacter::OnFuryActivate);
-    EIC->BindActionByTag(InputConfig, CGameplayTags::InputTag_FuryCancel, ETriggerEvent::Canceled, this, &ACPlayerCharacter::OnFuryCancel);
     
     EIC->BindActionByTag(InputConfig, CGameplayTags::InputTag_Spin, ETriggerEvent::Started, this, &ACPlayerCharacter::OnSpinPressed);
     EIC->BindActionByTag(InputConfig, CGameplayTags::InputTag_Spin, ETriggerEvent::Completed, this, &ACPlayerCharacter::OnSpinReleased);
@@ -263,28 +261,16 @@ void ACPlayerCharacter::Attack()
         CLog::Log(TEXT("WeaponComponent missing"));
 }
 
-void ACPlayerCharacter::OnFuryActivate()
-{
-    if (FuryGauge)
-        FuryGauge->ActivateEffect();
-}
-
-void ACPlayerCharacter::OnFuryCancel()
-{
-    if (FuryGauge)
-        FuryGauge->CancelEffect();
-}
-
 void ACPlayerCharacter::OnSpinPressed()
 {
     if (SkillSpinAttack)
-        SkillSpinAttack->ActivateSkill();
+        SkillSpinAttack->TryStartSpin();
 }
 
 void ACPlayerCharacter::OnSpinReleased()
 {
     if (SkillSpinAttack)
-        SkillSpinAttack->CancelSkill();
+        SkillSpinAttack->StopSpin();
 }
 
 // 무기/애님에서 공격 시작 시점에 호출(있으면 더 견고)

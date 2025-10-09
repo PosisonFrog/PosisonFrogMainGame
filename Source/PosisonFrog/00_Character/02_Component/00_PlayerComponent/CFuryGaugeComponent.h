@@ -26,7 +26,7 @@ struct FFuryGaugeTier
 };
 
 // ─ 이벤트 ─
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam (FOnFuryStacksChanged,    int32, NewStacks);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams (FOnFuryStacksChanged,    int32, NewStacks, int32, MaxStacks);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_FourParams(FOnFuryEffectStarted,   int32, TierIdx, float, Duration, float, TotalDamage, int32, InitialStacks);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams (FOnFuryEffectEnded,     bool, bCanceled, float, TimeRemaining);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams (FOnFuryEffectTick,      float, TimeRemaining, float, TotalDuration);
@@ -44,7 +44,7 @@ public:
     int32 MaxStacks = 10;
 
     UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Fury")
-    int32 CurrentStacks = 0;
+    int32 CurrentStacks = 9;
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Fury")
     bool bBlockStackWhileActive = true;
