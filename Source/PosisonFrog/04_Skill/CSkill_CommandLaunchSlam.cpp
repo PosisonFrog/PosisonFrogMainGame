@@ -300,16 +300,22 @@ bool UCSkill_CommandLaunchSlam::IsLaunchableEnemy(ACharacter* C) const
     return false; // 정보 없으면 보수적
 }
 
-UAnimInstance* UCSkill_CommandLaunchSlam::GetAnimInstance() const
+UAnimInstance* UCSkill_CommandLaunchSlam::GetPlayerAnimInstance() const
 {
     return (OwnerChar.IsValid() && OwnerChar->GetMesh())
         ? OwnerChar->GetMesh()->GetAnimInstance() : nullptr;
 }
 
+UAnimInstance* UCSkill_CommandLaunchSlam::GetHammerAnimInstance() const
+{
+    return (Hammer.IsValid() && Hammer->GetHammerMesh())
+        ? Hammer->GetHammerMesh()->GetAnimInstance() : nullptr;
+}
+
 void UCSkill_CommandLaunchSlam::PlayCharMontageSafe(UAnimMontage* Montage, FName Section, float PlayRate)
 {
     if (!Montage) return;
-    if (UAnimInstance* Anim = GetAnimInstance())
+    if (UAnimInstance* Anim = GetPlayerAnimInstance())
     {
         float Len = Anim->Montage_Play(Montage, PlayRate);
         if (Len > 0.f && Section != NAME_None)
@@ -320,9 +326,8 @@ void UCSkill_CommandLaunchSlam::PlayCharMontageSafe(UAnimMontage* Montage, FName
 void UCSkill_CommandLaunchSlam::PlayHammerMontageSafe(UAnimMontage* Montage, FName Section, float PlayRate)
 {
     if (!Montage) return;
-
-    UAnimInstance* Anim = Hammer->GetHammerMesh() ? Hammer->GetHammerMesh()->GetAnimInstance() : nullptr;
-    if (Anim)
+    
+    if (UAnimInstance* Anim = GetHammerAnimInstance())
     {
         float Len = Anim->Montage_Play(Montage, PlayRate);
         if (Len > 0.f && Section != NAME_None)

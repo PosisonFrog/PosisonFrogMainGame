@@ -72,7 +72,8 @@ private:
     bool IsLaunchableEnemy(ACharacter* C) const;
 
     // 애님 유틸
-    UAnimInstance* GetAnimInstance() const;
+    UAnimInstance* GetPlayerAnimInstance() const;
+    UAnimInstance* GetHammerAnimInstance() const;
     // 플레이어 전용
     void PlayCharMontageSafe(UAnimMontage* Montage, FName Section = NAME_None, float PlayRate = 1.f);
     // 해머 전용
