@@ -5,6 +5,7 @@
 #include "00_Character/02_Component/00_PlayerComponent/Buffable.h"
 #include "CPlayerCharacter.generated.h"
 
+class UCSkill_CommandLaunchSlam;
 class UCSkill_SpinAttack;
 class UCFuryGaugeComponent;
 class UCUltimateBuffComponent;
@@ -51,9 +52,9 @@ public: // 입력 핸들러 (Enhanced Input 바인딩 대상)
     UFUNCTION() void Look(const FInputActionValue& Value);
     UFUNCTION() void DashStart();   // 입력 진입점(버퍼 or 즉시)
     UFUNCTION() void Attack();
-    
-    void OnSpinPressed();      // 스핀 시작(홀드)
-    void OnSpinReleased();     // 스핀 종료
+    UFUNCTION() void OnSpinPressed();      // 스핀 시작(홀드)
+    UFUNCTION() void OnSpinReleased();     // 스핀 종료
+    UFUNCTION() void OnCommandPressed();
     
     // 무기/애님에서 호출 (공격 시작/종료/대시소비 윈도우)
     UFUNCTION() void OnAttackStarted();
@@ -176,10 +177,13 @@ private:
     TObjectPtr<UCUltimateBuffComponent> UltimateBuffComponent = nullptr;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Fury", meta = (AllowPrivateAccess = "true"))
-    TObjectPtr<UCFuryGaugeComponent> FuryGauge = nullptr;
+    TObjectPtr<UCFuryGaugeComponent> FuryGaugeComponent = nullptr;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Skill", meta = (AllowPrivateAccess = "true"))
-    TObjectPtr<UCSkill_SpinAttack>   SkillSpinAttack = nullptr;
+    TObjectPtr<UCSkill_SpinAttack> SpinAttackComponent = nullptr;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Skill", meta=(AllowPrivateAccess = "true"))
+    TObjectPtr<UCSkill_CommandLaunchSlam> CommandLaunchSlamComponent = nullptr;
     
     // ─ 카메라 ─
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Camera", meta = (AllowPrivateAccess = "true"))

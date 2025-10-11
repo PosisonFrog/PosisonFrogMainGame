@@ -13,8 +13,7 @@ namespace CGameplayTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputTag_FuryAction);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputTag_FuryCancel);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputTag_Spin);
-	//UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputTag_SpinPressed);
-	//UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputTag_SpinReleased);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputTag_Command);
 }
 
 struct POSISONFROG_API FCGameplayTags

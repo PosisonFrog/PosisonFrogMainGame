@@ -17,10 +17,11 @@
 #include "00_Character/02_Component/00_PlayerComponent/CEnhancedInputComponent.h"
 #include "00_Character/02_Component/00_PlayerComponent/CGameplayTags.h"
 #include "00_Character/02_Component/00_PlayerComponent/CUltimateBuffComponent.h"
-#include "00_Character/00_Player/03_Camera/TransparentCameraComponent.h"
 #include "00_Character/02_Component/00_PlayerComponent/CFuryGaugeComponent.h"
+#include "00_Character/00_Player/03_Camera/TransparentCameraComponent.h"
 
 #include "01_Widget/CPlayerWidget.h"
+#include "04_Skill/CSkill_CommandLaunchSlam.h"
 #include "04_Skill/CSkill_SpinAttack.h"
 #include "99_Util/CLog.h"
 
@@ -38,18 +39,18 @@ ACPlayerCharacter::ACPlayerCharacter()
     HealthComponent = CreateDefaultSubobject<UCPlayerHealthComponent>(TEXT("HealthComponent"));
     MovementBuffComponent = CreateDefaultSubobject<UCPlayerMovementBuffComponent>(TEXT("MovementBuff"));
     UltimateBuffComponent = CreateDefaultSubobject<UCUltimateBuffComponent>(TEXT("UltimateBuffComponent"));
-
-    FuryGauge = CreateDefaultSubobject<UCFuryGaugeComponent>(TEXT("FuryComponent"));
-    SkillSpinAttack = CreateDefaultSubobject<UCSkill_SpinAttack>(TEXT("SkillSpinAttack"));
+    FuryGaugeComponent = CreateDefaultSubobject<UCFuryGaugeComponent>(TEXT("FuryComponent"));
+    SpinAttackComponent = CreateDefaultSubobject<UCSkill_SpinAttack>(TEXT("SkillSpinAttack"));
+    CommandLaunchSlamComponent = CreateDefaultSubobject<UCSkill_CommandLaunchSlam>(TEXT("CommandLaunchSlam"));
     
     check(DashComponent);
     check(WeaponComponent);
     check(HealthComponent);
     check(MovementBuffComponent);
     check(UltimateBuffComponent);
-
-    check(FuryGauge);
-    check(SkillSpinAttack);
+    check(FuryGaugeComponent);
+    check(SpinAttackComponent);
+    check(CommandLaunchSlamComponent);
 
     SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
     SpringArm->SetupAttachment(RootComponent);
@@ -107,7 +108,7 @@ void ACPlayerCharacter::BeginPlay()
             PlayerWidget->AddToViewport();
             UpdateHpUI();
             PlayerWidget->SetDashReady(); // 시작 상태
-            FuryGauge->OnStacksChanged.AddDynamic(PlayerWidget, &UCPlayerWidget::UpdateFuryStacks);
+            FuryGaugeComponent->OnStacksChanged.AddDynamic(PlayerWidget, &UCPlayerWidget::UpdateFuryStacks);
         }
         else
         {
@@ -126,8 +127,8 @@ void ACPlayerCharacter::PostInitializeComponents()
     checkf(MovementBuffComponent != nullptr, TEXT("MovementBuffComponent missing"));
     checkf(UltimateBuffComponent != nullptr, TEXT("UltimateBuffComponent missing"));
 
-    checkf(FuryGauge != nullptr, TEXT("FuryGauge missing"));
-    checkf(SkillSpinAttack != nullptr, TEXT("SkillSpinAttack missing"));
+    checkf(FuryGaugeComponent != nullptr, TEXT("FuryGauge missing"));
+    checkf(SpinAttackComponent != nullptr, TEXT("SkillSpinAttack missing"));
     
     // TransparentCameraComponent 설정 개선
     if (TransparentCameraComponent)
@@ -164,9 +165,9 @@ void ACPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
     EIC->BindActionByTag(InputConfig, CGameplayTags::InputTag_Dash, ETriggerEvent::Started, this, &ACPlayerCharacter::DashStart);
     EIC->BindActionByTag(InputConfig, CGameplayTags::InputTag_Attack, ETriggerEvent::Started, this, &ACPlayerCharacter::Attack);
     EIC->BindActionByTag(InputConfig, CGameplayTags::InputTag_Ultimate, ETriggerEvent::Started, this, &ACPlayerCharacter::UseUltimate);
-    
     EIC->BindActionByTag(InputConfig, CGameplayTags::InputTag_Spin, ETriggerEvent::Started, this, &ACPlayerCharacter::OnSpinPressed);
     EIC->BindActionByTag(InputConfig, CGameplayTags::InputTag_Spin, ETriggerEvent::Completed, this, &ACPlayerCharacter::OnSpinReleased);
+    EIC->BindActionByTag(InputConfig, CGameplayTags::InputTag_Command, ETriggerEvent::Started, this, &ACPlayerCharacter::OnCommandPressed);
 }
 
 // ----------------------------------------------------------------------------
@@ -201,6 +202,9 @@ void ACPlayerCharacter::Look(const FInputActionValue& Value)
 // ----------------------------------------------------------------------------
 void ACPlayerCharacter::DashStart()
 {
+    if (CommandLaunchSlamComponent && CommandLaunchSlamComponent->ShouldBlockOtherActions())
+        return;
+    
     // 컨트롤러에서 바인딩되는 대시 입력 진입점
     const float Now = GetWorld()->GetTimeSeconds();
 
@@ -255,6 +259,9 @@ bool ACPlayerCharacter::TryCommitDash()
 
 void ACPlayerCharacter::Attack()
 {
+    if (CommandLaunchSlamComponent && CommandLaunchSlamComponent->ShouldBlockOtherActions())
+        return;
+    
     if (IsValid(WeaponComponent))
         WeaponComponent->DoAttack();
     else
@@ -263,14 +270,35 @@ void ACPlayerCharacter::Attack()
 
 void ACPlayerCharacter::OnSpinPressed()
 {
-    if (SkillSpinAttack)
-        SkillSpinAttack->TryStartSpin();
+    if (CommandLaunchSlamComponent && CommandLaunchSlamComponent->ShouldBlockOtherActions())
+        return;
+    
+    if (SpinAttackComponent)
+        SpinAttackComponent->TryStartSpin();
 }
 
 void ACPlayerCharacter::OnSpinReleased()
 {
-    if (SkillSpinAttack)
-        SkillSpinAttack->StopSpin();
+    if (SpinAttackComponent)
+        SpinAttackComponent->StopSpin();
+}
+
+void ACPlayerCharacter::OnCommandPressed()
+{
+    if (CommandLaunchSlamComponent)
+    {
+        if (CommandLaunchSlamComponent->IsAirCommandActive())
+        {
+            CommandLaunchSlamComponent->TryConfirmSlam();
+        }
+        else
+        {
+            if (CommandLaunchSlamComponent->ShouldBlockOtherActions())
+                return;
+            
+            CommandLaunchSlamComponent->TryStartCommand();
+        }
+    }
 }
 
 // 무기/애님에서 공격 시작 시점에 호출(있으면 더 견고)

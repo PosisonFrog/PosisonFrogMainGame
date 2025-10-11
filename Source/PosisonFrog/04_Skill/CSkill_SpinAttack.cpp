@@ -96,6 +96,29 @@ bool UCSkill_SpinAttack::DoCancel()
         return false;
 
     GetWorld()->GetTimerManager().ClearTimer(TimerHandle_SpinTick);
+
+    // 애니메이션 중지 코드
+    if (OwnerChar.IsValid())
+    {
+        if (ACPlayerCharacter* PlayerChar = Cast<ACPlayerCharacter>(OwnerChar))
+        {
+            if (UAnimInstance* CharAnimInst = PlayerChar->GetMesh()->GetAnimInstance())
+            {
+                if (CharAnimInst->Montage_IsPlaying(CharSpinMontage))
+                    CharAnimInst->Montage_Stop(0.2f, CharSpinMontage);
+            }
+
+            ACHammer* Hammer = nullptr;
+            if (UCPlayerWeaponComponent* WeaponComp = PlayerChar->FindComponentByClass<UCPlayerWeaponComponent>())
+                Hammer = WeaponComp->GetHammer();
+
+            if (Hammer && HammerSpinMontage)
+            {
+                if (UAnimInstance* HammerAnim = Hammer->GetHammerMesh()->GetAnimInstance())
+                    HammerAnim->Montage_Stop(0.2f, HammerSpinMontage);
+            }
+        }
+    }
     
     return true;
 }
