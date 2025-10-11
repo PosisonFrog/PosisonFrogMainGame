@@ -173,7 +173,7 @@ void ACEnemyCharacterBase::DoPatrol()
 	if (PatrolGoal.IsNearlyZero() || Reached(PatrolGoal, PatrolPointReachRadius))
 	{
 		bool bSet = false;
-		
+        
 		if (bUseNavigation)
 		{
 			if (UNavigationSystemV1* NS = UNavigationSystemV1::GetCurrent(GetWorld()))
@@ -192,10 +192,14 @@ void ACEnemyCharacterBase::DoPatrol()
 		{
 			const float R = FMath::FRandRange(PatrolRoamRadius * 0.4f, PatrolRoamRadius);
 			const float A = FMath::FRandRange(0.f, 2 * PI);
-			\
+            
 			// 최종 목표 지점을 계산. (HomeLocation + 방향 * 거리)
 			PatrolGoal = HomeLocation + FVector(FMath::Cos(A) * R, FMath::Sin(A) * R, 0.f);
 		}
+	}
+	
+	if (!PatrolGoal.IsNearlyZero())
+	{
 		RequestMoveTo(PatrolGoal, PatrolPointReachRadius);
 	}
 }
@@ -269,21 +273,62 @@ void ACEnemyCharacterBase::DoChase()
 
 void ACEnemyCharacterBase::DoAttack()
 {
-	if (!Target || DistToTarget() >= AttackExitDistance)
+	if (!Target)
 	{
+		SetState(EEnemyState::ReturnHome);
+		return;
+	}
+
+	const float Dist = DistToTarget();
+
+	// 사거리 완전히 벗어나면 바로 추격 복귀
+	if (Dist > AttackExitDistance)
+	{
+		bIsPerformingMelee = false;
 		SetState(EEnemyState::Chase);
 		return;
 	}
 
-	// 기본: 주기마다 단발 판정(스윙 창 쓰면 Tick에서 반복 스윕)
-	if (IsAttackReady())
+	// Attack 상태에서도, 타겟과의 거리가 애매하면 접근 유지 (정지해버리지 않도록)
+	if (Dist > AttackRange * 0.9f)
 	{
-		const bool bHit = ApplyAttackDamage(/*bCheckAngle=*/true);
-		UE_LOG(LogTemp, Verbose, TEXT("[Enemy] DoAttack: try -> hit=%d"), bHit ? 1 : 0);
-
-		// 실제 공격 시점으로 주기 갱신
-		LastAttackTime = GetWorld()->GetTimeSeconds();
+		if (bUseNavigation)
+		{
+			RequestMoveTo(Target->GetActorLocation(), AttackMoveAcceptanceRadius);
+		}
+		else
+		{
+			// 직진 스티어링
+			FVector Dir = (Target->GetActorLocation() - GetActorLocation()); Dir.Z = 0.f;
+			if (Dir.Normalize())
+				AddMovementInput(Dir, 1.f);
+		}
 	}
+	else
+	{
+		// 사거리 충분 → 한 번 멈춤(정교한 타격을 위해)
+		StopMove();
+	}
+
+	// 쿨타임이 됐으면 1회 공격 실행
+	if (!bIsPerformingMelee && IsAttackReady())
+	{
+		bIsPerformingMelee = true;
+
+		// 실제 타격
+		LastAttackTime = GetWorld()->GetTimeSeconds();
+		ApplyAttackDamage();
+
+		// 혹시 애님/루트모션이 이동을 막았다면 복구
+		EnsureWalkingAndResume();
+
+		// 공격을 1회 수행했으면, 바로 재추격으로 복귀(멈춤 방지)
+		ReengageChase(AttackReengageDelay);
+		bIsPerformingMelee = false;
+		return;
+	}
+
+	// 아직 쿨타임 중이면 계속 거리 유지만
 }
 
 void ACEnemyCharacterBase::DoReturnHome()
@@ -703,8 +748,47 @@ bool ACEnemyCharacterBase::ApplyAttackDamage(bool bCheckAngle /*=true*/)
         }
     }
 
+	// 기존 스윙 1회 스윕
+	PerformAttackSweep();
+
+	//  공격 접촉 시점을 "최근 시야 확보"로 간주 → ReturnHome 방지
+	LastSeenTime = GetWorld()->GetTimeSeconds();
+
     UE_LOG(LogTemp, Verbose, TEXT("[Enemy] ApplyAttackDamage: hit=%d"), bHitSomething ? 1 : 0);
     return bHitSomething;
+}
+
+void ACEnemyCharacterBase::EnsureWalkingAndResume()
+{
+	if (UCharacterMovementComponent* Move = GetCharacterMovement())
+	{
+		if (Move->MovementMode == MOVE_None)
+			Move->SetMovementMode(MOVE_Walking);
+	}
+
+	if (bUseNavigation && Target)
+	{
+		// AI가 StopMovement 이후 바로 다음 프레임엔 MoveTo가 안 들어올 수 있으니 즉시 한 번 걸어줌
+		RequestMoveTo(Target->GetActorLocation(), AttackMoveAcceptanceRadius);
+	}
+}
+
+void ACEnemyCharacterBase::ReengageChase(float DelaySec)
+{
+	// Attack → Chase 전이(짧은 지연을 주면 애니메이션과 자연스럽게 이어짐)
+	if (DelaySec <= KINDA_SMALL_NUMBER)
+	{
+		SetState(EEnemyState::Chase);
+	}
+	else
+	{
+		FTimerHandle TH;
+		GetWorld()->GetTimerManager().SetTimer(TH, [this]()
+		{
+			if (State != EEnemyState::Dead)
+				SetState(EEnemyState::Chase);
+		}, DelaySec, false);
+	}
 }
 
 // 분할 스윕(프레임 독립)

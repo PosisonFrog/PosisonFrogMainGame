@@ -73,6 +73,17 @@ public:
     UPROPERTY(EditAnywhere, Category="PF|AI|Attack")
     float AttackExitDistance  = 220.f;
 
+    // Attack 상태에서의 재접근/복귀 파라미터
+    UPROPERTY(EditDefaultsOnly, Category="PF|AI|Attack", meta=(ClampMin="0"))
+    float AttackReengageDelay = 0.1f; // 공격 후 재추격 시작까지 짧은 지연
+
+    UPROPERTY(EditDefaultsOnly, Category="PF|AI|Attack", meta=(ClampMin="0"))
+    float AttackMoveAcceptanceRadius = 120.f; // Attack 상태에서 타겟 접근 허용 반경
+
+    // 내부 상태 플래그
+    UPROPERTY(VisibleInstanceOnly, Category="PF|AI")
+    bool bIsPerformingMelee = false;
+
     UPROPERTY(EditAnywhere, Category="PF|Combat")
     float BaseDamage = 10.f;
 
@@ -235,6 +246,10 @@ protected:
 
     UFUNCTION(BlueprintCallable, Category="PF|Combat")
     bool ApplyAttackDamage(bool bCheckAngle = true);
+
+    // 보조 함수 선언
+    void EnsureWalkingAndResume();
+    void ReengageChase(float DelaySec = 0.f);
 
     // Ai 현 상태 디버깅
     void DebugDrawState(); // Ai 현 상태 디버깅
