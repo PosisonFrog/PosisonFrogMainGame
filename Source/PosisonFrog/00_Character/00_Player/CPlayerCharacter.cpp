@@ -9,7 +9,7 @@
 #include "TimerManager.h"
 #include "InputActionValue.h"
 
-// 프로젝트 컴포넌트/유틸
+// ─ 프로젝트 컴포넌트/유틸
 #include "00_Character/02_Component/00_PlayerComponent/CPlayerDashComponent.h"
 #include "00_Character/02_Component/00_PlayerComponent/CPlayerWeaponComponent.h"
 #include "00_Character/02_Component/00_PlayerComponent/CPlayerHealthComponent.h"
@@ -17,14 +17,17 @@
 #include "00_Character/02_Component/00_PlayerComponent/CEnhancedInputComponent.h"
 #include "00_Character/02_Component/00_PlayerComponent/CGameplayTags.h"
 #include "00_Character/02_Component/00_PlayerComponent/CUltimateBuffComponent.h"
+#include "00_Character/02_Component/00_PlayerComponent/CFuryGaugeComponent.h"
 #include "00_Character/00_Player/03_Camera/TransparentCameraComponent.h"
-
 #include "01_Widget/CPlayerWidget.h"
+#include "04_Skill/CSkill_CommandLaunchSlam.h"
+#include "04_Skill/CSkill_SpinAttack.h"
+
 #include "99_Util/CLog.h"
 
-// ----------------------------------------------------------------------------
+// ────────────────────────────────────────────────────────────────────────────
 // 생성자
-// ----------------------------------------------------------------------------
+// ────────────────────────────────────────────────────────────────────────────
 ACPlayerCharacter::ACPlayerCharacter()
 {
     // 캡슐
@@ -36,12 +39,18 @@ ACPlayerCharacter::ACPlayerCharacter()
     HealthComponent = CreateDefaultSubobject<UCPlayerHealthComponent>(TEXT("HealthComponent"));
     MovementBuffComponent = CreateDefaultSubobject<UCPlayerMovementBuffComponent>(TEXT("MovementBuff"));
     UltimateBuffComponent = CreateDefaultSubobject<UCUltimateBuffComponent>(TEXT("UltimateBuffComponent"));
+    FuryGaugeComponent = CreateDefaultSubobject<UCFuryGaugeComponent>(TEXT("FuryComponent"));
+    SpinAttackComponent = CreateDefaultSubobject<UCSkill_SpinAttack>(TEXT("SkillSpinAttack"));
+    CommandLaunchSlamComponent = CreateDefaultSubobject<UCSkill_CommandLaunchSlam>(TEXT("CommandLaunchSlam"));
     
     check(DashComponent);
     check(WeaponComponent);
     check(HealthComponent);
     check(MovementBuffComponent);
     check(UltimateBuffComponent);
+    check(FuryGaugeComponent);
+    check(SpinAttackComponent);
+    check(CommandLaunchSlamComponent);
 
     SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
     SpringArm->SetupAttachment(RootComponent);
@@ -73,9 +82,9 @@ ACPlayerCharacter::ACPlayerCharacter()
     }
 }
 
-// ----------------------------------------------------------------------------
+// ────────────────────────────────────────────────────────────────────────────
 // BeginPlay
-// ----------------------------------------------------------------------------
+// ────────────────────────────────────────────────────────────────────────────
 void ACPlayerCharacter::BeginPlay()
 {
     Super::BeginPlay();
@@ -86,7 +95,7 @@ void ACPlayerCharacter::BeginPlay()
     // 체력 이벤트 → HP UI 갱신
     if (ensureMsgf(HealthComponent != nullptr, TEXT("HealthComponent missing")))
         HealthComponent->OnHealthChanged.AddDynamic(this, &ACPlayerCharacter::HandleHealthChanged);
-
+    
     // UI 생성
     if (PlayerWidgetClass)
     {
@@ -98,7 +107,10 @@ void ACPlayerCharacter::BeginPlay()
         {
             PlayerWidget->AddToViewport();
             UpdateHpUI();
-            PlayerWidget->SetDashReady(); // 시작 상태
+            ResetDashCooldown();
+            
+            if (FuryGaugeComponent)
+                    FuryGaugeComponent->OnStacksChanged.AddDynamic(PlayerWidget, &UCPlayerWidget::UpdateFuryStacks);
         }
         else
         {
@@ -116,6 +128,10 @@ void ACPlayerCharacter::PostInitializeComponents()
     checkf(HealthComponent != nullptr, TEXT("HealthComponent missing"));
     checkf(MovementBuffComponent != nullptr, TEXT("MovementBuffComponent missing"));
     checkf(UltimateBuffComponent != nullptr, TEXT("UltimateBuffComponent missing"));
+
+    checkf(FuryGaugeComponent != nullptr, TEXT("FuryGauge missing"));
+    checkf(SpinAttackComponent != nullptr, TEXT("SkillSpinAttack missing"));
+    
     // TransparentCameraComponent 설정 개선
     if (TransparentCameraComponent)
     {
@@ -134,9 +150,9 @@ void ACPlayerCharacter::PostInitializeComponents()
     }
 }
 
-// ----------------------------------------------------------------------------
+// ────────────────────────────────────────────────────────────────────────────
 // 입력 바인딩(Enhanced Input + 태그)
-// ----------------------------------------------------------------------------
+// ────────────────────────────────────────────────────────────────────────────
 void ACPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
     Super::SetupPlayerInputComponent(PlayerInputComponent);
@@ -151,11 +167,14 @@ void ACPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
     EIC->BindActionByTag(InputConfig, CGameplayTags::InputTag_Dash, ETriggerEvent::Started, this, &ACPlayerCharacter::DashStart);
     EIC->BindActionByTag(InputConfig, CGameplayTags::InputTag_Attack, ETriggerEvent::Started, this, &ACPlayerCharacter::Attack);
     EIC->BindActionByTag(InputConfig, CGameplayTags::InputTag_Ultimate, ETriggerEvent::Started, this, &ACPlayerCharacter::UseUltimate);
+    EIC->BindActionByTag(InputConfig, CGameplayTags::InputTag_Spin, ETriggerEvent::Started, this, &ACPlayerCharacter::OnSpinPressed);
+    EIC->BindActionByTag(InputConfig, CGameplayTags::InputTag_Spin, ETriggerEvent::Completed, this, &ACPlayerCharacter::OnSpinReleased);
+    EIC->BindActionByTag(InputConfig, CGameplayTags::InputTag_Command, ETriggerEvent::Started, this, &ACPlayerCharacter::OnCommandPressed);
 }
 
-// ----------------------------------------------------------------------------
+// ────────────────────────────────────────────────────────────────────────────
 // 이동/시야
-// ----------------------------------------------------------------------------
+// ────────────────────────────────────────────────────────────────────────────
 void ACPlayerCharacter::Move(const FInputActionValue& Value)
 {
     const FVector2D Axis = Value.Get<FVector2D>();
@@ -180,11 +199,48 @@ void ACPlayerCharacter::Look(const FInputActionValue& Value)
     AddControllerPitchInput(Axis.Y);
 }
 
-// ----------------------------------------------------------------------------
-// 공격/대시 (입력 및 버퍼/락)
-// ----------------------------------------------------------------------------
+// ────────────────────────────────────────────────────────────────────────────
+// 공격
+// ────────────────────────────────────────────────────────────────────────────
+void ACPlayerCharacter::Attack()
+{
+    if (CommandLaunchSlamComponent && CommandLaunchSlamComponent->ShouldBlockOtherActions())
+        return;
+    
+    if (IsValid(WeaponComponent))
+        WeaponComponent->DoAttack();
+    else
+        CLog::Log(TEXT("WeaponComponent missing"));
+}
+
+// 무기/애님에서 공격 시작 시점에 호출(있으면 더 견고)
+void ACPlayerCharacter::OnAttackStarted()
+{
+    bDashLocked = true;
+}
+
+// 무기/애님에서 공격 완전 종료 시 호출(정보용 – 실동작은 DashReady에서 처리)
+void ACPlayerCharacter::OnAttackEnded()
+{
+    bDashLocked = false;
+    ConsumeDashBufferIfValid(true);   // 노티 미스 대비 2차 소비 시도
+}
+
+// 애님 노티(마지막 몇 프레임): 여기서 버퍼를 “같은 프레임에” 소모 → 즉발 체감
+void ACPlayerCharacter::OnAttackDashReady()
+{
+    bDashLocked = false;
+    ConsumeDashBufferIfValid(false);  // 같은 프레임 즉발
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// 대시 (입력 및 버퍼/락)
+// ────────────────────────────────────────────────────────────────────────────
 void ACPlayerCharacter::DashStart()
 {
+    if (CommandLaunchSlamComponent && CommandLaunchSlamComponent->ShouldBlockOtherActions())
+        return;
+    
     // 컨트롤러에서 바인딩되는 대시 입력 진입점
     const float Now = GetWorld()->GetTimeSeconds();
 
@@ -237,34 +293,6 @@ bool ACPlayerCharacter::TryCommitDash()
     return true;
 }
 
-void ACPlayerCharacter::Attack()
-{
-    if (IsValid(WeaponComponent))
-        WeaponComponent->DoAttack();
-    else
-        CLog::Log(TEXT("WeaponComponent missing"));
-}
-
-// 무기/애님에서 공격 시작 시점에 호출(있으면 더 견고)
-void ACPlayerCharacter::OnAttackStarted()
-{
-    bDashLocked = true;
-}
-
-// 무기/애님에서 공격 완전 종료 시 호출(정보용 – 실동작은 DashReady에서 처리)
-void ACPlayerCharacter::OnAttackEnded()
-{
-    bDashLocked = false;
-    ConsumeDashBufferIfValid(true);   // 노티 미스 대비 2차 소비 시도
-}
-
-// 애님 노티(마지막 몇 프레임): 여기서 버퍼를 “같은 프레임에” 소모 → 즉발 체감
-void ACPlayerCharacter::OnAttackDashReady()
-{
-    bDashLocked = false;
-    ConsumeDashBufferIfValid(false);  // 같은 프레임 즉발
-}
-
 void ACPlayerCharacter::ConsumeDashBufferIfValid(bool bFallback)
 {
     const float Now = GetWorld()->GetTimeSeconds();
@@ -299,24 +327,7 @@ void ACPlayerCharacter::ConsumeDashBufferIfValid(bool bFallback)
     }
 }
 
-// ----------------------------------------------------------------------------
-// HP UI 연동
-// ----------------------------------------------------------------------------
-void ACPlayerCharacter::HandleHealthChanged(float CurrentHealth, float MaxHealth)
-{
-    if (PlayerWidget)
-        PlayerWidget->UpdateHpBar(CurrentHealth, MaxHealth);
-}
-
-void ACPlayerCharacter::UpdateHpUI() const
-{
-    if (PlayerWidget && HealthComponent)
-        PlayerWidget->UpdateHpBar(HealthComponent->GetHealth(), HealthComponent->GetMaxHealth());
-}
-
-// ----------------------------------------------------------------------------
-// Dash 쿨다운 UI
-// ----------------------------------------------------------------------------
+// ─ 대쉬 UI
 void ACPlayerCharacter::ResetDashCooldown()
 {
     bDashOnCooldown = false;
@@ -340,10 +351,64 @@ void ACPlayerCharacter::TickDashCooldownUI()
         ResetDashCooldown();
 }
 
-void ACPlayerCharacter::UpdateUltimateUI()
+// ────────────────────────────────────────────────────────────────────────────
+// HP
+// ────────────────────────────────────────────────────────────────────────────
+// ─ UI 연동
+void ACPlayerCharacter::HandleHealthChanged(float CurrentHealth, float MaxHealth)
 {
     if (PlayerWidget)
-        PlayerWidget->UpdateUltimateBar(CurUltGauge, MaxUltGauge);
+        PlayerWidget->UpdateHpBar(CurrentHealth, MaxHealth);
+}
+
+void ACPlayerCharacter::UpdateHpUI() const
+{
+    if (PlayerWidget && HealthComponent)
+        PlayerWidget->UpdateHpBar(HealthComponent->GetHealth(), HealthComponent->GetMaxHealth());
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// 궁극기
+// ────────────────────────────────────────────────────────────────────────────
+void ACPlayerCharacter::UseUltimate()
+{
+    if (bUltActive || !UltimateBuffComponent || CurUltGauge < MaxUltGauge)
+        return;
+
+    bUltActive = true;
+    UltimateBuffComponent->ActivateUltimate();
+    UE_LOG(LogTemp, Log, TEXT("[ULT] UseUltimate On Gauge=%.1f/%.1f"), CurUltGauge, MaxUltGauge);
+
+    GetWorldTimerManager().ClearTimer(TimerHandle_UltDuration);
+    GetWorldTimerManager().SetTimer(
+        TimerHandle_UltDuration,
+        this, &ACPlayerCharacter::OnUltimateExpired,
+        UltDuration, false);
+
+    GetWorldTimerManager().ClearTimer(TimerHandle_UltUITick);
+    GetWorldTimerManager().SetTimer(
+        TimerHandle_UltUITick,
+        this, &ACPlayerCharacter::TickUltimateUI,
+        0.05f, true);
+
+    TickUltimateUI();
+    UpdateHpUI();
+}
+
+// ─ 궁극기 사용 종료
+void ACPlayerCharacter::OnUltimateExpired()
+{
+    GetWorldTimerManager().ClearTimer(TimerHandle_UltUITick);
+
+    bUltActive = false;
+    CurUltGauge = 0.0f;
+    if (UltimateBuffComponent)
+        UltimateBuffComponent->DeactivateUltimate();
+
+    CLog::Log(TEXT("[ULT] UseUltimate OFF"));
+
+    UpdateUltimateUI();
+    UpdateHpUI();
 }
 
 void ACPlayerCharacter::AddUltimateGain(float Gain)
@@ -357,66 +422,69 @@ void ACPlayerCharacter::AddUltimateGain(float Gain)
     UpdateUltimateUI();
 }
 
-void ACPlayerCharacter::OnUltimateDrainTimer()
+// ─ 궁극기 UI 업데이트
+void ACPlayerCharacter::UpdateUltimateUI()
 {
-    if (!bUltActive)
-    {
-        StopUltimateDrain();
-        return;    
-    }
-
-    const float Step = UltDrainPerSec * UltDrainTickInterval;
-    CurUltGauge = FMath::Max(0.0f, CurUltGauge - Step);
-    UpdateUltimateUI();
-
-    if (CurUltGauge <= 0.0f)
-    {
-        bUltActive = false;
-        StopUltimateDrain();
-
-        if (UltimateBuffComponent)
-            UltimateBuffComponent->DeactivateUltimate();
-
-        UE_LOG(LogTemp, Log, TEXT("[ULT] UseUltimate Off"));
-        UpdateHpUI();
-    }
+    if (PlayerWidget)
+        PlayerWidget->UpdateUltimateBar(CurUltGauge, MaxUltGauge);
 }
 
-void ACPlayerCharacter::StartUltimateDrain()
+void ACPlayerCharacter::TickUltimateUI()
 {
-    GetWorldTimerManager().ClearTimer(TimerHandle_UltDrain);
+    const float RemainingTime = GetWorldTimerManager().GetTimerRemaining(TimerHandle_UltDuration);
     
-    GetWorldTimerManager().SetTimer(
-        TimerHandle_UltDrain,
-        this, &ACPlayerCharacter::OnUltimateDrainTimer,
-        UltDrainTickInterval, true);
-}
-
-void ACPlayerCharacter::StopUltimateDrain()
-{
-    GetWorldTimerManager().ClearTimer(TimerHandle_UltDrain);
-}
-
-void ACPlayerCharacter::UseUltimate()
-{
-    if (bUltActive)
-        return;
+    if (UltDuration > KINDA_SMALL_NUMBER)
+        CurUltGauge = MaxUltGauge * (RemainingTime / UltDuration);
+    else
+        CurUltGauge = 0.0f;
     
-    if (!UltimateBuffComponent)
-        return;
-
-    if (CurUltGauge < MaxUltGauge)
-        return;
-
-    bUltActive = true;
-    UltimateBuffComponent->ActivateUltimate();
-    UE_LOG(LogTemp, Log, TEXT("[ULT] UseUltimate On Gauge=%.1f/%.1f"), CurUltGauge, MaxUltGauge);
-
-    UpdateHpUI();
-    StartUltimateDrain();
+    CurUltGauge = FMath::Max(0.0f, CurUltGauge);
+    
     UpdateUltimateUI();
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// 차징 (스핀) 스킬
+// ────────────────────────────────────────────────────────────────────────────
+void ACPlayerCharacter::OnSpinPressed()
+{
+    if (CommandLaunchSlamComponent && CommandLaunchSlamComponent->ShouldBlockOtherActions())
+        return;
+    
+    if (SpinAttackComponent)
+        SpinAttackComponent->TryStartSpin();
+}
+
+void ACPlayerCharacter::OnSpinReleased()
+{
+    if (SpinAttackComponent)
+        SpinAttackComponent->StopSpin();
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// 커맨드 공격
+// ────────────────────────────────────────────────────────────────────────────
+void ACPlayerCharacter::OnCommandPressed()
+{
+    if (CommandLaunchSlamComponent)
+    {
+        if (CommandLaunchSlamComponent->IsAirCommandActive())
+        {
+            CommandLaunchSlamComponent->TryConfirmSlam();
+        }
+        else
+        {
+            if (CommandLaunchSlamComponent->ShouldBlockOtherActions())
+                return;
+            
+            CommandLaunchSlamComponent->TryStartCommand();
+        }
+    }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// IBuffable
+// ────────────────────────────────────────────────────────────────────────────
 float ACPlayerCharacter::GetOutgoingDamageMultiplier() const
 {
     if (bUltActive && UltimateBuffComponent)

@@ -5,16 +5,17 @@
 #include "00_Character/02_Component/00_PlayerComponent/Buffable.h"
 #include "CPlayerCharacter.generated.h"
 
+class UCSkill_CommandLaunchSlam;
+class UCSkill_SpinAttack;
+class UCFuryGaugeComponent;
 class UCUltimateBuffComponent;
 class UCameraComponent;
 class USpringArmComponent;
 class UTransparentCameraComponent;
-
 class UCPlayerDashComponent;
 class UCPlayerWeaponComponent;
 class UCPlayerHealthComponent;
 class UCPlayerMovementBuffComponent;
-
 class UCInputConfig;
 class UCPlayerWidget;
 struct FInputActionValue;
@@ -34,69 +35,86 @@ class POSISONFROG_API ACPlayerCharacter : public ACBaseCharacter, public IBuffab
 public:
     ACPlayerCharacter();
 
-    // 카메라 Getter
-    FORCEINLINE USpringArmComponent* GetCameraBoom()   const { return SpringArm; }
-    FORCEINLINE UCameraComponent* GetFollowCamera() const { return PlayerCamera; }
+    // ─────────── Getter ───────────
+    // ─ 카메라
+    FORCEINLINE USpringArmComponent* GetCameraBoom() const { return SpringArm; }
+    FORCEINLINE UCameraComponent* GetFollowCamera() const  { return PlayerCamera; }
+    
+    // ─ 궁극기
+    float GetMaxUltimateGauge() const { return MaxUltGauge; }
 
+    // ─────────── IBuffable ───────────
+    // ─ 인터페이스 구현
+    virtual float GetOutgoingDamageMultiplier() const override;
+    virtual float GetIncomingDamageScale() const override;
+    virtual bool IsBuffActive() const override;
+    
 protected:
-    // ACharacter
     virtual void BeginPlay() override;
     virtual void PostInitializeComponents() override;
     virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
-public: // 입력 핸들러 (Enhanced Input 바인딩 대상)
+public:
+    // ─────────── Input Handlers ───────────
+    // ─ Enhanced Input 바인딩 대상
     UFUNCTION() void Move(const FInputActionValue& Value);
     UFUNCTION() void Look(const FInputActionValue& Value);
-    UFUNCTION() void DashStart();   // 입력 진입점(버퍼 or 즉시)
     UFUNCTION() void Attack();
-
+    UFUNCTION() void DashStart();          // 입력 진입점(버퍼 or 즉시)
+    UFUNCTION() void UseUltimate();
+    UFUNCTION() void OnSpinPressed();      // 스핀 시작(홀드)
+    UFUNCTION() void OnSpinReleased();     // 스핀 종료
+    UFUNCTION() void OnCommandPressed();
+    
     // 무기/애님에서 호출 (공격 시작/종료/대시소비 윈도우)
     UFUNCTION() void OnAttackStarted();
     UFUNCTION() void OnAttackEnded();
     UFUNCTION() void OnAttackDashReady();
 
-private: // Dash 실행 단일 경로 + 버퍼 소비
+private:
+    // ─────────── Dash ───────────
+    // ─ Dash 실행 단일 경로 + 버퍼 소비
     UFUNCTION() bool TryCommitDash();                         // 쿨다운/UI/버프까지 한 곳에서 처리
     UFUNCTION() void ConsumeDashBufferIfValid(bool bFallback = false);
 
-private: // HP/UI 연동
-    UFUNCTION() void HandleHealthChanged(float CurrentHealth, float MaxHealth);
-    void UpdateHpUI() const;
-
-private: // Dash 쿨다운/UI 틱
+    // ─ Dash 쿨다운/UI 틱
     UFUNCTION() void ResetDashCooldown();
     UFUNCTION() void TickDashCooldownUI();
 
-private: // 궁극기 UI/버프 적용
-    void UpdateUltimateUI();
-    UFUNCTION() void UseUltimate();
+private:
+    // ─────────── HP ───────────
+    UFUNCTION() void HandleHealthChanged(float CurrentHealth, float MaxHealth);
+    void UpdateHpUI() const;
 
-public:
-    // IBuffable 인터페이스 구현
-    virtual float GetOutgoingDamageMultiplier() const override;
-    virtual float GetIncomingDamageScale() const override;
-    virtual bool IsBuffActive() const override;
+private:
+    // ─────────── ULT ───────────
+    void UpdateUltimateUI();
+    UFUNCTION() void OnUltimateExpired(); // 궁극기 종료시 호출될 함수
     
+    UFUNCTION() void TickUltimateUI(); // 궁극기 UI 수정
+public:
     void AddUltimateGain(float Gain);
-    float GetMaxUltimateGauge() const { return MaxUltGauge; }
     
 private:
-    // ─ 입력 설정(태그→액션, Enhanced Input용 DataAsset) ─
+    // ─────────── Input ───────────
+    // ─ 입력 설정(태그 -> 액션, Enhanced Input용 DataAsset)
     UPROPERTY(EditDefaultsOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
     TObjectPtr<const UCInputConfig> InputConfig = nullptr;
 
-    // ─ 이동 튜닝 ─
+    // ─────────── Move ───────────
+    // ─ 이동 튜닝
     UPROPERTY(EditDefaultsOnly, Category = "Movement", meta = (ClampMin = "0", ForceUnits = "cm/s"))
     float WalkingSpeed = 400.f;
 
-    // ─ UI ─
+    // ─────────── UI ───────────
     UPROPERTY(EditDefaultsOnly, Category = "UI", meta = (AllowPrivateAccess = "true"))
     TSubclassOf<UCPlayerWidget> PlayerWidgetClass;
 
     UPROPERTY(Transient, meta = (AllowPrivateAccess = "true"))
     TObjectPtr<UCPlayerWidget> PlayerWidget = nullptr;
 
-    // ─ Dash 버퍼/락 정책 ─
+    // ─────────── Dash ───────────
+    // ─ Dash 버퍼/락 정책
     UPROPERTY(EditAnywhere, Category = "Dash|Buffer", meta = (ClampMin = "0.0"))
     float DashBufferWindow = 0.20f;     // PDF: InputBuffer = 0.20s
 
@@ -109,7 +127,7 @@ private:
     UPROPERTY(VisibleInstanceOnly, Category = "Dash|Buffer")
     float DashBufferExpire = 0.f;       // 버퍼 만료 시각
 
-    // ─ Dash 쿨다운 ─
+    // ─ Dash 쿨다운
     UPROPERTY(EditDefaultsOnly, Category = "Dash", meta = (ClampMin = "0"))
     float DashCooldown = 6.0f;
 
@@ -117,19 +135,19 @@ private:
     bool bDashOnCooldown = false;
 
     UPROPERTY(VisibleInstanceOnly, Category = "Dash")
-    float DashCooldownRemaining = 0.f;
+    float DashCooldownRemaining = 0.0f;
 
     FTimerHandle TimerHandle_DashCooldown;   // 쿨다운 만료
     FTimerHandle TimerHandle_DashUITick;     // UI 업데이트(20Hz 권장)
 
-    // ─ Dash 후 이속 버프 ─
+    // ─ Dash 후 이속 버프
     UPROPERTY(EditDefaultsOnly, Category = "Dash|Buff", meta = (ClampMin = "1.0"))
     float DashSpeedMultiplier = 1.30f;       // +30%
 
     UPROPERTY(EditDefaultsOnly, Category = "Dash|Buff", meta = (ClampMin = "0"))
     float DashSpeedBuffDuration = 2.0f;      // 2초
 
-    // ─ Ultimate  ─
+    // ─────────── ULT ───────────
     UPROPERTY(EditDefaultsOnly, Category = "Ultimate|State")
     float MaxUltGauge = 100.0f;
     
@@ -138,23 +156,16 @@ private:
 
     UPROPERTY(EditDefaultsOnly, Category = "Ultimate|State")
     bool bUltActive = false;
-
-    // 게이지 소모 관련
-    UPROPERTY(EditAnywhere, Category = "Ultimate|State")
-    float UltDrainPerSec = 20.0f; // 5초면 소모 100 / 5 = 20
-
-    UPROPERTY(EditAnywhere, Category = "Ultimate|State")
+    
+    UPROPERTY(EditDefaultsOnly, Category = "Ultimate|State")
+    float UltDuration = 5.0f; // 궁극기 전체 지속 시간 (초)
+    
     float UltDrainTickInterval = 0.05f;
 
-    FTimerHandle TimerHandle_UltDrain;
+    FTimerHandle TimerHandle_UltDuration;
+    FTimerHandle TimerHandle_UltUITick;
 
-    UFUNCTION()
-    void OnUltimateDrainTimer();
-    
-    void StartUltimateDrain();
-    void StopUltimateDrain();
-    
-    // ─ 구성 컴포넌트 ─
+    // ─────────── 구성 컴포넌트 ───────────
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
     TObjectPtr<UCPlayerDashComponent> DashComponent = nullptr;
     
@@ -169,8 +180,17 @@ private:
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
     TObjectPtr<UCUltimateBuffComponent> UltimateBuffComponent = nullptr;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Fury", meta = (AllowPrivateAccess = "true"))
+    TObjectPtr<UCFuryGaugeComponent> FuryGaugeComponent = nullptr;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Skill", meta = (AllowPrivateAccess = "true"))
+    TObjectPtr<UCSkill_SpinAttack> SpinAttackComponent = nullptr;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Skill", meta=(AllowPrivateAccess = "true"))
+    TObjectPtr<UCSkill_CommandLaunchSlam> CommandLaunchSlamComponent = nullptr;
     
-    // ─ 카메라 ─
+    // ─────────── 카메라 ───────────
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Camera", meta = (AllowPrivateAccess = "true"))
     TObjectPtr<USpringArmComponent> SpringArm = nullptr;
 
