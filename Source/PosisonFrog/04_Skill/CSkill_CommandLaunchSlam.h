@@ -17,6 +17,7 @@ class UAnimMontage;
 class UAnimInstance;
 class ACEnemyCharacterBase;
 
+// 자기 자신의 중복 입력을 막귀 위해서 Launching을 추가
 UENUM(BlueprintType)
 enum class ECommandAirState : uint8
 {

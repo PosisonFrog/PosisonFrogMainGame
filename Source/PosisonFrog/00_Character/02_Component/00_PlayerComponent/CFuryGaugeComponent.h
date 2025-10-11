@@ -44,7 +44,7 @@ public:
     int32 MaxStacks = 10;
 
     UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Fury")
-    int32 CurrentStacks = 9;
+    int32 CurrentStacks = 0;
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Fury")
     bool bBlockStackWhileActive = true;
