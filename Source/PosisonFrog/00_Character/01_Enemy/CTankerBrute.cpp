@@ -53,11 +53,56 @@ void ACTankerBrute::DoChase()
 
 void ACTankerBrute::DoAttack()
 {
-    // (옵션) 기본 근접 공격
-    if (IsAttackReady() && DistToTarget() <= MeleeAttackDistance)
+    if (!Target)
     {
+        SetState(EEnemyState::ReturnHome);
+        return;
+    }
+
+    const float Dist = DistToTarget();
+
+    // 사거리를 충분히 벗어나면 추격 상태로 복귀
+    const float ExitDistance = FMath::Max(AttackExitDistance, MeleeAttackDistance * 1.1f);
+    if (Dist > ExitDistance)
+    {
+        bIsPerformingMelee = false;
+        SetState(EEnemyState::Chase);
+        return;
+    }
+
+    // 공격 사거리 확보 전까지는 계속 접근을 유지한다.
+    const float DesiredRange = FMath::Max(MeleeAttackDistance, AttackRange);
+    if (Dist > DesiredRange * 0.9f)
+    {
+        if (bUseNavigation)
+        {
+            RequestMoveTo(Target->GetActorLocation(), AttackMoveAcceptanceRadius);
+        }
+        else
+        {
+            FVector Dir = (Target->GetActorLocation() - GetActorLocation());
+            Dir.Z = 0.f;
+            if (Dir.Normalize())
+                AddMovementInput(Dir, 1.f);
+        }
+    }
+    else
+    {
+        StopMove();
+    }
+
+    // 쿨타임이 끝났고 사거리 안이라면 1회 공격을 수행한다.
+    if (!bIsPerformingMelee && IsAttackReady() && Dist <= MeleeAttackDistance)
+    {
+        bIsPerformingMelee = true;
         LastAttackTime = GetWorld()->GetTimeSeconds();
-        ApplyAttackDamage(); // 베이스의 캡슐 스윕 판정 사용
+      
+
+        ApplyAttackDamage();
+
+        EnsureWalkingAndResume();
+        ReengageChase(AttackReengageDelay);
+        bIsPerformingMelee = false;
     }
 }
 

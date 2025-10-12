@@ -90,6 +90,10 @@ protected:
     UPROPERTY(EditAnywhere, Category="PF|Ranged|Evade")
     float EvadeTriggerDistance = 900.f;  // 가까울수록 회피 적극
 
+    /*추가된 부분 -> 최대 회피 거리(TriggerDistance)에서 적용될 확률 배율 (0~1 범위) */
+    UPROPERTY(EditAnywhere, Category="PF|Ranged|Evade", meta=(ClampMin="0.0", ClampMax="1.0"))
+    float EvadeChanceAtMaxDistanceScale = 0.35f;
+    
     float LastEvadeTime = -1000.f;
 
     // ───── 연출 ─────

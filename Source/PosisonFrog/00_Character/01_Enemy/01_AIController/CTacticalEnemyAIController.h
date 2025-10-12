@@ -137,6 +137,12 @@ private:
     UPROPERTY() FTacticalRetreat    Retreat;
     UPROPERTY() FTacticalReposition Repos;
 
+    /** 재배치 후 복귀해야 할 이전 모드(없으면 None) */
+    UPROPERTY() ETacticalMode ModeBeforeReposition = ETacticalMode::None;
+
+    /** 재배치 완료 시 이전 모드로 복귀할지 여부 */
+    UPROPERTY() bool bResumeModeAfterReposition = false;
+    
     // 공통 파라미터
     UPROPERTY(EditAnywhere, Category="PF|AI|Tactical")
     float RepathInterval = 0.25f;                 // 목표 재평가 주기
