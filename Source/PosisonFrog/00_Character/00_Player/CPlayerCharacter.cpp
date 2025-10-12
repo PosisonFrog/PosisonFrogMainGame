@@ -367,6 +367,24 @@ void ACPlayerCharacter::UpdateHpUI() const
         PlayerWidget->UpdateHpBar(HealthComponent->GetHealth(), HealthComponent->GetMaxHealth());
 }
 
+float ACPlayerCharacter::TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent,
+    class AController* EventInstigator, AActor* DamageCauser)
+{
+    const float AppliedDamage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+
+    if (AppliedDamage > 0.0f && HealthComponent)
+    {
+        HealthComponent->Damage(AppliedDamage);
+    }
+
+    if (bUltActive == false)
+    {
+        CLog::Log(FString::Printf(TEXT("[PlayerCharacter] Took %.1f Damage from %s"), AppliedDamage, *GetNameSafe(DamageCauser)));
+    }
+    
+    return AppliedDamage;
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // 궁극기
 // ────────────────────────────────────────────────────────────────────────────

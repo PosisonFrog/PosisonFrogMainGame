@@ -18,7 +18,7 @@ class POSISONFROG_API UCPlayerHealthComponent : public UCBaseHealthComponent
 {
 	GENERATED_BODY()
 
-protected:
+public:
 	// 버프 시스템 통합
 	virtual float Damage(float InAmount) override;
 

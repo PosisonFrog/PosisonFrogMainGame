@@ -320,6 +320,7 @@ void ACEnemyCharacterBase::DoAttack()
 
 		// 실제 타격
 		LastAttackTime = GetWorld()->GetTimeSeconds();
+		
 		ApplyAttackDamage();
 
 		// 혹시 애님/루트모션이 이동을 막았다면 복구
