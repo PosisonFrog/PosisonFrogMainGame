@@ -243,7 +243,15 @@ void ACRangedSkirmisher::TryEvadeRandom()
     const float D = DistToTarget();
     if (D > EvadeTriggerDistance) return;
 
-    if (FMath::FRand() < EvadeChanceOnThink)
+    float AdjustedChance = EvadeChanceOnThink;
+    if (EvadeTriggerDistance > KINDA_SMALL_NUMBER)
+    {
+        const float DistanceAlpha = FMath::Clamp(D / EvadeTriggerDistance, 0.f, 1.f);
+        const float ChanceScale = FMath::Lerp(1.f, EvadeChanceAtMaxDistanceScale, DistanceAlpha);
+        AdjustedChance *= ChanceScale;
+    }
+
+    if (FMath::FRand() < AdjustedChance)
     {
         DoEvade(/*preferLeft=*/FMath::FRand() > 0.5f);
         LastEvadeTime = Now;

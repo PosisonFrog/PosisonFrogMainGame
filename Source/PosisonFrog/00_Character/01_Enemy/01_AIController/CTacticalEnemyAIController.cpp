@@ -117,11 +117,18 @@ void ACTacticalEnemyAIController::Tick(float DeltaSeconds)
         {
             const float BaseYaw = Repos.Target->GetActorRotation().Yaw;
             bool bMoved = false;
+ 
+            const int32 NumTries = FMath::Max(Repos.MaxTries, 1);
+            const float SweepDeg = Repos.AngleJitterDeg * 2.f;
 
-            for (int32 i=0; i<Repos.MaxTries; ++i)
+            for (int32 i = 0; i < NumTries; ++i)
             {
+                const float Progress = (NumTries > 1)
+                                         ? static_cast<float>(i) / static_cast<float>(NumTries - 1)
+                                         : 0.f;
+                const float BaseOffset = (Progress * SweepDeg) - Repos.AngleJitterDeg;
                 const float Jitter = FMath::FRandRange(-Repos.AngleJitterDeg, +Repos.AngleJitterDeg);
-                const float Yaw    = BaseYaw + (i* (Repos.AngleJitterDeg*2.f) / Repos.MaxTries) + Jitter;
+                const float Yaw    = BaseYaw + BaseOffset + Jitter;
                 FVector Goal = ComputeRingSlot(Repos.Target.Get(), Repos.Radius, Yaw);
                 if (!ProjectToNav(Goal, Goal)) continue;
 
@@ -156,6 +163,23 @@ void ACTacticalEnemyAIController::OnMoveCompleted(FAIRequestID RequestID, const 
     if (Result.Code == EPathFollowingResult::Success)
     {
         ConsecutiveFails = 0;
+
+        if (Mode == ETacticalMode::Reposition)
+        {
+            if (bResumeModeAfterReposition)
+            {
+                Mode = ModeBeforeReposition;
+                ModeBeforeReposition = ETacticalMode::None;
+                bResumeModeAfterReposition = false;
+                LastIssuedGoal = FVector::ZeroVector;
+                NextRepathTime = 0.f;
+                RefreshFocus();
+            }
+            else
+            {
+                TacticalStop();
+            }
+        }
     }
     else
     {
@@ -250,12 +274,21 @@ void ACTacticalEnemyAIController::TacticalRepositionAround(AActor* Target, float
 {
     if (!Target) { TacticalStop(); return; }
 
+    if (Mode != ETacticalMode::Reposition)
+    {
+        ModeBeforeReposition = Mode;
+        bResumeModeAfterReposition = (ModeBeforeReposition != ETacticalMode::None);
+    }
+
     Mode = ETacticalMode::Reposition;
     Repos.Target = Target;
     Repos.Radius = Radius;
     Repos.AngleJitterDeg = AngleJitterDeg;
-    Repos.MaxTries = MaxTries;
+    Repos.MaxTries = FMath::Max(MaxTries, 1);
     Repos.AcceptanceRadius = AcceptanceRadius;
+
+    LastIssuedGoal = FVector::ZeroVector;
+    NextRepathTime = 0.f;
 
     RefreshFocus();
 }
