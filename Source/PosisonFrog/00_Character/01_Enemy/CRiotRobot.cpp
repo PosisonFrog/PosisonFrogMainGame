@@ -146,6 +146,8 @@ void ACRiotRobot::StartAttack()
     bIsAttacking = true;
     AttackStartedTime = GetWorld()->GetTimeSeconds();
 
+
+    
     // 실제 공격 시작 시점에 쿨타임 갱신
     LastAttackTime = AttackStartedTime;
 
@@ -203,6 +205,7 @@ void ACRiotRobot::FinishAttack()
 {
     bIsAttacking = false;
 
+    
     // 대기 모션(선택)
     if (IdleMontage)
     {
@@ -251,6 +254,23 @@ void ACRiotRobot::OnDead()
     CancelAttack();
     Super::OnDead();
 
+    // 이동 비활성화
+    GetCharacterMovement()->DisableMovement();
+    GetCharacterMovement()->StopMovementImmediately();
+
+    // 콜리전 비활성화 (선택사항)
+    GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+    // 공격 모션/사운드
+    if (DeadMontage)
+    {
+        if (USkeletalMeshComponent* mesh = GetMesh())
+            if (UAnimInstance* Anim = mesh->GetAnimInstance())
+                Anim->Montage_Play(DeadMontage, 1.0f);
+    }
+
+    
+    
     if (HitEffect)
         UGameplayStatics::SpawnEmitterAtLocation(this, HitEffect, GetActorLocation(), GetActorRotation());
     if (HitSound)

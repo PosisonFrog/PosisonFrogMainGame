@@ -80,6 +80,9 @@ protected:
     UPROPERTY(EditAnywhere, Category="PF|Animation")
     UAnimMontage* IdleMontage = nullptr;
 
+    UPROPERTY(EditAnywhere, Category="PF|Animation")
+    UAnimMontage* DeadMontage = nullptr;
+    
     UPROPERTY(EditAnywhere, Category="PF|Sound")
     USoundBase* AttackSound = nullptr;
 

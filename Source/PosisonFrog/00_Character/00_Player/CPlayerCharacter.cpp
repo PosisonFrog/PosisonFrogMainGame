@@ -56,7 +56,7 @@ ACPlayerCharacter::ACPlayerCharacter()
     SpringArm->SetupAttachment(RootComponent);
     SpringArm->TargetArmLength = 400.f;
     SpringArm->bUsePawnControlRotation = true;
-    SpringArm->bDoCollisionTest = false;
+    SpringArm->bDoCollisionTest = true;
     
     PlayerCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
     PlayerCamera->SetupAttachment(SpringArm, USpringArmComponent::SocketName);
