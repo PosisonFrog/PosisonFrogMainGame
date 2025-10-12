@@ -150,6 +150,9 @@ void UCPlayerWeaponComponent::PlayComboAttack()
  
     PlayerAnimInst->Montage_Play(PlayerMontage);
     HammerAnimInst->Montage_Play(HammerMontage);
+
+    if (IsValid(Hammer))
+        Hammer->PlayAttackVFX(CurrentCombo);
     
     // 종료시 정리(인터럽트/블렌드아웃 포함)
     FOnMontageEnded EndDelegate;
