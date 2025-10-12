@@ -3,6 +3,7 @@
 
 #include "00_Character/00_Player/02_Weapon/CHammer.h"
 
+#include "NiagaraFunctionLibrary.h"
 #include "99_Util/CLog.h"
 #include "Components/BoxComponent.h"
 #include "Kismet/GameplayStatics.h"
@@ -17,6 +18,48 @@ ACHammer::ACHammer()
 	DamageBoxExtent = FVector(54.0f, 60.0f, 60.0f);
 
 	Damage = 20.0f;
+}
+
+void ACHammer::PlayAttackVFX(int32 ComboIndex)
+{
+	if (!AttackVFX.IsValidIndex(ComboIndex) && !AttackVFX[ComboIndex]->IsValid())
+	{
+		if (bDebugLog)
+			CLog::Log(FString::Printf(TEXT("ACHammer : AttackVFX for Combo Index %d is not valid"), ComboIndex));
+	}
+
+	ACharacter* OwnerChar = GetCachedOwnerCharacter();
+	if (!IsValid(OwnerChar))
+		return;
+
+	UWorld* World = GetWorld();
+	if (!IsValid(World))
+		return;
+
+	const FVector BaseLocation = OwnerChar->GetActorLocation();
+	const FRotator BaseRotation = OwnerChar->GetActorRotation();
+
+	FVector FinalLocation = BaseLocation;
+	FRotator FinalRotation = BaseRotation;
+
+	if (AttackVFX_Transforms.IsValidIndex(ComboIndex))
+	{
+		const FComboVFX_Transform& TransformOffset = AttackVFX_Transforms[ComboIndex];
+
+		FVector RotatedLocationOffset = BaseRotation.RotateVector(TransformOffset.LocationOffset);
+		FinalLocation += RotatedLocationOffset;
+
+		FinalRotation += TransformOffset.RotationOffset;
+	}
+
+	UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+		World,
+		AttackVFX[ComboIndex],
+		FinalLocation,
+		FinalRotation,
+		FVector(1.0f),
+		true,
+		true);
 }
 
 // Called when the game starts or when spawned
