@@ -26,6 +26,8 @@ void ACHammer::PlayAttackVFX(int32 ComboIndex)
 	{
 		if (bDebugLog)
 			CLog::Log(FString::Printf(TEXT("ACHammer : AttackVFX for Combo Index %d is not valid"), ComboIndex));
+			
+		return;
 	}
 
 	ACharacter* OwnerChar = GetCachedOwnerCharacter();
