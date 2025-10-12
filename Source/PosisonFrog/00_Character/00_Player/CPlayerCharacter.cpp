@@ -62,8 +62,8 @@ ACPlayerCharacter::ACPlayerCharacter()
     PlayerCamera->SetupAttachment(SpringArm, USpringArmComponent::SocketName);
     PlayerCamera->bUsePawnControlRotation = false;
 
-    TransparentCameraComponent = CreateDefaultSubobject<UTransparentCameraComponent>(TEXT("TransparentCamera"));
-    TransparentCameraComponent->SetupAttachment(RootComponent);
+   // TransparentCameraComponent = CreateDefaultSubobject<UTransparentCameraComponent>(TEXT("TransparentCamera"));
+    //TransparentCameraComponent->SetupAttachment(RootComponent);
     
     
     // 이동(3인칭 기본값)
@@ -133,7 +133,7 @@ void ACPlayerCharacter::PostInitializeComponents()
     checkf(SpinAttackComponent != nullptr, TEXT("SkillSpinAttack missing"));
     
     // TransparentCameraComponent 설정 개선
-    if (TransparentCameraComponent)
+ /*  if (TransparentCameraComponent)
     {
         // SpringArm 먼저 설정 (CalibrateIdleView 호출하므로)
         if (SpringArm)
@@ -147,7 +147,7 @@ void ACPlayerCharacter::PostInitializeComponents()
     else
     {
         CLog::Log(TEXT("TransparentCameraComponent missing"));
-    }
+    }*/
 }
 
 // ────────────────────────────────────────────────────────────────────────────
