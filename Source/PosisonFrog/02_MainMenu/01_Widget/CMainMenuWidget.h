@@ -89,7 +89,7 @@ protected:
 protected:
     // 시작 레벨 이름을 BP에서 변경 가능
     UPROPERTY(EditDefaultsOnly, Category = "Navigation")
-    FName StartLevelName = TEXT("TlqkfMap");
+    FName StartLevelName = TEXT("PlayLevel");
 
     //옵션 메뉴(있다면 연결)
     UPROPERTY(EditDefaultsOnly, Category = "Navigation")

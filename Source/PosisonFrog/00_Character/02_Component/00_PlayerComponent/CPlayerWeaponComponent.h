@@ -61,7 +61,7 @@ protected:
     TArray<UAnimMontage*> HammerComboMontages;
     
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Attack", meta = (ClampMin = "0.1"))
-    float ComboResetTime = 1.5f;
+    float ComboResetTime = 0.8f;
 
     // --- 궁극기 게이지 ---
     UPROPERTY(EditAnywhere, Category = "Ultimate|State")
