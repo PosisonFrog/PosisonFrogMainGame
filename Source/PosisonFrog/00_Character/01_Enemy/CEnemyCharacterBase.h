@@ -8,6 +8,7 @@
 class UCapsuleComponent;
 class UCharacterMovementComponent;
 class UCEnemyHealthComponent;
+class UCEnemyWeaponComponent;
 
 UENUM(BlueprintType)
 enum class EEnemyState : uint8
@@ -292,5 +293,8 @@ protected:
     //체력 컴포넌트
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="PF|Components")
     UCEnemyHealthComponent* HealthComponent;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="PF|Components")
+    UCEnemyWeaponComponent* WeaponComponent;
 };
 
