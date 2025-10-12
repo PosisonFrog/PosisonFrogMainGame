@@ -5,7 +5,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetMathLibrary.h"
-#include "Particles/ParticleSystem.h"
+#include "NiagaraFunctionLibrary.h"       
 #include "Sound/SoundBase.h"
 
 #include "01_AIController/CTacticalEnemyAIController.h"  // 전술 컨트롤러
@@ -146,7 +146,20 @@ void ACRiotRobot::StartAttack()
     bIsAttacking = true;
     AttackStartedTime = GetWorld()->GetTimeSeconds();
 
-
+    USkeletalMeshComponent* CharMesh = GetMesh();
+    // Niagara 이펙트 스폰
+    if (AttackEffect && CharMesh)
+    {
+        UNiagaraFunctionLibrary::SpawnSystemAttached(
+            AttackEffect,
+            CharMesh,
+            TEXT("SignSocket"), 
+            FVector::ZeroVector,
+            FRotator::ZeroRotator,
+            EAttachLocation::SnapToTarget,
+            true 
+        );
+    }
     
     // 실제 공격 시작 시점에 쿨타임 갱신
     LastAttackTime = AttackStartedTime;
@@ -179,9 +192,16 @@ void ACRiotRobot::BeginAttackWindow()
     AttackWindowBegin(AttackActiveWindow);
     ApplyAttackDamage(/*bCheckAngle=*/true);
 
-    if (AttackEffect)
-        UGameplayStatics::SpawnEmitterAtLocation(this, AttackEffect,
-            GetActorLocation() + GetActorForwardVector()*100.f, GetActorRotation());
+    // Niagara 이펙트 스폰
+    if (HitEffect)
+    {
+        UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+            this,
+            HitEffect,
+            GetActorLocation() + GetActorForwardVector() * 100.f,
+            GetActorRotation()
+        );
+    }
 
     // 스윙 창 자동 종료 타이머(안전)
     GetWorldTimerManager().SetTimer(Timer_EndWindow, FTimerDelegate::CreateUObject(
@@ -271,8 +291,9 @@ void ACRiotRobot::OnDead()
 
     
     
+    // Niagara 이펙트 스폰
     if (HitEffect)
-        UGameplayStatics::SpawnEmitterAtLocation(this, HitEffect, GetActorLocation(), GetActorRotation());
+        UNiagaraFunctionLibrary::SpawnSystemAtLocation(this,HitEffect,GetActorLocation(),GetActorRotation());
     if (HitSound)
         UGameplayStatics::PlaySoundAtLocation(this, HitSound, GetActorLocation());
 }

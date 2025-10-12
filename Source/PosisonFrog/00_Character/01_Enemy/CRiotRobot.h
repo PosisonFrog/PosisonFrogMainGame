@@ -5,8 +5,7 @@
 
 class UAnimMontage;
 class USoundBase;
-class UParticleSystem;
-
+class UNiagaraSystem;
 /**
  * 일반형: 진압 로봇 [Riot Robot]
  * - 근접 1타 위주의 근접형
@@ -90,10 +89,10 @@ protected:
     USoundBase* HitSound = nullptr;
 
     UPROPERTY(EditAnywhere, Category="PF|Effects")
-    UParticleSystem* AttackEffect = nullptr;
+    UNiagaraSystem* AttackEffect = nullptr;
 
     UPROPERTY(EditAnywhere, Category="PF|Effects")
-    UParticleSystem* HitEffect = nullptr;
+    UNiagaraSystem* HitEffect = nullptr;
 
     // ───────── 상태 ─────────
     bool bIsAttacking = false;
