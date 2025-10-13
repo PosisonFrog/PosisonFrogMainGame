@@ -84,6 +84,7 @@ private:
 private:
     // ─────────── HP ───────────
     UFUNCTION() void HandleHealthChanged(float CurrentHealth, float MaxHealth);
+    UFUNCTION() void HandleDeath();
     void UpdateHpUI() const;
 
     virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser) override;
@@ -149,6 +150,13 @@ private:
     UPROPERTY(EditDefaultsOnly, Category = "Dash|Buff", meta = (ClampMin = "0"))
     float DashSpeedBuffDuration = 2.0f;      // 2초
 
+    // ─────────── HP ───────────
+    UPROPERTY(EditDefaultsOnly, Category = "Death|Anim")
+    UAnimMontage* DeathMontage = nullptr;
+
+    UPROPERTY(VisibleInstanceOnly, Category = "State")
+    bool bIsDead = false;
+    
     // ─────────── ULT ───────────
     UPROPERTY(EditDefaultsOnly, Category = "Ultimate|State")
     float MaxUltGauge = 100.0f;

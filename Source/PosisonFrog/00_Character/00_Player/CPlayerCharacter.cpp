@@ -94,7 +94,10 @@ void ACPlayerCharacter::BeginPlay()
 
     // 체력 이벤트 → HP UI 갱신
     if (ensureMsgf(HealthComponent != nullptr, TEXT("HealthComponent missing")))
+    {
         HealthComponent->OnHealthChanged.AddDynamic(this, &ACPlayerCharacter::HandleHealthChanged);
+        HealthComponent->OnDeath.AddDynamic(this, &ACPlayerCharacter::HandleDeath);
+    }
     
     // UI 생성
     if (PlayerWidgetClass)
@@ -359,6 +362,39 @@ void ACPlayerCharacter::HandleHealthChanged(float CurrentHealth, float MaxHealth
 {
     if (PlayerWidget)
         PlayerWidget->UpdateHpBar(CurrentHealth, MaxHealth);
+}
+
+void ACPlayerCharacter::HandleDeath()
+{
+    if (bIsDead) return;
+
+    bIsDead = true;
+    CLog::Log(TEXT("[Player] Death processing started"));
+
+    APlayerController* Pc = Cast<APlayerController>(GetController());
+    if (Pc)
+        DisableInput(Pc);
+
+    if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
+    {
+        MoveComp->DisableMovement();
+        MoveComp->StopMovementImmediately();
+    }
+
+    GetWorldTimerManager().ClearAllTimersForObject(this);
+
+    if (DeathMontage)
+    {
+        if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
+        {
+            AnimInstance->Montage_Play(DeathMontage);
+        }
+    }
+
+    if (PlayerWidget)
+    {
+        // 게임 오버 UI 및 기존 UI 숨기기
+    }
 }
 
 void ACPlayerCharacter::UpdateHpUI() const
