@@ -37,10 +37,11 @@ void ACMainGameModeBase::OnPlayerDeath(ACPlayerController* PlayerController)
 	}
 
 	CLog::Log(FString::Printf(TEXT("[GameMode] PlayerDeath - Returning to main menu in %.1f seconds"), DeathReturnDelay));
-
-	if (APawn* PlayerPawn = PlayerController->GetPawn())
+	
+	// 페이드아웃 효과
+	if (APlayerCameraManager* CameraManager = PlayerController->PlayerCameraManager)
 	{
-		PlayerController->DisableInput(PlayerController);
+		CameraManager->StartCameraFade(0.0f, 1.0f, DeathReturnDelay, FLinearColor::Black);
 	}
 
 	GetWorldTimerManager().SetTimer(
@@ -55,5 +56,7 @@ void ACMainGameModeBase::ReturnToMenu()
 {
 	CLog::Log(TEXT("[GameMode] Returning to Main Menu"));
 
+	GetWorldTimerManager().ClearAllTimersForObject(this);
+	
 	UGameplayStatics::OpenLevel(this, MainMenuLevelName);
 }
