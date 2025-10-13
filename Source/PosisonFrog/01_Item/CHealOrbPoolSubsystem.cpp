@@ -27,7 +27,7 @@ void UCHealOrbPoolSubsystem::Prewarm(UWorld* World, int32 Count)
 ACHealOrb* UCHealOrbPoolSubsystem::Acquire(UWorld* World, const FTransform& Xform, AActor* PreferredTarget)
 {
 	if (!World || !*OrbClass) return nullptr;
-
+	
 	ACHealOrb* Orb = nullptr;
 
 	if (InactivePool.Num() > 0)
@@ -59,6 +59,28 @@ void UCHealOrbPoolSubsystem::Release(ACHealOrb* Orb)
 
 	ActivePool.Remove(Orb);
 	InactivePool.Add(Orb);
+	BroadcastCounters();
+}
+
+void UCHealOrbPoolSubsystem::ClearPool()
+{
+	// 모든 활성 오브 파괴
+	for (ACHealOrb* Orb : ActivePool)
+	{
+		if (IsValid(Orb))
+			Orb->Destroy();
+	}
+	ActivePool.Empty();
+
+	// 모든 비활성 오브 파괴
+	for (ACHealOrb* Orb : InactivePool)
+	{
+		if (IsValid(Orb))
+			Orb->Destroy();
+	}
+	InactivePool.Empty();
+
+	TotalPicked = 0;
 	BroadcastCounters();
 }
 

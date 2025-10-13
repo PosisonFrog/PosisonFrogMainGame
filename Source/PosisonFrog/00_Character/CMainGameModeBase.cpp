@@ -23,8 +23,15 @@ void ACMainGameModeBase::BeginPlay()
 
 	if (UCHealOrbPoolSubsystem* Pool = GetGameInstance()->GetSubsystem<UCHealOrbPoolSubsystem>())
 	{
-		Pool->SetOrbClass(HealOrbClass);
-		CLog::Log(TEXT("ACMainGameModeBase - HealOrb Pool 초기화 완료"));
+		if (HealOrbClass)
+		{
+			Pool->SetOrbClass(HealOrbClass);
+			CLog::Log(TEXT("ACMainGameModeBase - HealOrb Pool 초기화 완료"));
+		}
+		else
+		{
+			CLog::Log(TEXT("ACMainGameModeBase - ERROR: HealOrbClass is not set!"));  // ✅ 에러 로그
+		}
 	}
 }
 
@@ -37,6 +44,12 @@ void ACMainGameModeBase::OnPlayerDeath(ACPlayerController* PlayerController)
 	}
 
 	CLog::Log(FString::Printf(TEXT("[GameMode] PlayerDeath - Returning to main menu in %.1f seconds"), DeathReturnDelay));
+
+	if (UCHealOrbPoolSubsystem* Pool = GetGameInstance()->GetSubsystem<UCHealOrbPoolSubsystem>())
+	{
+		Pool->ClearPool();
+		CLog::Log(TEXT("[GameMode] HealOrb Pool cleared"));
+	}
 	
 	// 페이드아웃 효과
 	if (APlayerCameraManager* CameraManager = PlayerController->PlayerCameraManager)
