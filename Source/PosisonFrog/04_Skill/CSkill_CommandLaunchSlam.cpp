@@ -67,6 +67,9 @@ bool UCSkill_CommandLaunchSlam::TryStartCommand()
     if (!OwnerChar.IsValid() || !MoveComp.IsValid() || !Hammer.IsValid())
         return false;
 
+    if (!IsOnGroundNow())
+        return false;
+    
     // Launch 연동: 노티 우선 / 즉시
     if (!LaunchCharMontage && !LaunchHammerMontage)
         return false;
@@ -99,10 +102,21 @@ bool UCSkill_CommandLaunchSlam::TryConfirmSlam()
     if (State != ECommandAirState::AirborneWaiting)
         return false;
 
+    if (!bAwaitingSlamConfirm)
+        return false;
+    
+    UWorld* World = GetWorld();
+    if (!World)
+        return false;
+    
+    if (World->GetTimeSeconds() < EarliestSlamConfirmTime)
+        return false;
+
     // 1초 대기 타이머 종료
     GetWorld()->GetTimerManager().ClearTimer(TimerHandle_AirWindow);
 
     // 강제 하강(노티/착지 감지 중 어떤 경로든 임팩트 보장)
+    ClearSlamWaiting();
     ForceDescend(/*bAsSlam=*/true);
 
     if (SlamCharMontage)
@@ -165,6 +179,8 @@ void UCSkill_CommandLaunchSlam::EnterAirborneWaiting()
     bPendingSlam = false;
     bImpactDone  = false;
 
+    StartSlamConfirmDelay();
+    
     if (bBlockOtherActionsWhileAir)
         OnAirCommandLockChanged.Broadcast(true);
 
@@ -187,6 +203,8 @@ void UCSkill_CommandLaunchSlam::ForceDescend(bool bAsSlam)
     if (!OwnerChar.IsValid() || !MoveComp.IsValid())
         return;
 
+    ClearSlamWaiting();
+    
     bPendingSlam = bAsSlam;
     bImpactDone  = false;
 
@@ -198,6 +216,26 @@ void UCSkill_CommandLaunchSlam::ForceDescend(bool bAsSlam)
         MoveComp->SetMovementMode(MOVE_Falling);
 
     State = ECommandAirState::Descending;
+}
+
+void UCSkill_CommandLaunchSlam::StartSlamConfirmDelay()
+{
+    bAwaitingSlamConfirm = true;
+
+    if (UWorld* World = GetWorld())
+    {
+        EarliestSlamConfirmTime = World->GetTimeSeconds() + SlamConfirmDelay;
+    }
+    else
+    {
+        EarliestSlamConfirmTime = 0.f;
+    }
+}
+
+void UCSkill_CommandLaunchSlam::ClearSlamWaiting()
+{
+    bAwaitingSlamConfirm = false;
+    EarliestSlamConfirmTime = 0.f;
 }
 
 bool UCSkill_CommandLaunchSlam::IsOnGroundNow() const

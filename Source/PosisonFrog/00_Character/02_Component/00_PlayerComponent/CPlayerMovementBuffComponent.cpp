@@ -66,6 +66,7 @@ void UCPlayerMovementBuffComponent::RecomputeAndApply()
     const float Now = GetWorld()->GetTimeSeconds();
 
     float NewMax = 1.f;
+    
     for (int32 i = ActiveBuffs.Num() - 1; i >= 0; --i)
     {
         const FActiveSpeedBuff& B = ActiveBuffs[i];

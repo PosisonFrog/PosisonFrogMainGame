@@ -15,6 +15,7 @@
 	방어력 관련 임의로 정의
 */
 
+class UCPlayerMovementBuffComponent;
 class ACPlayerCharacter;
 class UCharacterMovementComponent;
 class UCPlayerHealthComponent;
@@ -61,6 +62,7 @@ private:
 	UPROPERTY() ACPlayerCharacter* OwnerChar = nullptr;
 	UPROPERTY() UCharacterMovementComponent* MovementComponent = nullptr;
 	UPROPERTY() UCPlayerHealthComponent* HealthComponent = nullptr;
+	UPROPERTY() UCPlayerMovementBuffComponent* MovementBuffComponent = nullptr;
 
 	// 이동
 	UPROPERTY(EditAnywhere, Category = "Ultimate|Buff", meta = (ClampMin = "0.01"))
