@@ -87,33 +87,28 @@ bool UCTankerChargeComponent::RequestCharge(AActor* InTarget)
 
     const float Dist = DistToTarget2D();
     if (Dist > ChargeMaxDistance) return false;
+
+    const bool bTooCloseForPreCharge = (Dist < ChargeMinDistance);
     
     bool bHasPreChargeGoal = false;
     FVector CandidateGoal = FVector::ZeroVector;
     int32  CandidateSide = LastSideSign;
     
-    const bool bForcePreCharge = (Dist < ChargeMinDistance);
-    if (bUsePreChargeOffset)
+    if (bUsePreChargeOffset && !bTooCloseForPreCharge)
     {
         int32  SideSign = LastSideSign;
         FVector Goal;
         if (ComputePreChargeGoal(Goal, SideSign))
         {
-            if (bForcePreCharge || Dist >= ChargeMinDistance)
-            {
-                bHasPreChargeGoal = true;
-                CandidateGoal = Goal;
-                CandidateSide = SideSign;
-            }
+            bHasPreChargeGoal = true;
+            CandidateGoal = Goal;
+            CandidateSide = SideSign;
+            
         }
     }
     
-    //if (bForcePreCharge && !bHasPreChargeGoal)
-       // return false;
     
-    const bool bFallbackToCloseWindup = (bForcePreCharge && !bHasPreChargeGoal);
-    
-    if (!bFallbackToCloseWindup && !bForcePreCharge && Dist < ChargeMinDistance)
+    if (!bHasPreChargeGoal && !bTooCloseForPreCharge && Dist < ChargeMinDistance)
         return false;
 
     if (AI.IsValid()) AI->StopMovement();
@@ -138,7 +133,7 @@ bool UCTankerChargeComponent::RequestCharge(AActor* InTarget)
         return true;
     }
 
-     // 2) 바로 Windup (근접한 상황에서 PreCharge 목표를 찾지 못했을 때도 여기로 폴백)
+    // 2) 바로 Windup (근접한 상황에서는 바로 돌진 준비)
     BeginWindup();
     return true;
 }
@@ -164,19 +159,6 @@ void UCTankerChargeComponent::Anim_ChargeStart()
 {
     if (State == EChargeState::Windup)
         BeginCharging();
-
-    /*UAnimInstance* ChargeReadyAnimInst = (OwnerChar.Get() && OwnerChar->GetMesh())
-       ? OwnerChar->GetMesh()->GetAnimInstance()
-       : nullptr;
-
-   
-    if (!ChargeReadyAnimInst)
-    {
-        CLog::Log(TEXT("[WeaponComp] PlayComboAttack: AnimInstance null"));
-        return;
-    }
-    
-    ChargeReadyAnimInst->Montage_Play(ChargeReadyMontage);*/
 }
 
 bool UCTankerChargeComponent::ComputePreChargeGoal(FVector& OutGoal, int32& OutSideSign)

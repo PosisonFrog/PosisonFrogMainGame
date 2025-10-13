@@ -33,8 +33,6 @@ void UCSkill_CommandLaunchSlam::BeginPlay()
 
 void UCSkill_CommandLaunchSlam::TickComponent(float DeltaTime, ELevelTick, FActorComponentTickFunction*)
 {
-    CleanupLaunchedEnemies();
-    
     if (State != ECommandAirState::Descending || !OwnerChar.IsValid() || !MoveComp.IsValid())
         return;
 
@@ -146,7 +144,7 @@ void UCSkill_CommandLaunchSlam::Anim_PerformLaunch()
     // 주변 적(Launch 허용) 띄우기
     TArray<ACharacter*> Neighbors;
     CollectCharactersInRadius(Neighbors, LaunchRadius);
-    CleanupLaunchedEnemies();
+    //CleanupLaunchedEnemies();
     
     for (ACharacter* C : Neighbors)
     {
@@ -224,11 +222,13 @@ void UCSkill_CommandLaunchSlam::ForceDescend(bool bAsSlam)
     if (MoveComp->MovementMode != MOVE_Falling)
         MoveComp->SetMovementMode(MOVE_Falling);
 
-    State = ECommandAirState::Descending;
     if (bAsSlam)
     {
-        ForceLaunchedEnemiesToDescend();
+        ForceDropEnemiesInRange();
     }
+
+    State = ECommandAirState::Descending;
+
 }
 
 void UCSkill_CommandLaunchSlam::StartSlamConfirmDelay()
@@ -322,62 +322,7 @@ void UCSkill_CommandLaunchSlam::CollectCharactersInRadius(TArray<ACharacter*>& O
         OutChars.Add(C);
     }
 }
-void UCSkill_CommandLaunchSlam::CleanupLaunchedEnemies()
-{
-    LaunchedEnemies.RemoveAll([](const TWeakObjectPtr<ACharacter>& Ptr)
-    {
-        if (!Ptr.IsValid())
-        {
-            return true;
-        }
-    
-        ACharacter* Enemy = Ptr.Get();
-        if (!Enemy)
-        {
-            return true;
-        }
-        
-        if (UCharacterMovementComponent* Move = Enemy->GetCharacterMovement())
-        {
-            return !Move->IsFalling();
-        }
-            
-        return true;
-    });
-}
 
-void UCSkill_CommandLaunchSlam::ForceLaunchedEnemiesToDescend()
-{
-    if (!OwnerChar.IsValid())
-    {
-        return;
-    }
-    
-    CleanupLaunchedEnemies();
-    
-    if (LaunchedEnemies.Num() == 0)
-    {
-        return;
-    }
-    
-    const FVector Center = OwnerChar->GetActorLocation();
-    
-    for (const TWeakObjectPtr<ACharacter>& Ptr : LaunchedEnemies)
-    {
-        ACharacter* Enemy = Ptr.Get();
-        if (!Enemy)
-        {
-            continue;
-        }
-            
-        if (EnemyDropRadius > 0.f && FVector::Dist2D(Enemy->GetActorLocation(), Center) > EnemyDropRadius)
-        {
-            continue;
-        }
-            
-        Enemy->LaunchCharacter(FVector(0.f, 0.f, -EnemyDescendSpeed), true, true);
-    }
-}
 
 bool UCSkill_CommandLaunchSlam::IsLaunchableEnemy(ACharacter* C) const
 {
@@ -407,6 +352,40 @@ bool UCSkill_CommandLaunchSlam::IsLaunchableEnemy(ACharacter* C) const
     return false; // 정보 없으면 보수적
 }
 
+void UCSkill_CommandLaunchSlam::ForceDropEnemiesInRange() const
+{
+    if (!OwnerChar.IsValid())
+        return;
+    
+    TArray<ACharacter*> Neighbors;
+    CollectCharactersInRadius(Neighbors, FMath::Max(LaunchRadius, ShockwaveRadius));
+    
+    const float DropSpeed = FMath::Max(EnemyForceDropSpeed, 0.f);
+    if (DropSpeed <= 0.f)
+        return;
+    
+    for (ACharacter* C : Neighbors)
+    {
+        if (!C || C == OwnerChar.Get())
+            continue;
+            
+        if (!C->IsA(ACEnemyCharacterBase::StaticClass()))
+            continue;
+            
+        if (UCharacterMovementComponent* EnemyMove = C->GetCharacterMovement())
+        {
+            if (EnemyMove->MovementMode != MOVE_Falling)
+            {
+                EnemyMove->SetMovementMode(MOVE_Falling);
+            }
+                    
+            FVector NewVelocity = EnemyMove->Velocity;
+            NewVelocity.Z = -DropSpeed;
+            EnemyMove->Velocity = NewVelocity;
+                    
+            C->LaunchCharacter(FVector(0.f, 0.f, -DropSpeed), /*bXYOverride=*/false, /*bZOverride=*/true);
+        }}
+}
 
 
 UAnimInstance* UCSkill_CommandLaunchSlam::GetPlayerAnimInstance() const

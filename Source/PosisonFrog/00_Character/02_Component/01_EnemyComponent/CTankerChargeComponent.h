@@ -185,15 +185,7 @@ private:
     UPROPERTY(EditDefaultsOnly, Category="PF|Charge|Debug")
     bool  bDrawPreChargeGoal = false;
 
-    // ─ Montage ─
-    UPROPERTY(EditDefaultsOnly, Category = "ChargeMontage")
-    UAnimMontage* ChargeReadyMontage = nullptr;
 
-    UPROPERTY(EditDefaultsOnly, Category = "ChargeMontage")
-    UAnimMontage* ChargeMontage = nullptr;
-
-    UPROPERTY(EditDefaultsOnly, Category = "ChargeMontage")
-    UAnimMontage* ChargeStopMontage = nullptr;
 
 private:
     // ─ Runtime ─

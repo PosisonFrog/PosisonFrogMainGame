@@ -70,8 +70,7 @@ private:
     void CollectCharactersInRadius(TArray<ACharacter*>& OutChars, float Radius) const;
     bool IsOnGroundNow() const;
     bool IsLaunchableEnemy(ACharacter* C) const;
-    void CleanupLaunchedEnemies();
-    void ForceLaunchedEnemiesToDescend();
+    void ForceDropEnemiesInRange() const;
 
     void StartSlamConfirmDelay();
     void ClearSlamWaiting();
@@ -90,6 +89,8 @@ private:
     float PlayerLaunchZ = 900.f;
     UPROPERTY(EditDefaultsOnly, Category="CommandSkill|Launch")
     float EnemyLaunchZ  = 800.f;
+    UPROPERTY(EditDefaultsOnly, Category="CommandSkill|Launch", meta=(ClampMin="0"))
+    float EnemyForceDropSpeed = 3200.f;
 
     UPROPERTY(EditDefaultsOnly, Category="CommandSkill|Range", meta=(ClampMin="100"))
     float LaunchRadius = 450.f;
@@ -106,10 +107,6 @@ private:
     float SlamDownSpeed   = 2200.f;
     UPROPERTY(EditDefaultsOnly, Category="CommandSkill|Slam", meta=(ClampMin="200"))
     float AutoDescendSpeed= 1600.f;
-    UPROPERTY(EditDefaultsOnly, Category="CommandSkill|Slam", meta=(ClampMin="0"))
-    float EnemyDropRadius = 450.f;
-    UPROPERTY(EditDefaultsOnly, Category="CommandSkill|Slam", meta=(ClampMin="200"))
-    float EnemyDescendSpeed = 2200.f;
     UPROPERTY(EditDefaultsOnly, Category="CommandSkill|Shockwave", meta=(ClampMin="100"))
     float ShockwaveRadius = 520.f;
     UPROPERTY(EditDefaultsOnly, Category="CommandSkill|Shockwave", meta=(ClampMin="0"))
