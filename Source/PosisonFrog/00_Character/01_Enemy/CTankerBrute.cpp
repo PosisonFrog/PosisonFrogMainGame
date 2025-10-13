@@ -25,6 +25,28 @@ void ACTankerBrute::BeginPlay()
 void ACTankerBrute::Tick(float DeltaSeconds)
 {
     Super::Tick(DeltaSeconds);
+
+    if (ChargeStopOverrideRestoreTime >= 0.f)
+    {
+        const float Now = GetWorld()->GetTimeSeconds();
+
+        if (Target)
+        {
+            // 돌진 직후 시야 판정을 최근으로 유지해 추격 상태를 보존한다.
+            LastSeenTime = Now;
+        }
+
+        const bool bCharging = ChargeComp && ChargeComp->IsChargingOrWindup();
+        if (!bCharging && Now >= ChargeStopOverrideRestoreTime)
+        {
+            if (CachedChaseStopDistance >= 0.f)
+            {
+                ChaseStopDistance = CachedChaseStopDistance;
+            }
+
+            ChargeStopOverrideRestoreTime = -1.f;
+        }
+    }
 }
 
 void ACTankerBrute::DoChase()
@@ -44,7 +66,10 @@ void ACTankerBrute::DoChase()
     if (bPreferCharge && Target && HasVisualOnTarget())
     {
         if (ChargeComp && ChargeComp->RequestCharge(Target.Get()))
+        {
+            LastSeenTime = GetWorld()->GetTimeSeconds();
             return; // 컴포넌트가 이후 전이 주도
+        }
     }
 
     // 기본 추격
@@ -113,6 +138,22 @@ void ACTankerBrute::HandleChargeStateChanged(EChargeState NewState, EChargeState
     {
         // 예: 카메라 쉐이크, 머티리얼 틴트 등
     }
+
+    
+    if (NewState == EChargeState::PreCharge
+        || NewState == EChargeState::Windup
+        || NewState == EChargeState::Charging)
+    {
+        if (CachedChaseStopDistance < 0.f)
+        {
+            CachedChaseStopDistance = ChaseStopDistance;
+        }
+           
+        ChaseStopDistance = FMath::Max(ChaseStopDistance, ChargeStopDistanceOverride);
+        ChargeStopOverrideRestoreTime = -1.f;
+            
+        LastSeenTime = GetWorld()->GetTimeSeconds();
+    }
 }
 
 void ACTankerBrute::HandleChargeFinished(EChargeEndReason /*Reason*/, AActor* /*Hit*/)
@@ -124,5 +165,18 @@ void ACTankerBrute::HandleChargeFinished(EChargeEndReason /*Reason*/, AActor* /*
             SetState(EEnemyState::Chase);
         else
             SetState(EEnemyState::ReturnHome);
+    }
+
+    const float Now = GetWorld()->GetTimeSeconds();
+    LastChargeFinishedTime = Now;
+    LastSeenTime = Now;
+    
+    if (PostChargeChaseGraceTime > 0.f)
+    {
+        ChargeStopOverrideRestoreTime = Now + PostChargeChaseGraceTime;
+    }
+    else
+    {
+        ChargeStopOverrideRestoreTime = Now;
     }
 }

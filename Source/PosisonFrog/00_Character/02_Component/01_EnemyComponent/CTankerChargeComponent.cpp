@@ -63,13 +63,43 @@ bool UCTankerChargeComponent::RequestCharge(AActor* InTarget)
     if (!IsValidTarget()) return false;
 
     const float Dist = DistToTarget2D();
-    if (Dist < ChargeMinDistance || Dist > ChargeMaxDistance) return false;
+    if (Dist > ChargeMaxDistance) return false;
+    
+    bool bHasPreChargeGoal = false;
+    FVector CandidateGoal = FVector::ZeroVector;
+    int32  CandidateSide = LastSideSign;
+    
+    const bool bForcePreCharge = (Dist < ChargeMinDistance);
+    if (bUsePreChargeOffset)
+    {
+        int32  SideSign = LastSideSign;
+        FVector Goal;
+        if (ComputePreChargeGoal(Goal, SideSign))
+        {
+            if (bForcePreCharge || Dist >= ChargeMinDistance)
+            {
+                bHasPreChargeGoal = true;
+                CandidateGoal = Goal;
+                CandidateSide = SideSign;
+            }
+        }
+    }
+    
+    if (bForcePreCharge && !bHasPreChargeGoal)
+        return false;
+    
+    if (!bForcePreCharge && Dist < ChargeMinDistance)
+        return false;
 
     if (AI.IsValid()) AI->StopMovement();
 
     // 1) PreCharge(사선 오프셋) 우선
-    if (bUsePreChargeOffset && ComputePreChargeGoal(PreChargeGoal, LastSideSign))
+    //if (bUsePreChargeOffset && ComputePreChargeGoal(PreChargeGoal, LastSideSign))
+    if (bHasPreChargeGoal)
     {
+        PreChargeGoal = CandidateGoal;
+        LastSideSign  = CandidateSide;
+        
         EnterState(EChargeState::PreCharge);
         PreChargeStartTime = GetWorld()->GetTimeSeconds();
         bPreChargeUsingNav = AI.IsValid();
