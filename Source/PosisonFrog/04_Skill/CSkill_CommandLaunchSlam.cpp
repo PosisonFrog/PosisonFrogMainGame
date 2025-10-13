@@ -18,6 +18,7 @@ UCSkill_CommandLaunchSlam::UCSkill_CommandLaunchSlam()
 {
     PrimaryComponentTick.bCanEverTick = true;
     ShockwaveDamageType = UDamageType::StaticClass(); // Fury 스택 금지
+    LaunchDamageType    = UDamageType::StaticClass();
 
     LaunchAllowTags = { TEXT("Enemy.Type.Normal"), TEXT("Enemy.Type.Ranged") };
     LaunchDenyTags  = { TEXT("Enemy.Type.Tank"),   TEXT("Enemy.Type.Boss") };
@@ -143,8 +144,13 @@ void UCSkill_CommandLaunchSlam::Anim_PerformLaunch()
 
     // 주변 적(Launch 허용) 띄우기
     TArray<ACharacter*> Neighbors;
-    CollectCharactersInRadius(Neighbors, LaunchRadius);
-    //CleanupLaunchedEnemies();
+    CollectCharactersInRadius(Neighbors, LaunchRadius, /*bIncludeLaunchedIgnoringZ=*/true);
+    CleanupLaunchedEnemies();
+    
+    AController* Inst = OwnerChar->GetController();
+    
+    //해당부분 에러
+    const TSubclassOf<UDamageType> LaunchDamageClass = LaunchDamageType ? LaunchDamageType : UDamageType::StaticClass();   //CleanupLaunchedEnemies();
     
     for (ACharacter* C : Neighbors)
     {
@@ -154,6 +160,15 @@ void UCSkill_CommandLaunchSlam::Anim_PerformLaunch()
         C->LaunchCharacter(FVector(0,0,EnemyLaunchZ), true, true);
 
         LaunchedEnemies.AddUnique(TWeakObjectPtr<ACharacter>(C));
+        if (LaunchDamage > 0.f)
+        {
+            UGameplayStatics::ApplyDamage(
+            C,
+            LaunchDamage,
+            Inst,
+            OwnerChar.Get(),
+            LaunchDamageClass);
+        }
     }
 
     // 공중 대기 진입 (입력 대기 1초)
@@ -263,6 +278,27 @@ bool UCSkill_CommandLaunchSlam::IsOnGroundNow() const
     return GetWorld()->LineTraceSingleByChannel(Hit, S, E, ECC_Visibility, P) && Hit.bBlockingHit;
 }
 
+void UCSkill_CommandLaunchSlam::CleanupLaunchedEnemies()
+{
+    LaunchedEnemies.RemoveAll([](const TWeakObjectPtr<ACharacter>& Ptr)
+    {
+        return !Ptr.IsValid();
+    });
+}
+
+bool UCSkill_CommandLaunchSlam::IsTrackedLaunchedEnemy(const ACharacter* C) const
+{
+    if (!C)
+        return false;
+    
+    for (const TWeakObjectPtr<ACharacter>& Ptr : LaunchedEnemies)
+    {
+        if (Ptr.Get() == C)
+            return true;
+    }
+    return false;
+}
+
 void UCSkill_CommandLaunchSlam::DoShockwaveImpact()
 {
     if (!OwnerChar.IsValid()) return;
@@ -275,9 +311,11 @@ void UCSkill_CommandLaunchSlam::DoShockwaveImpact()
         if (APlayerController* PC = Cast<APlayerController>(UGameplayStatics::GetPlayerController(GetWorld(), 0)))
             PC->ClientStartCameraShake(ShockwaveCameraShake);
 
+    CleanupLaunchedEnemies();
+    
     // 탱커/보스 포함 모든 적에 피해 적용
     TArray<ACharacter*> Affected;
-    CollectCharactersInRadius(Affected, ShockwaveRadius);
+    CollectCharactersInRadius(Affected, ShockwaveRadius, /*bIncludeLaunchedIgnoringZ=*/true);
     AController* Inst = OwnerChar->GetController();
 
     for (ACharacter* C : Affected)
@@ -297,28 +335,29 @@ void UCSkill_CommandLaunchSlam::DoShockwaveImpact()
     }
 }
 
-void UCSkill_CommandLaunchSlam::CollectCharactersInRadius(TArray<ACharacter*>& OutChars, float Radius) const
+void UCSkill_CommandLaunchSlam::CollectCharactersInRadius(TArray<ACharacter*>& OutChars, float Radius,
+    bool bIncludeLaunchedIgnoringZ) const
 {
     OutChars.Reset();
     if (!OwnerChar.IsValid()) return;
     UWorld* W = GetWorld(); if (!W) return;
-
+ 
     const FVector Center = OwnerChar->GetActorLocation();
     FCollisionObjectQueryParams Obj; Obj.AddObjectTypesToQuery(ECC_Pawn);
     FCollisionShape Sphere = FCollisionShape::MakeSphere(Radius);
     FCollisionQueryParams  Q(SCENE_QUERY_STAT(CmdOverlap), false, OwnerChar.Get());
-
+ 
     TArray<FOverlapResult> OS;
     if (!W->OverlapMultiByObjectType(OS, Center, FQuat::Identity, Obj, Sphere, Q)) return;
-
+ 
     for (const FOverlapResult& O : OS)
     {
         ACharacter* C = Cast<ACharacter>(O.GetActor());
         if (!C || C == OwnerChar.Get()) continue;
-
+ 
         const float ZDiff = FMath::Abs(C->GetActorLocation().Z - Center.Z);
-        if (ZDiff > ZTolerance) continue;
-
+        if (ZDiff > ZTolerance && !(bIncludeLaunchedIgnoringZ && IsTrackedLaunchedEnemy(C))) continue;
+ 
         OutChars.Add(C);
     }
 }

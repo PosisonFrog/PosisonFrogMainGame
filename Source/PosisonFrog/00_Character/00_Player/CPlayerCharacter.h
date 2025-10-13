@@ -70,6 +70,7 @@ public:
     UFUNCTION() void OnAttackStarted();
     UFUNCTION() void OnAttackEnded();
     UFUNCTION() void OnAttackDashReady();
+    UFUNCTION() void HandleCommandMovementLockChanged(bool bLocked);
 
 private:
     // ─────────── Dash ───────────
@@ -129,7 +130,10 @@ private:
 
     UPROPERTY(VisibleInstanceOnly, Category = "Dash|Buffer")
     float DashBufferExpire = 0.f;       // 버퍼 만료 시각
-
+    
+    UPROPERTY(VisibleInstanceOnly, Category = "Movement|Lock")
+    bool bCommandMovementLocked = false;
+    
     // ─ Dash 쿨다운
     UPROPERTY(EditDefaultsOnly, Category = "Dash", meta = (ClampMin = "0"))
     float DashCooldown = 6.0f;

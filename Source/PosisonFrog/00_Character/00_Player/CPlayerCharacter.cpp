@@ -93,7 +93,10 @@ void ACPlayerCharacter::BeginPlay()
 
     if (MovementBuffComponent)
         MovementBuffComponent->SetBaseMaxWalkSpeed(WalkingSpeed);
-
+    if (CommandLaunchSlamComponent)
+        CommandLaunchSlamComponent->OnAirCommandLockChanged.AddDynamic(
+            this, &ACPlayerCharacter::HandleCommandMovementLockChanged);
+    
     // 체력 이벤트 → HP UI 갱신
     if (ensureMsgf(HealthComponent != nullptr, TEXT("HealthComponent missing")))
     {
@@ -182,6 +185,16 @@ void ACPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
 // ────────────────────────────────────────────────────────────────────────────
 void ACPlayerCharacter::Move(const FInputActionValue& Value)
 {
+    if (CommandLaunchSlamComponent && CommandLaunchSlamComponent->ShouldBlockOtherActions())
+    {
+        HandleCommandMovementLockChanged(true);
+        return;
+    }
+    
+    if (bCommandMovementLocked)
+    {
+        HandleCommandMovementLockChanged(false);
+    }
     const FVector2D Axis = Value.Get<FVector2D>();
     if (!Controller) return;
 
@@ -237,6 +250,8 @@ void ACPlayerCharacter::OnAttackDashReady()
     bDashLocked = false;
     ConsumeDashBufferIfValid(false);  // 같은 프레임 즉발
 }
+
+
 
 // ────────────────────────────────────────────────────────────────────────────
 // 대시 (입력 및 버퍼/락)
@@ -524,8 +539,8 @@ void ACPlayerCharacter::TickUltimateUI()
 // ────────────────────────────────────────────────────────────────────────────
 void ACPlayerCharacter::OnSpinPressed()
 {
-    if (CommandLaunchSlamComponent && CommandLaunchSlamComponent->ShouldBlockOtherActions())
-        return;
+    //if (CommandLaunchSlamComponent && CommandLaunchSlamComponent->ShouldBlockOtherActions())
+       // return;
     
     if (SpinAttackComponent)
         SpinAttackComponent->TryStartSpin();
@@ -553,8 +568,23 @@ void ACPlayerCharacter::OnCommandPressed()
             if (CommandLaunchSlamComponent->ShouldBlockOtherActions())
                 return;
             
-            CommandLaunchSlamComponent->TryStartCommand();
+            if (CommandLaunchSlamComponent->TryStartCommand())
+                HandleCommandMovementLockChanged(true);
         }
+    }
+}
+
+void ACPlayerCharacter::HandleCommandMovementLockChanged(bool bLocked)
+{
+    if (bCommandMovementLocked == bLocked)
+        return;
+    
+    bCommandMovementLocked = bLocked;
+    
+    if (bCommandMovementLocked)
+    {
+        if (UCharacterMovementComponent* Move = GetCharacterMovement())
+            Move->StopMovementImmediately();
     }
 }
 

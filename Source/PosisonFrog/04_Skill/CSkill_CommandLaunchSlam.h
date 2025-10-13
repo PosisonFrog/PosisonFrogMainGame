@@ -67,10 +67,12 @@ private:
     void ForceDescend(bool bAsSlam);
     void OnAirWindowExpired();
     void DoShockwaveImpact();
-    void CollectCharactersInRadius(TArray<ACharacter*>& OutChars, float Radius) const;
+    void CollectCharactersInRadius(TArray<ACharacter*>& OutChars, float Radius, bool bIncludeLaunchedIgnoringZ = false) const;
     bool IsOnGroundNow() const;
     bool IsLaunchableEnemy(ACharacter* C) const;
     void ForceDropEnemiesInRange() const;
+    void CleanupLaunchedEnemies();
+    bool IsTrackedLaunchedEnemy(const ACharacter* C) const;
 
     void StartSlamConfirmDelay();
     void ClearSlamWaiting();
@@ -91,6 +93,8 @@ private:
     float EnemyLaunchZ  = 800.f;
     UPROPERTY(EditDefaultsOnly, Category="CommandSkill|Launch", meta=(ClampMin="0"))
     float EnemyForceDropSpeed = 3200.f;
+    UPROPERTY(EditDefaultsOnly, Category="CommandSkill|Launch", meta=(ClampMin="0"))
+    float LaunchDamage = 180.f;
 
     UPROPERTY(EditDefaultsOnly, Category="CommandSkill|Range", meta=(ClampMin="100"))
     float LaunchRadius = 450.f;
@@ -111,6 +115,8 @@ private:
     float ShockwaveRadius = 520.f;
     UPROPERTY(EditDefaultsOnly, Category="CommandSkill|Shockwave", meta=(ClampMin="0"))
     float ShockwaveDamage = 180.f;
+    UPROPERTY(EditDefaultsOnly, Category="CommandSkill|DamageType")
+    TSubclassOf<UDamageType> LaunchDamageType;
     UPROPERTY(EditDefaultsOnly, Category="CommandSkill|DamageType")
     TSubclassOf<UDamageType> ShockwaveDamageType;
 

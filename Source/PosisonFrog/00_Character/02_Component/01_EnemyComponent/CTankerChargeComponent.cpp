@@ -337,7 +337,14 @@ void UCTankerChargeComponent::BeginRecovery(EChargeEndReason Reason, AActor* Hit
 
     if (UWorld* World = GetWorld())
     {
-        const float Stun = (Reason == EChargeEndReason::HitWorld) ? WallStunTime : RecoveryTime;
+        const bool bFailedCharge = (Reason == EChargeEndReason::Aborted)
+            || (Reason == EChargeEndReason::MaxTime)
+            || (Reason == EChargeEndReason::MaxDistance);
+        
+        const float Stun = (Reason == EChargeEndReason::HitWorld)
+        ? WallStunTime
+        : (bFailedCharge ? FailedChargeStunTime : RecoveryTime);
+        
         World->GetTimerManager().SetTimer(TH_Recovery, this, &UCTankerChargeComponent::BeginCooldown, Stun, false);
     }
 }

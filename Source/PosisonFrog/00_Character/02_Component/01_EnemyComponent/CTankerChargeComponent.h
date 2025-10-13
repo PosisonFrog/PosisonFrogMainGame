@@ -171,6 +171,9 @@ private:
     UPROPERTY(EditDefaultsOnly, Category="PF|Charge|Hit", meta=(ClampMin="0"))
     float RecoveryTime = 0.6f;
 
+    UPROPERTY(EditDefaultsOnly, Category="PF|Charge|Hit", meta=(ClampMin="0"))
+    float FailedChargeStunTime = 1.0f;
+    
     // ─ Cooldown ─
     UPROPERTY(EditDefaultsOnly, Category="PF|Charge|Cooldown", meta=(ClampMin="0"))
     float ChargeCooldown = 5.0f;
