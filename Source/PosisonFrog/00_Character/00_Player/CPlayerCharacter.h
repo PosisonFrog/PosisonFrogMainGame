@@ -152,8 +152,11 @@ private:
 
     // ─────────── HP ───────────
     UPROPERTY(EditDefaultsOnly, Category = "Death|Anim")
-    UAnimMontage* DeathMontage = nullptr;
+    UAnimMontage* DeathPlayerMontage = nullptr;
 
+    UPROPERTY(EditDefaultsOnly, Category = "Death|Anim")
+    UAnimMontage* DeathHammerMontage = nullptr;
+    
     UPROPERTY(VisibleInstanceOnly, Category = "State")
     bool bIsDead = false;
     

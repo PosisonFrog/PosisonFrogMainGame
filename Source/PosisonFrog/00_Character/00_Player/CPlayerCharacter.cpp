@@ -10,6 +10,8 @@
 #include "InputActionValue.h"
 
 // ─ 프로젝트 컴포넌트/유틸
+#include "CPlayerController.h"
+#include "00_Character/CMainGameModeBase.h"
 #include "00_Character/02_Component/00_PlayerComponent/CPlayerDashComponent.h"
 #include "00_Character/02_Component/00_PlayerComponent/CPlayerWeaponComponent.h"
 #include "00_Character/02_Component/00_PlayerComponent/CPlayerHealthComponent.h"
@@ -371,29 +373,49 @@ void ACPlayerCharacter::HandleDeath()
     bIsDead = true;
     CLog::Log(TEXT("[Player] Death processing started"));
 
-    APlayerController* Pc = Cast<APlayerController>(GetController());
+    // 입력 차단
+    ACPlayerController* Pc = Cast<ACPlayerController>(GetController());
     if (Pc)
         DisableInput(Pc);
 
+    // 이동 차단
     if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
     {
         MoveComp->DisableMovement();
         MoveComp->StopMovementImmediately();
     }
 
+    // 타이머 정리
     GetWorldTimerManager().ClearAllTimersForObject(this);
 
-    if (DeathMontage)
+    // 죽을 때 사용할 애니메이션 재생
+    if (DeathPlayerMontage && DeathHammerMontage)
     {
         if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
         {
-            AnimInstance->Montage_Play(DeathMontage);
+            AnimInstance->Montage_Play(DeathPlayerMontage);
+        }
+
+        if (ACHammer* Hammer = WeaponComponent->GetHammer())
+        {
+            if (UAnimInstance* HammerAnimInst = Hammer->GetWeaponMesh()->GetAnimInstance())
+            {
+                HammerAnimInst->Montage_Play(DeathHammerMontage);
+            }
         }
     }
 
+    // UI가 존재 한다면 여기에 작성하기
     if (PlayerWidget)
     {
         // 게임 오버 UI 및 기존 UI 숨기기
+    }
+
+    // 나중에 UI가 생기면 이 코드는 삭제하거나 UI에서 버튼을 누르면 이 함수 호출하기
+    if (UWorld* World = GetWorld())
+    {
+        if (ACMainGameModeBase* GameMode = Cast<ACMainGameModeBase>(World->GetAuthGameMode()))
+            GameMode->OnPlayerDeath(Pc);
     }
 }
 
