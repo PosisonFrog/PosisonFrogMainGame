@@ -4,6 +4,8 @@
 #include "00_Character/02_Component/00_PlayerComponent/CSkillComponent.h"
 #include "CSkill_SpinAttack.generated.h"
 
+class UNiagaraComponent;
+class UNiagaraSystem;
 class UDamageType;
 class UAnimMontage;
 class USoundBase;
@@ -54,11 +56,14 @@ private:
 
 private:
     // ───────── 스핀 파라미터 ─────────
-    UPROPERTY(EditDefaultsOnly, Category="Finisher|Anim")
+    UPROPERTY(EditDefaultsOnly, Category="Spin|Anim")
     UAnimMontage* CharSpinMontage = nullptr;
 
-    UPROPERTY(EditDefaultsOnly, Category="Finisher|Anim")
+    UPROPERTY(EditDefaultsOnly, Category="Spin|Anim")
     UAnimMontage* HammerSpinMontage = nullptr;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Spin|Anim")
+    UNiagaraSystem* SpinVFX = nullptr;
     
     UPROPERTY(EditDefaultsOnly, Category="Spin|Timing", meta=(ClampMin="0.02", ClampMax="0.2"))
     float TickInterval = 0.05f;
@@ -118,6 +123,8 @@ private:
     TSubclassOf<UCameraShakeBase> FinisherCameraShake;
 
 private:
+    UPROPERTY() UNiagaraComponent* ActiveSpinVFXComponent = nullptr;
+    
     TWeakObjectPtr<ACharacter> OwnerChar;
     
     FTimerHandle TimerHandle_SpinTick;

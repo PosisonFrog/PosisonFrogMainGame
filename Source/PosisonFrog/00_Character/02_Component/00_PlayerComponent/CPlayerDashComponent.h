@@ -99,6 +99,13 @@ public:
     UPROPERTY(BlueprintAssignable) FOnDashEvent OnDashStarted;
     UPROPERTY(BlueprintAssignable) FOnDashEvent OnDashEnded;
 
+    // 애니메이션
+    UPROPERTY(EditAnywhere, Category = "Dash|Anim")
+    UAnimMontage* DashPlayerMontage;
+
+    UPROPERTY(EditAnywhere, Category = "Dash|Anim")
+    UAnimMontage* DashHammerMontage;
+    
 protected:
     // UObject
     virtual void BeginPlay() override;
@@ -121,7 +128,7 @@ private:
     // 캐시
     TWeakObjectPtr<ACharacter> OwnerChar;
     TWeakObjectPtr<UCharacterMovementComponent> MoveComp;
-
+    
     // 상태
     bool   bIsDashing = false;
     float  DashTimeAcc = 0.f;

@@ -1,4 +1,6 @@
 ﻿#include "CSkill_SpinAttack.h"
+
+#include "NiagaraFunctionLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/Character.h"
@@ -15,6 +17,7 @@
 #include "Engine/World.h"
 #include "Engine/EngineTypes.h"
 #include "GameFramework/DamageType.h"
+#include "NiagaraComponent.h"
 
 
 UCSkill_SpinAttack::UCSkill_SpinAttack()
@@ -52,7 +55,7 @@ void UCSkill_SpinAttack::TryStartSpin()
 void UCSkill_SpinAttack::StopSpin()
 {
     CancelSkill();
-
+    
     if (FuryRef)
     {
         FuryRef->CancelEffect();
@@ -80,6 +83,18 @@ bool UCSkill_SpinAttack::DoActivate()
         {
             if (UAnimInstance* HammerAnim = Hammer->GetHammerMesh()->GetAnimInstance())
                 HammerAnim->Montage_Play(HammerSpinMontage);
+        }
+
+        if (SpinVFX && Hammer)
+        {
+            ActiveSpinVFXComponent = UNiagaraFunctionLibrary::SpawnSystemAttached(
+                SpinVFX,
+                Hammer->GetHammerMesh(),
+                FName("Joy_WeaponVFX"),
+                FVector::ZeroVector,
+                FRotator::ZeroRotator,
+                EAttachLocation::SnapToTarget,
+                false);
         }
     }
     
@@ -123,6 +138,12 @@ bool UCSkill_SpinAttack::DoCancel()
             }
         }
     }
+
+    if (IsValid(ActiveSpinVFXComponent))
+    {
+        ActiveSpinVFXComponent->DestroyComponent();
+        ActiveSpinVFXComponent = nullptr;
+    }
     
     return true;
 }
@@ -141,6 +162,16 @@ void UCSkill_SpinAttack::OnFuryEnded(bool /*bCanceled*/, float /*Remain*/)
 
 void UCSkill_SpinAttack::OnFuryFinisher(float FinisherDamage)
 {
+    // 피니시 시작 전에 스핀 상태 완전히 정리
+    if (TimerHandle_SpinTick.IsValid())
+        GetWorld()->GetTimerManager().ClearTimer(TimerHandle_SpinTick);
+    
+    if (IsValid(ActiveSpinVFXComponent))
+    {
+        ActiveSpinVFXComponent->DestroyComponent();
+        ActiveSpinVFXComponent = nullptr;
+    }
+    
     // Fury 10칸 피니시 발생 → ‘망치 내려찍기’ 연출
     PendingFinisherDamage = (FinisherDamage > 0.f) ? FinisherDamage : FinisherDamageDefault;
     PlayFinisherMontageAndScheduleImpact(PendingFinisherDamage);

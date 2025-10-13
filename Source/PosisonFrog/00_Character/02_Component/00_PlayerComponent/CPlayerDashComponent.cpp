@@ -1,8 +1,11 @@
 #include "CPlayerDashComponent.h"
+
+#include "CPlayerWeaponComponent.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "TimerManager.h"
+#include "00_Character/00_Player/CPlayerCharacter.h"
 
 UCPlayerDashComponent::UCPlayerDashComponent()
 {
@@ -76,6 +79,27 @@ void UCPlayerDashComponent::BeginDash_Internal()
 
     ApplyPhysicsOverrides();
 
+    if (OwnerChar.IsValid())
+    {
+        if (DashPlayerMontage)
+        {
+            if (UAnimInstance* PlayerAnim = OwnerChar->GetMesh()->GetAnimInstance())
+                PlayerAnim->Montage_Play(DashPlayerMontage);
+        }
+
+        if (DashHammerMontage)
+        {
+            if (UCPlayerWeaponComponent* WeaponComp = OwnerChar->FindComponentByClass<UCPlayerWeaponComponent>())
+            {
+                if (ACHammer* Hammer = WeaponComp->GetHammer())
+                {
+                    if (UAnimInstance* HammerAnim = Hammer->GetHammerMesh()->GetAnimInstance())
+                        HammerAnim->Montage_Play(DashHammerMontage);
+                }
+            }
+        }
+    }
+    
     // 시작 시 Z 제거(옵션)
     if (bClearZVelocity && MoveComp.IsValid())
     {
