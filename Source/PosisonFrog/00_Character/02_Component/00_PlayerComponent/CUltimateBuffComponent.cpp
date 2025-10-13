@@ -3,6 +3,7 @@
 
 #include "00_Character/02_Component/00_PlayerComponent/CUltimateBuffComponent.h"
 
+#include "CPlayerMovementBuffComponent.h"
 #include "00_Character/02_Component/00_PlayerComponent/CPlayerHealthComponent.h"
 #include "00_Character/00_Player/CPlayerCharacter.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -21,6 +22,9 @@ void UCUltimateBuffComponent::BeginPlay()
 	if (IsValid(OwnerChar))
 	{
 		MovementComponent = OwnerChar->GetCharacterMovement();
+
+		MovementBuffComponent = OwnerChar->FindComponentByClass<UCPlayerMovementBuffComponent>();
+			
 		if (MovementComponent)
 			BaseMaxWalkSpeed = MovementComponent->MaxWalkSpeed;
 
@@ -45,10 +49,11 @@ void UCUltimateBuffComponent::ApplyAll()
 	bIsActive = true;
 	
 	// 이동 속도
-	if (MovementComponent)
+	if (MovementBuffComponent && BaseMaxWalkSpeed > 0.0f)
 	{
-		MovementComponent->MaxWalkSpeed = BaseMaxWalkSpeed * MoveSpeedMul;
-		UE_LOG(LogTemp, Log, TEXT("[ULT][On] MoveSpeed %.1f -> %.1f (x%.2f)"), BaseMaxWalkSpeed, MovementComponent->MaxWalkSpeed, MoveSpeedMul);
+		float NewBaseSpeed = BaseMaxWalkSpeed * MoveSpeedMul;
+		MovementBuffComponent->SetBaseMaxWalkSpeed(NewBaseSpeed);
+		UE_LOG(LogTemp, Log, TEXT("[ULT][On] MoveSpeed %.1f -> %.1f (x%.2f)"), BaseMaxWalkSpeed, NewBaseSpeed, MoveSpeedMul);
 	}
 
 	OutgoingDamageMul = DamageMul;
@@ -90,9 +95,9 @@ void UCUltimateBuffComponent::RestoreAll()
 {
 	bIsActive = false;
 	
-	if (MovementComponent && BaseMaxWalkSpeed > 0.0f)
+	if (MovementBuffComponent && BaseMaxWalkSpeed > 0.0f)
 	{
-		MovementComponent->MaxWalkSpeed = BaseMaxWalkSpeed;
+		MovementBuffComponent->SetBaseMaxWalkSpeed(BaseMaxWalkSpeed);
 		UE_LOG(LogTemp, Log, TEXT("[ULT][Off] MoveSpeed restore -> %.1f"), BaseMaxWalkSpeed);
 	}
 
