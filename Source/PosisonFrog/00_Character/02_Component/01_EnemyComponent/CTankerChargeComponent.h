@@ -76,12 +76,14 @@ public:
 
 protected:
     virtual void BeginPlay() override;
+    virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
     virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
 private:
     void EnterState(EChargeState NewState);
     void ExitState(EChargeState OldState);
     void ClearAllTimers();
+    void ResetChargeState();
 
     // 단계 전환
     void BeginWindup();
@@ -89,7 +91,9 @@ private:
     void EndCharging(EChargeEndReason Reason, AActor* HitActor = nullptr);
     void BeginRecovery(EChargeEndReason Reason, AActor* HitActor);
     void BeginCooldown();
-
+    void HandleMaxChargeTimeElapsed();
+    void HandleCooldownFinished();
+    
     // PreCharge(사선 오프셋 접근)
     bool ComputePreChargeGoal(FVector& OutGoal, int32& OutSideSign);
     void  PreChargeTick(float DeltaSeconds);

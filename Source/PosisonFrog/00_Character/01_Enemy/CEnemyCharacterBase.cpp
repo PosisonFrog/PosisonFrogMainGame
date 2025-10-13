@@ -139,9 +139,14 @@ void ACEnemyCharacterBase::Think(float /*DeltaTime*/)
 }
 
 
-void ACEnemyCharacterBase::EnterState(EEnemyState /*NewState*/)
+void ACEnemyCharacterBase::EnterState(EEnemyState NewState)
 {
 	StateEnterTime = GetWorld()->GetTimeSeconds();
+	
+	if (NewState == EEnemyState::Chase)
+	{
+		LastSeenTime = GetWorld()->GetTimeSeconds();
+	}
 }
 
 void ACEnemyCharacterBase::ExitState(EEnemyState /*OldState*/)
@@ -166,10 +171,23 @@ void ACEnemyCharacterBase::SetState(EEnemyState NewState)
 void ACEnemyCharacterBase::DoPatrol()
 {
 	// Patrol → Alert : LoS && Dist ≤ ChaseStartDistance
-	if (Target && HasVisualOnTarget() && DistToTarget() <= ChaseStartDistance)
+	if (Target)
 	{
-		SetState(EEnemyState::Alert);
-		return;
+		const float Dist = DistToTarget();
+			
+		// Patrol → Alert : 거리 기반 인지
+		if (Dist <= ChaseStartDistance)
+		{
+			SetState(EEnemyState::Alert);
+			return;
+		}
+ 
+
+		// 너무 멀어지면 타겟 해제
+		if (Dist >= ChaseStopDistance)
+		{
+			Target = nullptr;
+		}
 	}
 
 	// 현재 순찰 도착 위치가 0에 가깝거나 AI가 목표지점에 도달 했으면
@@ -210,10 +228,9 @@ void ACEnemyCharacterBase::DoPatrol()
 void ACEnemyCharacterBase::DoAlert()
 {
 	const float AlertDuration = 0.4f;
-	const bool bLoS = Target && HasVisualOnTarget();
 	const bool bNear = Target && DistToTarget() <= ChaseStartDistance;
 
-	if (!bLoS || !bNear)
+	if (!bNear)
 	{
 		SetState(EEnemyState::Patrol);
 		return;
@@ -221,6 +238,7 @@ void ACEnemyCharacterBase::DoAlert()
 
 	if (GetWorld()->GetTimeSeconds() - StateEnterTime >= AlertDuration)
 	{
+		LastSeenTime = GetWorld()->GetTimeSeconds();
 		SetState(EEnemyState::Chase);
 	}
 }
@@ -559,6 +577,38 @@ float ACEnemyCharacterBase::TakeDamage(float DamageAmount, FDamageEvent const& D
 	float Applied = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
 	if (Applied <= 0.0f) return Applied;
 
+	APawn* InstigatorPawn = EventInstigator ? EventInstigator->GetPawn() : nullptr;
+	if (!InstigatorPawn && DamageCauser)
+	{
+		InstigatorPawn = Cast<APawn>(DamageCauser);
+		if (!InstigatorPawn)
+		{
+			InstigatorPawn = DamageCauser->GetInstigator();
+		}
+			
+		if (!InstigatorPawn && DamageCauser->GetOwner())
+		{
+			InstigatorPawn = Cast<APawn>(DamageCauser->GetOwner());
+		}
+	}
+	
+	if (ACPlayerCharacter* PlayerInstigator = Cast<ACPlayerCharacter>(InstigatorPawn))
+	{
+		Target = PlayerInstigator;
+		LastSeenTime = GetWorld()->GetTimeSeconds();
+			
+		switch (State)
+		{
+		case EEnemyState::Patrol:
+		case EEnemyState::Alert:
+		case EEnemyState::ReturnHome:
+			SetState(EEnemyState::Chase);
+			break;
+		default:
+			break;
+		}
+	}
+	
 	const bool bCountsForFury = DamageEvent.DamageTypeClass && DamageEvent.DamageTypeClass->IsChildOf(UDamageType_FuryCountable::StaticClass());
 
 	if (bCountsForFury && EventInstigator)

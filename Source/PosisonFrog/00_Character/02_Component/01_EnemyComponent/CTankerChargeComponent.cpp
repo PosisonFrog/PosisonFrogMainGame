@@ -27,6 +27,24 @@ void UCTankerChargeComponent::BeginPlay()
     }
 }
 
+void UCTankerChargeComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+    if (AI.IsValid())
+    {
+                  AI->StopMovement();
+    }
+    
+    ClearAllTimers();
+    ResetChargeState();
+    State = EChargeState::Idle;
+    
+    OwnerChar.Reset();
+    MoveComp.Reset();
+    AI.Reset();
+    
+    Super::EndPlay(EndPlayReason);
+}
+
 void UCTankerChargeComponent::TickComponent(float DeltaTime, ELevelTick, FActorComponentTickFunction*)
 {
     if (!OwnerChar.IsValid() || !MoveComp.IsValid()) return;
@@ -59,6 +77,9 @@ bool UCTankerChargeComponent::RequestCharge(AActor* InTarget)
     if (!OwnerChar.IsValid() || !MoveComp.IsValid()) return false;
     if (State != EChargeState::Idle) return false;
 
+    UWorld* World = GetWorld();
+    if (!World) return false;
+    
     TargetActor = InTarget;
     if (!IsValidTarget()) return false;
 
@@ -99,7 +120,6 @@ bool UCTankerChargeComponent::RequestCharge(AActor* InTarget)
     {
         PreChargeGoal = CandidateGoal;
         LastSideSign  = CandidateSide;
-        
         EnterState(EChargeState::PreCharge);
         PreChargeStartTime = GetWorld()->GetTimeSeconds();
         bPreChargeUsingNav = AI.IsValid();
@@ -108,8 +128,9 @@ bool UCTankerChargeComponent::RequestCharge(AActor* InTarget)
             AI->MoveToLocation(PreChargeGoal, PreChargeAcceptanceRadius, /*bStopOnOverlap*/false);
 
         // 타임아웃 폴백: 멈추지 않고 진행
-        GetWorld()->GetTimerManager().ClearTimer(TH_PreChargeTimeout);
-        GetWorld()->GetTimerManager().SetTimer(TH_PreChargeTimeout, this, &UCTankerChargeComponent::BeginWindup, PreChargeMaxTime, false);
+        FTimerManager& TM = World->GetTimerManager();
+        TM.ClearTimer(TH_PreChargeTimeout);
+        TM.SetTimer(TH_PreChargeTimeout, this, &UCTankerChargeComponent::BeginWindup, PreChargeMaxTime, false);
         return true;
     }
 
@@ -160,15 +181,17 @@ bool UCTankerChargeComponent::ComputePreChargeGoal(FVector& OutGoal, int32& OutS
 
     FVector Candidate = TargetLoc + FromTarget * PreChargeDistance + Right * (OutSideSign * PreChargeLateralOffset);
 
-    if (bClampToNavMesh)
+    UWorld* World = GetWorld();
+    
+    if (bClampToNavMesh && World)
     {
-        if (UNavigationSystemV1* NS = UNavigationSystemV1::GetCurrent(GetWorld()))
+        if (UNavigationSystemV1* NS = UNavigationSystemV1::GetCurrent(World))
         {
             FNavLocation Projected;
             if (NS->ProjectPointToNavigation(Candidate, Projected, FVector(200,200,200)))
             {
                 OutGoal = Projected.Location;
-                if (bDrawPreChargeGoal) DrawDebugSphere(GetWorld(), OutGoal, 30.f, 12, FColor::Green, false, 1.0f);
+                if (bDrawPreChargeGoal) DrawDebugSphere(World, OutGoal, 30.f, 12, FColor::Green, false, 1.0f);
                 return true;
             }
         }
@@ -183,13 +206,25 @@ void UCTankerChargeComponent::PreChargeTick(float DeltaSeconds)
 {
     if (State != EChargeState::PreCharge) return;
 
+    if (!OwnerChar.IsValid() || !MoveComp.IsValid())
+    {
+        ClearAllTimers();
+        ResetChargeState();
+        State = EChargeState::Idle;
+        return;
+    }
+    
+    UWorld* World = GetWorld();
+    if (!World)
+        return;
+    
     // Nav 사용 시: 도달 판정만
     if (bPreChargeUsingNav)
     {
         if (Reached(PreChargeGoal, PreChargeAcceptanceRadius))
         {
             if (AI.IsValid()) AI->StopMovement();
-            GetWorld()->GetTimerManager().ClearTimer(TH_PreChargeTimeout);
+            World->GetTimerManager().ClearTimer(TH_PreChargeTimeout);
             BeginWindup();
         }
         return;
@@ -200,7 +235,7 @@ void UCTankerChargeComponent::PreChargeTick(float DeltaSeconds)
     const float Dist = To.Size();
     if (Dist <= PreChargeAcceptanceRadius)
     {
-        GetWorld()->GetTimerManager().ClearTimer(TH_PreChargeTimeout);
+        World->GetTimerManager().ClearTimer(TH_PreChargeTimeout);
         BeginWindup();
         return;
     }
@@ -215,20 +250,31 @@ void UCTankerChargeComponent::PreChargeTick(float DeltaSeconds)
 
 void UCTankerChargeComponent::BeginWindup()
 {
-    if (AI.IsValid()) AI->StopMovement();
-    GetWorld()->GetTimerManager().ClearTimer(TH_PreChargeTimeout);
-
-    EnterState(EChargeState::Windup);
-    HitActorsThisCharge.Reset();
-
-    // 애님 노티가 없더라도 폴백으로 진행
-    if (!bStartOnAnimNotify)
+    if (!OwnerChar.IsValid())
     {
-        GetWorld()->GetTimerManager().SetTimer(TH_Windup, this, &UCTankerChargeComponent::BeginCharging, WindupTime, false);
+        ClearAllTimers();
+        ResetChargeState();
+        State = EChargeState::Idle;
+        return;
     }
-    else
+ 
+
+    if (AI.IsValid())
     {
-        GetWorld()->GetTimerManager().SetTimer(TH_Windup, this, &UCTankerChargeComponent::BeginCharging, WindupTime + 0.1f, false);
+        AI->StopMovement();
+    }
+    
+    if (UWorld* World = GetWorld())
+    {
+        FTimerManager& TM = World->GetTimerManager();
+        TM.ClearTimer(TH_PreChargeTimeout);
+        
+        EnterState(EChargeState::Windup);
+        HitActorsThisCharge.Reset();
+        
+        // 애님 노티가 없더라도 폴백으로 진행
+        const float WindupDuration = bStartOnAnimNotify ? WindupTime + 0.1f : WindupTime;
+        TM.SetTimer(TH_Windup, this, &UCTankerChargeComponent::BeginCharging, WindupDuration, false);
     }
 }
 
@@ -236,22 +282,31 @@ void UCTankerChargeComponent::BeginCharging()
 {
     if (State != EChargeState::Windup) return;
 
-    GetWorld()->GetTimerManager().ClearTimer(TH_Windup);
-
-    if (!IsValidTarget())
+    if (!OwnerChar.IsValid() || !MoveComp.IsValid())
     {
-        BeginCooldown();
+        ClearAllTimers();
+        ResetChargeState();
+        State = EChargeState::Idle;
         return;
     }
 
-    EnterState(EChargeState::Charging);
-    ChargeStartTime = GetWorld()->GetTimeSeconds();
-    ChargeDir2D = (TargetActor->GetActorLocation() - OwnerChar->GetActorLocation()).GetSafeNormal2D();
-
-    GetWorld()->GetTimerManager().SetTimer(TH_MaxCharge, [this]()
+    if (UWorld* World = GetWorld())
     {
-        EndCharging(EChargeEndReason::MaxTime, nullptr);
-    }, MaxChargeTime, false);
+        FTimerManager& TM = World->GetTimerManager();
+        TM.ClearTimer(TH_Windup);
+        
+        if (!IsValidTarget())
+        {
+            BeginCooldown();
+            return;
+        }
+        
+        EnterState(EChargeState::Charging);
+        ChargeStartTime = World->GetTimeSeconds();
+        ChargeDir2D = (TargetActor->GetActorLocation() - OwnerChar->GetActorLocation()).GetSafeNormal2D();
+        
+        TM.SetTimer(TH_MaxCharge, this, &UCTankerChargeComponent::HandleMaxChargeTimeElapsed, MaxChargeTime, false);
+    }
 }
 
 void UCTankerChargeComponent::EndCharging(EChargeEndReason Reason, AActor* HitActor)
@@ -269,61 +324,87 @@ void UCTankerChargeComponent::EndCharging(EChargeEndReason Reason, AActor* HitAc
 
 void UCTankerChargeComponent::BeginRecovery(EChargeEndReason Reason, AActor* HitActor)
 {
+    if (!OwnerChar.IsValid())
+    {
+        ClearAllTimers();
+        ResetChargeState();
+        State = EChargeState::Idle;
+        return;
+    }
+    
     EnterState(EChargeState::Recovery);
     OnChargeFinished.Broadcast(Reason, HitActor);
+ 
 
-    const float Stun = (Reason == EChargeEndReason::HitWorld) ? WallStunTime : RecoveryTime;
-    GetWorld()->GetTimerManager().SetTimer(TH_Recovery, this, &UCTankerChargeComponent::BeginCooldown, Stun, false);
+    if (UWorld* World = GetWorld())
+    {
+        const float Stun = (Reason == EChargeEndReason::HitWorld) ? WallStunTime : RecoveryTime;
+        World->GetTimerManager().SetTimer(TH_Recovery, this, &UCTankerChargeComponent::BeginCooldown, Stun, false);
+    }
 }
 
 void UCTankerChargeComponent::BeginCooldown()
 {
-    EnterState(EChargeState::Cooldown);
-
-    GetWorld()->GetTimerManager().SetTimer(TH_Cooldown, [this]()
+    if (!OwnerChar.IsValid())
     {
         ClearAllTimers();
-        TargetActor = nullptr;
-        EnterState(EChargeState::Idle);
-    }, ChargeCooldown, false);
+        ResetChargeState();
+        State = EChargeState::Idle;
+        return;
+    }
+    
+    EnterState(EChargeState::Cooldown);
+ 
+    if (UWorld* World = GetWorld())
+    {
+        World->GetTimerManager().SetTimer(TH_Cooldown, this, &UCTankerChargeComponent::HandleCooldownFinished, ChargeCooldown, false);
+    }
 }
+
+
 
 void UCTankerChargeComponent::ChargeTraceAndHit(float /*DeltaSeconds*/)
 {
+    if (!OwnerChar.IsValid())
+        return;
+    
+    UWorld* World = GetWorld();
+    if (!World)
+        return;
+    
     FHitResult Hit;
     if (!SweepHitAhead(Hit, TraceAhead)) return;
-
+ 
     AActor* Other = Hit.GetActor();
     if (!Other) return;
-
+ 
     // 월드 충돌
     if (Hit.Component.IsValid() && Hit.Component->GetCollisionObjectType() == ECC_WorldStatic)
     {
         EndCharging(EChargeEndReason::HitWorld, Other);
         return;
     }
-
+ 
     // Pawn 충돌 (팀/타입 필터 적용)
     if (!HitActorsThisCharge.Contains(Other))
     {
         // 자기 자신 제외
         if (Other == OwnerChar.Get()) return;
-
+ 
         // Pawn만 타격
         APawn* HitPawn = Cast<APawn>(Other);
         if (!HitPawn) return;
-
+ 
         // 플레이어만 타격 (적 → 플레이어 돌진)
         if (!HitPawn->IsPlayerControlled())
-            return;
-        
-        HitActorsThisCharge.Add(Other);
+
+            HitActorsThisCharge.Add(Other);
         AController* Inst = OwnerChar.IsValid() ? OwnerChar->GetController() : nullptr;
         UGameplayStatics::ApplyDamage(Other, HitDamage, Inst, OwnerChar.Get(), DamageTypeClass);
-        
+         
         EndCharging(EChargeEndReason::HitPawn, Other);
     }
-
+ 
     /* // Pawn 충돌 (필요 시 팀/태그 필터) - DamageTypeClass ? DamageTypeClass가 모호하며, AppluDamage 인수개수 에러
     if (!HitActorsThisCharge.Contains(Other))
     {
@@ -342,6 +423,9 @@ bool UCTankerChargeComponent::SweepHitAhead(FHitResult& OutHit, float Distance) 
 {
     if (!OwnerChar.IsValid()) return false;
 
+    UWorld* World = GetWorld();
+    if (!World) return false;
+    
     const FVector Start = OwnerChar->GetActorLocation();
     const FVector Dir   = ChargeDir2D.IsNearlyZero()
                         ? OwnerChar->GetActorForwardVector().GetSafeNormal2D()
@@ -352,10 +436,10 @@ bool UCTankerChargeComponent::SweepHitAhead(FHitResult& OutHit, float Distance) 
     FCollisionShape Capsule = FCollisionShape::MakeCapsule(TraceRadius, OwnerChar->GetSimpleCollisionHalfHeight());
 
     // Pawn → WorldStatic 순서로 검사
-    if (GetWorld()->SweepSingleByChannel(OutHit, Start, End, FQuat::Identity, ECC_Pawn, Capsule, P))
+    if (World->SweepSingleByChannel(OutHit, Start, End, FQuat::Identity, ECC_Pawn, Capsule, P))
         return true;
 
-    return GetWorld()->SweepSingleByChannel(OutHit, Start, End, FQuat::Identity, ECC_WorldStatic, Capsule, P);
+    return World->SweepSingleByChannel(OutHit, Start, End, FQuat::Identity, ECC_WorldStatic, Capsule, P);
 }
 
 bool UCTankerChargeComponent::IsValidTarget() const
@@ -409,9 +493,33 @@ bool UCTankerChargeComponent::Reached(const FVector& P, float Radius) const
 
 void UCTankerChargeComponent::ClearAllTimers()
 {
-    GetWorld()->GetTimerManager().ClearTimer(TH_Windup);
-    GetWorld()->GetTimerManager().ClearTimer(TH_MaxCharge);
-    GetWorld()->GetTimerManager().ClearTimer(TH_Recovery);
-    GetWorld()->GetTimerManager().ClearTimer(TH_Cooldown);
-    GetWorld()->GetTimerManager().ClearTimer(TH_PreChargeTimeout);
+    if (UWorld* World = GetWorld())
+    {
+        FTimerManager& TM = World->GetTimerManager();
+        TM.ClearTimer(TH_Windup);
+        TM.ClearTimer(TH_MaxCharge);
+        TM.ClearTimer(TH_Recovery);
+        TM.ClearTimer(TH_Cooldown);
+        TM.ClearTimer(TH_PreChargeTimeout);
+    }
+}
+
+void UCTankerChargeComponent::ResetChargeState()
+{
+    HitActorsThisCharge.Reset();
+    TargetActor = nullptr;
+    bPreChargeUsingNav = false;
+    ChargeDir2D = FVector::ForwardVector;
+}
+
+void UCTankerChargeComponent::HandleMaxChargeTimeElapsed()
+{
+    EndCharging(EChargeEndReason::MaxTime, nullptr);
+}
+
+void UCTankerChargeComponent::HandleCooldownFinished()
+{
+    ClearAllTimers();
+    ResetChargeState();
+    EnterState(EChargeState::Idle);
 }
