@@ -300,6 +300,15 @@ void ACEnemyCharacterBase::DoAttack()
 		return;
 	}
 
+	if (UCharacterMovementComponent* Move = GetCharacterMovement())
+	{
+		if (Move->IsFalling())
+		{
+			bIsPerformingMelee = false;
+			return;
+		}
+	}
+
 	const float Dist = DistToTarget();
 
 	// 사거리 완전히 벗어나면 바로 추격 복귀

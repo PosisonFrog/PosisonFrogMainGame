@@ -5,9 +5,11 @@
 #include "DrawDebugHelpers.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Animation/AnimInstance.h"
 #include "GameFramework/DamageType.h"
 #include "Kismet/GameplayStatics.h"
 #include "NavigationSystem.h"
+#include "99_Util/CLog.h"
 
 UCTankerChargeComponent::UCTankerChargeComponent()
 {
@@ -162,6 +164,19 @@ void UCTankerChargeComponent::Anim_ChargeStart()
 {
     if (State == EChargeState::Windup)
         BeginCharging();
+
+    /*UAnimInstance* ChargeReadyAnimInst = (OwnerChar.Get() && OwnerChar->GetMesh())
+       ? OwnerChar->GetMesh()->GetAnimInstance()
+       : nullptr;
+
+   
+    if (!ChargeReadyAnimInst)
+    {
+        CLog::Log(TEXT("[WeaponComp] PlayComboAttack: AnimInstance null"));
+        return;
+    }
+    
+    ChargeReadyAnimInst->Montage_Play(ChargeReadyMontage);*/
 }
 
 bool UCTankerChargeComponent::ComputePreChargeGoal(FVector& OutGoal, int32& OutSideSign)

@@ -70,6 +70,8 @@ private:
     void CollectCharactersInRadius(TArray<ACharacter*>& OutChars, float Radius) const;
     bool IsOnGroundNow() const;
     bool IsLaunchableEnemy(ACharacter* C) const;
+    void CleanupLaunchedEnemies();
+    void ForceLaunchedEnemiesToDescend();
 
     void StartSlamConfirmDelay();
     void ClearSlamWaiting();
@@ -104,7 +106,10 @@ private:
     float SlamDownSpeed   = 2200.f;
     UPROPERTY(EditDefaultsOnly, Category="CommandSkill|Slam", meta=(ClampMin="200"))
     float AutoDescendSpeed= 1600.f;
-
+    UPROPERTY(EditDefaultsOnly, Category="CommandSkill|Slam", meta=(ClampMin="0"))
+    float EnemyDropRadius = 450.f;
+    UPROPERTY(EditDefaultsOnly, Category="CommandSkill|Slam", meta=(ClampMin="200"))
+    float EnemyDescendSpeed = 2200.f;
     UPROPERTY(EditDefaultsOnly, Category="CommandSkill|Shockwave", meta=(ClampMin="100"))
     float ShockwaveRadius = 520.f;
     UPROPERTY(EditDefaultsOnly, Category="CommandSkill|Shockwave", meta=(ClampMin="0"))
@@ -169,4 +174,5 @@ private:
     TWeakObjectPtr<ACHammer> Hammer;
     TWeakObjectPtr<UCharacterMovementComponent> MoveComp;
     FTimerHandle TimerHandle_AirWindow;
+    TArray<TWeakObjectPtr<ACharacter>> LaunchedEnemies;
 };

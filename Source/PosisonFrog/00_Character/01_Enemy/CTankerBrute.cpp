@@ -2,13 +2,21 @@
 #include "CTankerBrute.h"
 #include "00_Character/02_Component/01_EnemyComponent/CTankerChargeComponent.h"
 #include "AIController.h"
+#include "Kismet/GameplayStatics.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "NiagaraFunctionLibrary.h"       
+#include "Sound/SoundBase.h"
+#include "Components/SkeletalMeshComponent.h"
+
 
 ACTankerBrute::ACTankerBrute()
 {
     ChargeComp = CreateDefaultSubobject<UCTankerChargeComponent>(TEXT("ChargeComp"));
     // 커맨드 띄우기 면역 식별 태그
     Tags.AddUnique(TEXT("Enemy.Type.Tank"));
+    SightDistance      = FMath::Max(SightDistance, ChargeStopDistanceOverride);
+    ChaseStartDistance = FMath::Max(ChaseStartDistance, SightDistance);
+     
 }
 
 void ACTankerBrute::BeginPlay()
@@ -129,6 +137,34 @@ void ACTankerBrute::DoAttack()
         ReengageChase(AttackReengageDelay);
         bIsPerformingMelee = false;
     }
+}
+
+void ACTankerBrute::OnDead()
+{
+    Super::OnDead();
+
+    // 이동 비활성화
+    GetCharacterMovement()->DisableMovement();
+    GetCharacterMovement()->StopMovementImmediately();
+
+    // 콜리전 비활성화 (선택사항)
+   //GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+    // 공격 모션/사운드
+    if (DeadMontage)
+    {
+        if (USkeletalMeshComponent* mesh = GetMesh())
+            if (UAnimInstance* Anim = mesh->GetAnimInstance())
+                Anim->Montage_Play(DeadMontage, 1.0f);
+    }
+
+    
+    
+    // Niagara 이펙트 스폰
+    if (HitEffect)
+        UNiagaraFunctionLibrary::SpawnSystemAtLocation(this,HitEffect,GetActorLocation(),GetActorRotation());
+    if (HitSound)
+        UGameplayStatics::PlaySoundAtLocation(this, HitSound, GetActorLocation());
 }
 
 void ACTankerBrute::HandleChargeStateChanged(EChargeState NewState, EChargeState /*PrevState*/)

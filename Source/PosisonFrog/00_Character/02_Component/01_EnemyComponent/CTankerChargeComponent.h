@@ -9,6 +9,7 @@ class UCharacterMovementComponent;
 class UDamageType;
 class ACharacter;
 class AAIController;
+class UAnimMontage;
 
 UENUM(BlueprintType)
 enum class EChargeState : uint8
@@ -183,6 +184,16 @@ private:
 
     UPROPERTY(EditDefaultsOnly, Category="PF|Charge|Debug")
     bool  bDrawPreChargeGoal = false;
+
+    // ─ Montage ─
+    UPROPERTY(EditDefaultsOnly, Category = "ChargeMontage")
+    UAnimMontage* ChargeReadyMontage = nullptr;
+
+    UPROPERTY(EditDefaultsOnly, Category = "ChargeMontage")
+    UAnimMontage* ChargeMontage = nullptr;
+
+    UPROPERTY(EditDefaultsOnly, Category = "ChargeMontage")
+    UAnimMontage* ChargeStopMontage = nullptr;
 
 private:
     // ─ Runtime ─

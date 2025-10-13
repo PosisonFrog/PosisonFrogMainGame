@@ -33,6 +33,8 @@ void UCSkill_CommandLaunchSlam::BeginPlay()
 
 void UCSkill_CommandLaunchSlam::TickComponent(float DeltaTime, ELevelTick, FActorComponentTickFunction*)
 {
+    CleanupLaunchedEnemies();
+    
     if (State != ECommandAirState::Descending || !OwnerChar.IsValid() || !MoveComp.IsValid())
         return;
 
@@ -50,6 +52,8 @@ void UCSkill_CommandLaunchSlam::TickComponent(float DeltaTime, ELevelTick, FActo
             State = ECommandAirState::Inactive;
             bPendingSlam = false;
 
+            LaunchedEnemies.Reset();
+            
             if (bBlockOtherActionsWhileAir)
                 OnAirCommandLockChanged.Broadcast(false);
         }
@@ -142,13 +146,16 @@ void UCSkill_CommandLaunchSlam::Anim_PerformLaunch()
     // 주변 적(Launch 허용) 띄우기
     TArray<ACharacter*> Neighbors;
     CollectCharactersInRadius(Neighbors, LaunchRadius);
-
+    CleanupLaunchedEnemies();
+    
     for (ACharacter* C : Neighbors)
     {
         if (!C || C == OwnerChar.Get()) continue;
         if (!C->IsA(ACEnemyCharacterBase::StaticClass())) continue;
         if (!IsLaunchableEnemy(C)) continue; // 탱커/보스 면역
         C->LaunchCharacter(FVector(0,0,EnemyLaunchZ), true, true);
+
+        LaunchedEnemies.AddUnique(TWeakObjectPtr<ACharacter>(C));
     }
 
     // 공중 대기 진입 (입력 대기 1초)
@@ -169,6 +176,8 @@ void UCSkill_CommandLaunchSlam::Anim_SlamImpact()
     State = ECommandAirState::Inactive;
     bPendingSlam = false;
 
+    LaunchedEnemies.Reset();
+    
     if (bBlockOtherActionsWhileAir)
         OnAirCommandLockChanged.Broadcast(false);
 }
@@ -216,6 +225,10 @@ void UCSkill_CommandLaunchSlam::ForceDescend(bool bAsSlam)
         MoveComp->SetMovementMode(MOVE_Falling);
 
     State = ECommandAirState::Descending;
+    if (bAsSlam)
+    {
+        ForceLaunchedEnemiesToDescend();
+    }
 }
 
 void UCSkill_CommandLaunchSlam::StartSlamConfirmDelay()
@@ -309,6 +322,62 @@ void UCSkill_CommandLaunchSlam::CollectCharactersInRadius(TArray<ACharacter*>& O
         OutChars.Add(C);
     }
 }
+void UCSkill_CommandLaunchSlam::CleanupLaunchedEnemies()
+{
+    LaunchedEnemies.RemoveAll([](const TWeakObjectPtr<ACharacter>& Ptr)
+    {
+        if (!Ptr.IsValid())
+        {
+            return true;
+        }
+    
+        ACharacter* Enemy = Ptr.Get();
+        if (!Enemy)
+        {
+            return true;
+        }
+        
+        if (UCharacterMovementComponent* Move = Enemy->GetCharacterMovement())
+        {
+            return !Move->IsFalling();
+        }
+            
+        return true;
+    });
+}
+
+void UCSkill_CommandLaunchSlam::ForceLaunchedEnemiesToDescend()
+{
+    if (!OwnerChar.IsValid())
+    {
+        return;
+    }
+    
+    CleanupLaunchedEnemies();
+    
+    if (LaunchedEnemies.Num() == 0)
+    {
+        return;
+    }
+    
+    const FVector Center = OwnerChar->GetActorLocation();
+    
+    for (const TWeakObjectPtr<ACharacter>& Ptr : LaunchedEnemies)
+    {
+        ACharacter* Enemy = Ptr.Get();
+        if (!Enemy)
+        {
+            continue;
+        }
+            
+        if (EnemyDropRadius > 0.f && FVector::Dist2D(Enemy->GetActorLocation(), Center) > EnemyDropRadius)
+        {
+            continue;
+        }
+            
+        Enemy->LaunchCharacter(FVector(0.f, 0.f, -EnemyDescendSpeed), true, true);
+    }
+}
 
 bool UCSkill_CommandLaunchSlam::IsLaunchableEnemy(ACharacter* C) const
 {
@@ -337,6 +406,8 @@ bool UCSkill_CommandLaunchSlam::IsLaunchableEnemy(ACharacter* C) const
 
     return false; // 정보 없으면 보수적
 }
+
+
 
 UAnimInstance* UCSkill_CommandLaunchSlam::GetPlayerAnimInstance() const
 {

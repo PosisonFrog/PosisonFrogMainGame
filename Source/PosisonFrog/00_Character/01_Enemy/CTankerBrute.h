@@ -6,6 +6,9 @@
 #include "CTankerBrute.generated.h"
 
 class UCTankerChargeComponent;
+class UAnimMontage;
+class USoundBase;
+class UNiagaraSystem;
 
 UCLASS()
 class POSISONFROG_API ACTankerBrute : public ACEnemyCharacterBase
@@ -22,10 +25,22 @@ protected:
 	// 상위 FSM 훅
 	virtual void DoChase() override;
 	virtual void DoAttack() override; // (선택) 근접 기본 공격
+	virtual void OnDead() override;
+
 
 	UFUNCTION() void HandleChargeStateChanged(EChargeState NewState, EChargeState PrevState);
 	UFUNCTION() void HandleChargeFinished(EChargeEndReason Reason, AActor* Hit);
 
+public:
+	UPROPERTY(EditAnywhere, Category="PF|Animation")
+	UAnimMontage* DeadMontage = nullptr;
+
+	UPROPERTY(EditAnywhere, Category="PF|Sound")
+	USoundBase* HitSound = nullptr;
+
+	UPROPERTY(EditAnywhere, Category="PF|Effects")
+	UNiagaraSystem* HitEffect = nullptr;
+	
 private:
 	UPROPERTY(VisibleAnywhere, Category="PF|Component")
 	UCTankerChargeComponent* ChargeComp = nullptr;
