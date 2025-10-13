@@ -106,10 +106,12 @@ bool UCTankerChargeComponent::RequestCharge(AActor* InTarget)
         }
     }
     
-    if (bForcePreCharge && !bHasPreChargeGoal)
-        return false;
+    //if (bForcePreCharge && !bHasPreChargeGoal)
+       // return false;
     
-    if (!bForcePreCharge && Dist < ChargeMinDistance)
+    const bool bFallbackToCloseWindup = (bForcePreCharge && !bHasPreChargeGoal);
+    
+    if (!bFallbackToCloseWindup && !bForcePreCharge && Dist < ChargeMinDistance)
         return false;
 
     if (AI.IsValid()) AI->StopMovement();
@@ -134,7 +136,7 @@ bool UCTankerChargeComponent::RequestCharge(AActor* InTarget)
         return true;
     }
 
-    // 2) 바로 Windup
+     // 2) 바로 Windup (근접한 상황에서 PreCharge 목표를 찾지 못했을 때도 여기로 폴백)
     BeginWindup();
     return true;
 }
