@@ -20,7 +20,7 @@ ACHammer::ACHammer()
 	Damage = 20.0f;
 }
 
-void ACHammer::PlayAttackVFX(int32 ComboIndex)
+/*void ACHammer::PlayAttackVFX(int32 ComboIndex)
 {
 	if (!AttackVFX.IsValidIndex(ComboIndex) && !AttackVFX[ComboIndex]->IsValid())
 	{
@@ -62,7 +62,7 @@ void ACHammer::PlayAttackVFX(int32 ComboIndex)
 		FVector(1.0f),
 		true,
 		true);
-}
+}*/
 
 // Called when the game starts or when spawned
 void ACHammer::BeginPlay()
