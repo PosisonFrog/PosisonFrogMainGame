@@ -71,6 +71,9 @@ private:
     bool IsOnGroundNow() const;
     bool IsLaunchableEnemy(ACharacter* C) const;
 
+    void StartSlamConfirmDelay();
+    void ClearSlamWaiting();
+    
     // 애님 유틸
     UAnimInstance* GetPlayerAnimInstance() const;
     UAnimInstance* GetHammerAnimInstance() const;
@@ -94,6 +97,9 @@ private:
     UPROPERTY(EditDefaultsOnly, Category="CommandSkill|Timing", meta=(ClampMin="0.1", ClampMax="3.0"))
     float AirCommandWindow = 1.0f;
 
+    UPROPERTY(EditDefaultsOnly, Category="CommandSkill|Timing", meta=(ClampMin="0.0", ClampMax="3.0"))
+    float SlamConfirmDelay = 0.7f;
+    
     UPROPERTY(EditDefaultsOnly, Category="CommandSkill|Slam", meta=(ClampMin="200"))
     float SlamDownSpeed   = 2200.f;
     UPROPERTY(EditDefaultsOnly, Category="CommandSkill|Slam", meta=(ClampMin="200"))
@@ -156,6 +162,9 @@ private:
     bool  bPendingSlam = false;
     bool  bImpactDone  = false;
 
+    bool  bAwaitingSlamConfirm = false;
+    float EarliestSlamConfirmTime = 0.f;
+    
     TWeakObjectPtr<ACharacter> OwnerChar;
     TWeakObjectPtr<ACHammer> Hammer;
     TWeakObjectPtr<UCharacterMovementComponent> MoveComp;
