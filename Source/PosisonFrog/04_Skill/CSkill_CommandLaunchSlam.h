@@ -71,8 +71,7 @@ private:
     bool IsOnGroundNow() const;
     bool IsLaunchableEnemy(ACharacter* C) const;
     void ForceDropEnemiesInRange() const;
-    void CleanupLaunchedEnemies();
-    bool IsTrackedLaunchedEnemy(const ACharacter* C) const;
+
 
     void StartSlamConfirmDelay();
     void ClearSlamWaiting();
@@ -114,7 +113,7 @@ private:
     UPROPERTY(EditDefaultsOnly, Category="CommandSkill|Shockwave", meta=(ClampMin="100"))
     float ShockwaveRadius = 520.f;
     UPROPERTY(EditDefaultsOnly, Category="CommandSkill|Shockwave", meta=(ClampMin="0"))
-    float ShockwaveDamage = 180.f;
+    float ShockwaveDamage = 15.f;
     UPROPERTY(EditDefaultsOnly, Category="CommandSkill|DamageType")
     TSubclassOf<UDamageType> LaunchDamageType;
     UPROPERTY(EditDefaultsOnly, Category="CommandSkill|DamageType")
@@ -177,5 +176,4 @@ private:
     TWeakObjectPtr<ACHammer> Hammer;
     TWeakObjectPtr<UCharacterMovementComponent> MoveComp;
     FTimerHandle TimerHandle_AirWindow;
-    TArray<TWeakObjectPtr<ACharacter>> LaunchedEnemies;
 };

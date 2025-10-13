@@ -195,6 +195,7 @@ void ACPlayerCharacter::Move(const FInputActionValue& Value)
     {
         HandleCommandMovementLockChanged(false);
     }
+    
     const FVector2D Axis = Value.Get<FVector2D>();
     if (!Controller) return;
 
@@ -234,12 +235,14 @@ void ACPlayerCharacter::Attack()
 // 무기/애님에서 공격 시작 시점에 호출(있으면 더 견고)
 void ACPlayerCharacter::OnAttackStarted()
 {
+    ApplyAttackMovementOverride(true);
     bDashLocked = true;
 }
 
 // 무기/애님에서 공격 완전 종료 시 호출(정보용 – 실동작은 DashReady에서 처리)
 void ACPlayerCharacter::OnAttackEnded()
 {
+    ApplyAttackMovementOverride(false);
     bDashLocked = false;
     ConsumeDashBufferIfValid(true);   // 노티 미스 대비 2차 소비 시도
 }
@@ -513,6 +516,8 @@ void ACPlayerCharacter::AddUltimateGain(float Gain)
     UpdateUltimateUI();
 }
 
+
+
 // ─ 궁극기 UI 업데이트
 void ACPlayerCharacter::UpdateUltimateUI()
 {
@@ -585,6 +590,49 @@ void ACPlayerCharacter::HandleCommandMovementLockChanged(bool bLocked)
     {
         if (UCharacterMovementComponent* Move = GetCharacterMovement())
             Move->StopMovementImmediately();
+    }
+}
+
+void ACPlayerCharacter::ApplyAttackMovementOverride(bool bEnable)
+{
+    if (bEnable)
+    {
+        if (bAttackMovementOverrideActive)
+            return;
+        
+        bAttackMovementOverrideActive = true;
+            
+        bUseControllerRotationYaw = true;
+            
+        if (Controller)
+        {
+            const FRotator ControlRot = Controller->GetControlRotation();
+            const FRotator TargetYaw(0.f, ControlRot.Yaw, 0.f);
+            SetActorRotation(TargetYaw);
+        }
+        
+        if (UCharacterMovementComponent* Move = GetCharacterMovement())
+        {
+            Move->bOrientRotationToMovement = false;
+            Move->bUseControllerDesiredRotation = true;
+            if (Move->MovementMode == MOVE_None)
+                Move->SetMovementMode(MOVE_Walking);
+        }
+    }
+    else
+    {
+        if (!bAttackMovementOverrideActive)
+            return;
+        
+        bAttackMovementOverrideActive = false;
+        
+        bUseControllerRotationYaw = false;
+            
+        if (UCharacterMovementComponent* Move = GetCharacterMovement())
+        {
+            Move->bOrientRotationToMovement = true;
+            Move->bUseControllerDesiredRotation = false;
+        }
     }
 }
 

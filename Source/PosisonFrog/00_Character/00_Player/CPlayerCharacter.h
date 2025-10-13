@@ -133,6 +133,11 @@ private:
     
     UPROPERTY(VisibleInstanceOnly, Category = "Movement|Lock")
     bool bCommandMovementLocked = false;
+
+    UPROPERTY(VisibleInstanceOnly, Category = "Movement|Attack")
+    bool bAttackMovementOverrideActive = false;
+    
+    void ApplyAttackMovementOverride(bool bEnable);
     
     // ─ Dash 쿨다운
     UPROPERTY(EditDefaultsOnly, Category = "Dash", meta = (ClampMin = "0"))

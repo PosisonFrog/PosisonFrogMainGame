@@ -50,8 +50,6 @@ void UCSkill_CommandLaunchSlam::TickComponent(float DeltaTime, ELevelTick, FActo
             }
             State = ECommandAirState::Inactive;
             bPendingSlam = false;
-
-            LaunchedEnemies.Reset();
             
             if (bBlockOtherActionsWhileAir)
                 OnAirCommandLockChanged.Broadcast(false);
@@ -144,13 +142,13 @@ void UCSkill_CommandLaunchSlam::Anim_PerformLaunch()
 
     // 주변 적(Launch 허용) 띄우기
     TArray<ACharacter*> Neighbors;
+    
     CollectCharactersInRadius(Neighbors, LaunchRadius, /*bIncludeLaunchedIgnoringZ=*/true);
-    CleanupLaunchedEnemies();
-    
+
     AController* Inst = OwnerChar->GetController();
-    
-    //해당부분 에러
-    const TSubclassOf<UDamageType> LaunchDamageClass = LaunchDamageType ? LaunchDamageType : UDamageType::StaticClass();   //CleanupLaunchedEnemies();
+        const TSubclassOf<UDamageType> LaunchDamageClass = IsValid(LaunchDamageType)
+            ? LaunchDamageType
+            : TSubclassOf<UDamageType>(UDamageType::StaticClass());
     
     for (ACharacter* C : Neighbors)
     {
@@ -159,7 +157,7 @@ void UCSkill_CommandLaunchSlam::Anim_PerformLaunch()
         if (!IsLaunchableEnemy(C)) continue; // 탱커/보스 면역
         C->LaunchCharacter(FVector(0,0,EnemyLaunchZ), true, true);
 
-        LaunchedEnemies.AddUnique(TWeakObjectPtr<ACharacter>(C));
+      
         if (LaunchDamage > 0.f)
         {
             UGameplayStatics::ApplyDamage(
@@ -188,8 +186,6 @@ void UCSkill_CommandLaunchSlam::Anim_SlamImpact()
 
     State = ECommandAirState::Inactive;
     bPendingSlam = false;
-
-    LaunchedEnemies.Reset();
     
     if (bBlockOtherActionsWhileAir)
         OnAirCommandLockChanged.Broadcast(false);
@@ -278,26 +274,9 @@ bool UCSkill_CommandLaunchSlam::IsOnGroundNow() const
     return GetWorld()->LineTraceSingleByChannel(Hit, S, E, ECC_Visibility, P) && Hit.bBlockingHit;
 }
 
-void UCSkill_CommandLaunchSlam::CleanupLaunchedEnemies()
-{
-    LaunchedEnemies.RemoveAll([](const TWeakObjectPtr<ACharacter>& Ptr)
-    {
-        return !Ptr.IsValid();
-    });
-}
 
-bool UCSkill_CommandLaunchSlam::IsTrackedLaunchedEnemy(const ACharacter* C) const
-{
-    if (!C)
-        return false;
-    
-    for (const TWeakObjectPtr<ACharacter>& Ptr : LaunchedEnemies)
-    {
-        if (Ptr.Get() == C)
-            return true;
-    }
-    return false;
-}
+
+
 
 void UCSkill_CommandLaunchSlam::DoShockwaveImpact()
 {
@@ -310,8 +289,7 @@ void UCSkill_CommandLaunchSlam::DoShockwaveImpact()
     if (ShockwaveCameraShake)
         if (APlayerController* PC = Cast<APlayerController>(UGameplayStatics::GetPlayerController(GetWorld(), 0)))
             PC->ClientStartCameraShake(ShockwaveCameraShake);
-
-    CleanupLaunchedEnemies();
+    
     
     // 탱커/보스 포함 모든 적에 피해 적용
     TArray<ACharacter*> Affected;
@@ -349,14 +327,27 @@ void UCSkill_CommandLaunchSlam::CollectCharactersInRadius(TArray<ACharacter*>& O
  
     TArray<FOverlapResult> OS;
     if (!W->OverlapMultiByObjectType(OS, Center, FQuat::Identity, Obj, Sphere, Q)) return;
- 
+
     for (const FOverlapResult& O : OS)
     {
         ACharacter* C = Cast<ACharacter>(O.GetActor());
         if (!C || C == OwnerChar.Get()) continue;
  
         const float ZDiff = FMath::Abs(C->GetActorLocation().Z - Center.Z);
-        if (ZDiff > ZTolerance && !(bIncludeLaunchedIgnoringZ && IsTrackedLaunchedEnemy(C))) continue;
+        if (ZDiff > ZTolerance)
+        {
+            if (!bIncludeLaunchedIgnoringZ)
+                continue;
+                
+            bool bAllowAirborne = false;
+            if (const UCharacterMovementComponent* EnemyMove = C->GetCharacterMovement())
+            {
+                bAllowAirborne = EnemyMove->IsFalling();
+            }
+                
+            if (!bAllowAirborne)
+                continue;
+        }
  
         OutChars.Add(C);
     }
@@ -397,8 +388,8 @@ void UCSkill_CommandLaunchSlam::ForceDropEnemiesInRange() const
         return;
     
     TArray<ACharacter*> Neighbors;
-    CollectCharactersInRadius(Neighbors, FMath::Max(LaunchRadius, ShockwaveRadius));
-    
+    CollectCharactersInRadius(Neighbors, FMath::Max(LaunchRadius, ShockwaveRadius), /*bIncludeLaunchedIgnoringZ=*/true);
+         
     const float DropSpeed = FMath::Max(EnemyForceDropSpeed, 0.f);
     if (DropSpeed <= 0.f)
         return;

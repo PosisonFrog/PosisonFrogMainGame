@@ -10,6 +10,7 @@ class UDamageType;
 class ACharacter;
 class AAIController;
 class UAnimMontage;
+class AController;
 
 UENUM(BlueprintType)
 enum class EChargeState : uint8
@@ -94,6 +95,15 @@ private:
     void BeginCooldown();
     void HandleMaxChargeTimeElapsed();
     void HandleCooldownFinished();
+
+    UFUNCTION()
+    void HandleOwnerDamaged(AActor* DamagedActor, float Damage, const UDamageType* DamageType,
+    AController* InstigatedBy, AActor* DamageCauser);
+    
+    UFUNCTION()
+    void HandleFailedChargeRecoveryTimeout();
+    
+    void FinishFailedChargeRecovery();
     
     // PreCharge(사선 오프셋 접근)
     bool ComputePreChargeGoal(FVector& OutGoal, int32& OutSideSign);
@@ -173,6 +183,10 @@ private:
 
     UPROPERTY(EditDefaultsOnly, Category="PF|Charge|Hit", meta=(ClampMin="0"))
     float FailedChargeStunTime = 1.0f;
+
+
+    UPROPERTY(EditDefaultsOnly, Category="PF|Charge|Hit", meta=(ClampMin="0"))
+    float FailedChargeRecoveryDelay = 1.0f;
     
     // ─ Cooldown ─
     UPROPERTY(EditDefaultsOnly, Category="PF|Charge|Cooldown", meta=(ClampMin="0"))
@@ -216,4 +230,6 @@ private:
     FTimerHandle TH_Recovery;
     FTimerHandle TH_Cooldown;
     FTimerHandle TH_PreChargeTimeout;
+
+    bool bPendingFailedChargeRecovery = false;
 };
