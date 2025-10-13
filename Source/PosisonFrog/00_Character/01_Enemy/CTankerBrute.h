@@ -23,6 +23,7 @@ protected:
 	virtual void Tick(float DeltaSeconds) override;
 
 	// 상위 FSM 훅
+	virtual bool HasVisualOnTarget() const override;
 	virtual void DoChase() override;
 	virtual void DoAttack() override; // (선택) 근접 기본 공격
 	virtual void OnDead() override;

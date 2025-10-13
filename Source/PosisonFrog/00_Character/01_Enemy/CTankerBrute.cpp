@@ -57,27 +57,34 @@ void ACTankerBrute::Tick(float DeltaSeconds)
     }
 }
 
+bool ACTankerBrute::HasVisualOnTarget() const
+{
+    if (!Target)
+    {
+        return false;
+    }
+    
+    const float DistSq = FVector::DistSquared(GetActorLocation(), Target->GetActorLocation());
+    return DistSq <= FMath::Square(SightDistance);
+}
+
 void ACTankerBrute::DoChase()
 {
     // PreCharge/Windup/Charging 중이면 상위 FSM 로직 일시 중지
     if (ChargeComp && ChargeComp->IsChargingOrWindup())
         return;
 
-    // 쿨다운 중이면 일반 추격
-    if (ChargeComp && ChargeComp->IsOnCooldown())
-    {
-        ACEnemyCharacterBase::DoChase();
-        return;
-    }
+    const bool bCanAttemptCharge = bPreferCharge
+          && ChargeComp
+          && Target
+          && !ChargeComp->IsOnCooldown()
+          && HasVisualOnTarget();
 
     // 돌진 우선
-    if (bPreferCharge && Target && HasVisualOnTarget())
+    if (bCanAttemptCharge && ChargeComp->RequestCharge(Target.Get()))
     {
-        if (ChargeComp && ChargeComp->RequestCharge(Target.Get()))
-        {
-            LastSeenTime = GetWorld()->GetTimeSeconds();
-            return; // 컴포넌트가 이후 전이 주도
-        }
+        LastSeenTime = GetWorld()->GetTimeSeconds();
+        return; // 컴포넌트가 이후 전이 주도
     }
 
     // 기본 추격
@@ -92,6 +99,21 @@ void ACTankerBrute::DoAttack()
         return;
     }
 
+    if (ChargeComp && ChargeComp->IsChargingOrWindup())
+    {
+        bIsPerformingMelee = false;
+        return;
+    }
+    
+    if (ChargeComp && Target && !ChargeComp->IsOnCooldown() && HasVisualOnTarget())
+    {
+        if (ChargeComp->RequestCharge(Target.Get()))
+        {
+            bIsPerformingMelee = false;
+            LastSeenTime = GetWorld()->GetTimeSeconds();
+            return;
+        }
+    }
     const float Dist = DistToTarget();
 
     // 사거리를 충분히 벗어나면 추격 상태로 복귀

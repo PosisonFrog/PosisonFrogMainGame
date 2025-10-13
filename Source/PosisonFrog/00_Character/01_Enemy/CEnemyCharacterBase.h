@@ -221,7 +221,7 @@ protected:
     virtual bool IsInAttackDistance() const;
 
     bool  AcquireTarget();                             // 타겟(플레이어) 찾고 설정
-    bool  HasVisualOnTarget() const;                   // 타겟이 지금 보이는지
+    virtual bool  HasVisualOnTarget() const;           // 타겟이 지금 보이는지
     bool  IsTargetInFOV(const AActor* Other) const;    // 타겟이 장애물에 안가려지고 시야범위에 있는지
     float DistToTarget() const;                        // 타겟까지의 거리계산
 

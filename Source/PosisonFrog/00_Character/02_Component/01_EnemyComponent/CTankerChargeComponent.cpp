@@ -26,8 +26,6 @@ void UCTankerChargeComponent::BeginPlay()
     {
         MoveComp = OwnerChar->GetCharacterMovement();
         AI = Cast<AAIController>(OwnerChar->GetController());
-
-        OwnerChar->OnTakeAnyDamage.AddDynamic(this, &UCTankerChargeComponent::HandleOwnerDamaged);
     }
 }
 
@@ -42,10 +40,11 @@ void UCTankerChargeComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
     ResetChargeState();
     State = EChargeState::Idle;
 
+    /*
     if (OwnerChar.IsValid())
     {
         OwnerChar->OnTakeAnyDamage.RemoveDynamic(this, &UCTankerChargeComponent::HandleOwnerDamaged);
-    }
+    }*/
     
     OwnerChar.Reset();
     MoveComp.Reset();
@@ -340,11 +339,25 @@ void UCTankerChargeComponent::BeginRecovery(EChargeEndReason Reason, AActor* Hit
     
     EnterState(EChargeState::Recovery);
     OnChargeFinished.Broadcast(Reason, HitActor);
- 
+
+    const bool bFailedCharge = (Reason == EChargeEndReason::Aborted)
+          || (Reason == EChargeEndReason::MaxTime)
+          || (Reason == EChargeEndReason::MaxDistance);
+   
+    if (bFailedCharge)
+    {
+        BeginCooldown();
+        return;
+    } 
 
     if (UWorld* World = GetWorld())
     {
-        const bool bFailedCharge = (Reason == EChargeEndReason::Aborted)
+        World->GetTimerManager().ClearTimer(TH_Recovery);
+        const float Stun = (Reason == EChargeEndReason::HitWorld)
+        ? WallStunTime
+        : RecoveryTime;
+
+        /*const bool bFailedCharge = (Reason == EChargeEndReason::Aborted)
             || (Reason == EChargeEndReason::MaxTime)
             || (Reason == EChargeEndReason::MaxDistance);
         
@@ -375,7 +388,7 @@ void UCTankerChargeComponent::BeginRecovery(EChargeEndReason Reason, AActor* Hit
         else
         {
             World->GetTimerManager().SetTimer(TH_Recovery, this, &UCTankerChargeComponent::BeginCooldown, Stun, false);
-        }
+        }*/
     }
 }
 
@@ -391,20 +404,21 @@ void UCTankerChargeComponent::BeginCooldown()
 
     if (State != EChargeState::Recovery)
         return;
-
-    bPendingFailedChargeRecovery = false;
     
     EnterState(EChargeState::Cooldown);
  
     if (UWorld* World = GetWorld())
     {
         World->GetTimerManager().SetTimer(TH_Cooldown, this, &UCTankerChargeComponent::HandleCooldownFinished, ChargeCooldown, false);
+        FTimerManager& TM = World->GetTimerManager();
+        TM.ClearTimer(TH_Recovery);
+        TM.SetTimer(TH_Cooldown, this, &UCTankerChargeComponent::HandleCooldownFinished, ChargeCooldown, false);
     }
 }
 
-void UCTankerChargeComponent::HandleOwnerDamaged(AActor* DamagedActor, float Damage, const UDamageType* /*DamageType*/,
-    AController* /*InstigatedBy*/, AActor* /*DamageCauser*/)
-{
+//void UCTankerChargeComponent::HandleOwnerDamaged(AActor* DamagedActor, float Damage, const UDamageType* /*DamageType*/,
+  //  AController* /*InstigatedBy*/, AActor* /*DamageCauser*/)
+/*{
     if (Damage <= 0.f)
         return;
     
@@ -418,9 +432,9 @@ void UCTankerChargeComponent::HandleOwnerDamaged(AActor* DamagedActor, float Dam
         return;
     
         FinishFailedChargeRecovery();
-}
+}*/
 
-void UCTankerChargeComponent::HandleFailedChargeRecoveryTimeout()
+/*void UCTankerChargeComponent::HandleFailedChargeRecoveryTimeout()
 {
     FinishFailedChargeRecovery();
 }
@@ -439,7 +453,7 @@ void UCTankerChargeComponent::FinishFailedChargeRecovery()
     
     BeginCooldown();
 }
-
+*/
 
 void UCTankerChargeComponent::ChargeTraceAndHit(float /*DeltaSeconds*/)
 {

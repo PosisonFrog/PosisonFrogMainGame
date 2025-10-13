@@ -96,14 +96,14 @@ private:
     void HandleMaxChargeTimeElapsed();
     void HandleCooldownFinished();
 
-    UFUNCTION()
+    /*UFUNCTION()
     void HandleOwnerDamaged(AActor* DamagedActor, float Damage, const UDamageType* DamageType,
     AController* InstigatedBy, AActor* DamageCauser);
     
     UFUNCTION()
     void HandleFailedChargeRecoveryTimeout();
     
-    void FinishFailedChargeRecovery();
+    void FinishFailedChargeRecovery();*/
     
     // PreCharge(사선 오프셋 접근)
     bool ComputePreChargeGoal(FVector& OutGoal, int32& OutSideSign);
@@ -181,8 +181,8 @@ private:
     UPROPERTY(EditDefaultsOnly, Category="PF|Charge|Hit", meta=(ClampMin="0"))
     float RecoveryTime = 0.6f;
 
-    UPROPERTY(EditDefaultsOnly, Category="PF|Charge|Hit", meta=(ClampMin="0"))
-    float FailedChargeStunTime = 1.0f;
+    //UPROPERTY(EditDefaultsOnly, Category="PF|Charge|Hit", meta=(ClampMin="0"))
+    //float FailedChargeStunTime = 1.0f;
 
 
     UPROPERTY(EditDefaultsOnly, Category="PF|Charge|Hit", meta=(ClampMin="0"))
