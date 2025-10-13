@@ -38,6 +38,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category="HealOrb|Pool")
 	void Release(ACHealOrb* Orb);
 
+	// 레벨 전환 시 풀 정리
+	UFUNCTION(Blueprintable, Category = "HealOrb|Pool")
+	void ClearPool();
+	
 	// 픽업 통지(오브에서 콜백)
 	void NotifyPicked(ACHealOrb* Orb);
 

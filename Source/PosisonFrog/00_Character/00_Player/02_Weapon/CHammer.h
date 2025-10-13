@@ -9,7 +9,7 @@
 
 class UNiagaraSystem;
 
-USTRUCT()
+/*USTRUCT()
 struct FComboVFX_Transform
 {
 	GENERATED_BODY()
@@ -19,7 +19,7 @@ struct FComboVFX_Transform
 
 	UPROPERTY(EditAnywhere, Category = "Hammer|VFX Transform")
 	FRotator RotationOffset = FRotator::ZeroRotator;
-};
+};*/
 
 UCLASS()
 class POSISONFROG_API ACHammer : public ACWeaponBase
@@ -29,7 +29,7 @@ class POSISONFROG_API ACHammer : public ACWeaponBase
 public:	
 	ACHammer();
 
-	void PlayAttackVFX(int32 ComboIndex);
+	//void PlayAttackVFX(int32 ComboIndex);
 	
 	FORCEINLINE USkeletalMeshComponent* GetHammerMesh() const { return GetWeaponMesh(); }
 	
@@ -44,9 +44,9 @@ private:
 	UPROPERTY(EditAnywhere, Category = "Hammer|Targeting")
 	FName EnemyTag = TEXT("Enemy");
 
-	UPROPERTY(EditAnywhere, Category = "Hammer|VFX")
+	/*UPROPERTY(EditAnywhere, Category = "Hammer|VFX")
 	TArray<UNiagaraSystem*> AttackVFX;
 
 	UPROPERTY(EditAnywhere, Category = "Hammer|VFX", meta = (TitleProperty = "LocationOffset"))
-	TArray<FComboVFX_Transform> AttackVFX_Transforms;
+	TArray<FComboVFX_Transform> AttackVFX_Transforms;*/
 };

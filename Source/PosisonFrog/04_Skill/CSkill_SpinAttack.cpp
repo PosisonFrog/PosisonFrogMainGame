@@ -36,9 +36,13 @@ UCSkill_SpinAttack::UCSkill_SpinAttack()
 
 void UCSkill_SpinAttack::TryStartSpin()
 {
+    if (!FuryRef)
+        return;
+    
     StacksAtActivation = FuryRef->CurrentStacks;
     
-    if (FuryRef && StacksAtActivation >= 1)
+    // Fury 스택이 가득 차 있을 때만 발동
+    if (StacksAtActivation >= FuryRef->MaxStacks)
     {
         ActivateSkill();
         FuryRef->ActivateEffect();
