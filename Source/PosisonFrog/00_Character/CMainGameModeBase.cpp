@@ -6,6 +6,7 @@
 #include "01_Item/CHealOrb.h"
 #include "01_Item/CHealOrbPoolSubsystem.h"
 #include "99_Util/CLog.h"
+#include "Kismet/GameplayStatics.h"
 
 ACMainGameModeBase::ACMainGameModeBase()
 {
@@ -25,4 +26,34 @@ void ACMainGameModeBase::BeginPlay()
 		Pool->SetOrbClass(HealOrbClass);
 		CLog::Log(TEXT("ACMainGameModeBase - HealOrb Pool 초기화 완료"));
 	}
+}
+
+void ACMainGameModeBase::OnPlayerDeath(ACPlayerController* PlayerController)
+{
+	if (!PlayerController)
+	{
+		CLog::Log(TEXT("[GameMode] OnPlayerDeath - Invalid PlayerController"));
+		return;
+	}
+
+	CLog::Log(FString::Printf(TEXT("[GameMode] PlayerDeath - Returning to main menu in %.1f seconds"), DeathReturnDelay));
+
+	if (APawn* PlayerPawn = PlayerController->GetPawn())
+	{
+		PlayerController->DisableInput(PlayerController);
+	}
+
+	GetWorldTimerManager().SetTimer(
+		TimerHandle_ReturnToMenu,
+		this,
+		&ACMainGameModeBase::ReturnToMenu,
+		DeathReturnDelay,
+		false);
+}
+
+void ACMainGameModeBase::ReturnToMenu()
+{
+	CLog::Log(TEXT("[GameMode] Returning to Main Menu"));
+
+	UGameplayStatics::OpenLevel(this, MainMenuLevelName);
 }
