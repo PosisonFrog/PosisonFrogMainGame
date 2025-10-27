@@ -147,12 +147,6 @@ void ACTankerBrute::OnDead()
 {
     Super::OnDead();
 
-    if (UCharacterMovementComponent* Movement = GetCharacterMovement())
-    {
-        Movement->DisableMovement();
-        Movement->StopMovementImmediately();
-    }
-    
     if (USkeletalMeshComponent* MeshComp = GetMesh())
     {
         if (UAnimInstance* Anim = MeshComp->GetAnimInstance())

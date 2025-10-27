@@ -222,17 +222,6 @@ void ACRiotRobot::OnDead()
 {
     CancelAttack();
     Super::OnDead();
-
-    if (UCharacterMovementComponent* Movement = GetCharacterMovement())
-    {
-        Movement->DisableMovement();
-        Movement->StopMovementImmediately();
-    }
-    
-    if (UCapsuleComponent* Capsule = GetCapsuleComponent())
-    {
-        Capsule->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-    }
     
     PlayMontageIfValid(DeadMontage);
     SpawnHitEffectAtLocation();
