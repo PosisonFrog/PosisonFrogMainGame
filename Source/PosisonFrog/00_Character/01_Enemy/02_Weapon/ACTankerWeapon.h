@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "CEnemyWeaponBase.h"
 #include "ACTankerWeapon.generated.h"
 
@@ -23,5 +22,5 @@ private:
 	FName TankerDamageBoxSocketName = TEXT("None");
 
 	UPROPERTY(EditDefaultsOnly, Category = "Weapon|State")
-	FVector TankerDamageBoxExtent = FVector(0.0f, 0.0f, 0.0f);
+    FVector TankerDamageBoxExtent = FVector::ZeroVector;
 };

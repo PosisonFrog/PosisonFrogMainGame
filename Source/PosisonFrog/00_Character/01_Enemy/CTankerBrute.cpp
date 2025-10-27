@@ -1,20 +1,20 @@
-﻿// Source/PosisonFrog/00_Character/01_Enemy/CTankerBrute.cpp
-#include "CTankerBrute.h"
+﻿#include "CTankerBrute.h"
+
 #include "00_Character/02_Component/01_EnemyComponent/CTankerChargeComponent.h"
 #include "AIController.h"
-#include "Kismet/GameplayStatics.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Kismet/GameplayStatics.h"
 #include "NiagaraFunctionLibrary.h"       
 #include "Sound/SoundBase.h"
-#include "Components/SkeletalMeshComponent.h"
 
 
 ACTankerBrute::ACTankerBrute()
 {
     ChargeComp = CreateDefaultSubobject<UCTankerChargeComponent>(TEXT("ChargeComp"));
-    // 커맨드 띄우기 면역 식별 태그
+
     Tags.AddUnique(TEXT("Enemy.Type.Tank"));
-    SightDistance      = FMath::Max(SightDistance, ChargeStopDistanceOverride);
+    SightDistance = FMath::Max(SightDistance, ChargeStopDistanceOverride);
     ChaseStartDistance = FMath::Max(ChaseStartDistance, SightDistance);
      
 }
@@ -23,38 +23,30 @@ void ACTankerBrute::BeginPlay()
 {
     Super::BeginPlay();
 
-    if (ensure(ChargeComp))
-    {
-        ChargeComp->OnChargeStateChanged.AddDynamic(this, &ACTankerBrute::HandleChargeStateChanged);
-        ChargeComp->OnChargeFinished   .AddDynamic(this, &ACTankerBrute::HandleChargeFinished);
-    }
+    InitialiseChargeComponent();
 }
 
 void ACTankerBrute::Tick(float DeltaSeconds)
 {
     Super::Tick(DeltaSeconds);
 
-    if (ChargeStopOverrideRestoreTime >= 0.f)
+    if (ChargeStopOverrideRestoreTime < 0.f)
     {
-        const float Now = GetWorld()->GetTimeSeconds();
-
-        if (Target)
-        {
-            // 돌진 직후 시야 판정을 최근으로 유지해 추격 상태를 보존한다.
-            LastSeenTime = Now;
-        }
-
-        const bool bCharging = ChargeComp && ChargeComp->IsChargingOrWindup();
-        if (!bCharging && Now >= ChargeStopOverrideRestoreTime)
-        {
-            if (CachedChaseStopDistance >= 0.f)
-            {
-                ChaseStopDistance = CachedChaseStopDistance;
-            }
-
-            ChargeStopOverrideRestoreTime = -1.f;
-        }
+        return;
     }
+    
+    const float Now = GetWorld()->GetTimeSeconds();
+    if (Target)
+    {
+        LastSeenTime = Now;
+    }
+    const bool bCharging = ChargeComp && ChargeComp->IsChargingOrWindup();
+    if (bCharging)
+    {
+        return;
+    }
+    
+    UpdateChargeStopOverride(Now);
 }
 
 bool ACTankerBrute::HasVisualOnTarget() const
@@ -72,23 +64,18 @@ void ACTankerBrute::DoChase()
 {
     // PreCharge/Windup/Charging 중이면 상위 FSM 로직 일시 중지
     if (ChargeComp && ChargeComp->IsChargingOrWindup())
-        return;
-
-    const bool bCanAttemptCharge = bPreferCharge
-          && ChargeComp
-          && Target
-          && !ChargeComp->IsOnCooldown()
-          && HasVisualOnTarget();
-
-    // 돌진 우선
-    if (bCanAttemptCharge && ChargeComp->RequestCharge(Target.Get()))
     {
-        LastSeenTime = GetWorld()->GetTimeSeconds();
+        return;
+    }
+    
+    // 돌진 우선
+    if (TryStartCharge())
+    {
         return; // 컴포넌트가 이후 전이 주도
     }
 
     // 기본 추격
-    ACEnemyCharacterBase::DoChase();
+    Super::DoChase();
 }
 
 void ACTankerBrute::DoAttack()
@@ -105,18 +92,13 @@ void ACTankerBrute::DoAttack()
         return;
     }
     
-    if (ChargeComp && Target && !ChargeComp->IsOnCooldown() && HasVisualOnTarget())
+    if (TryStartCharge())
     {
-        if (ChargeComp->RequestCharge(Target.Get()))
-        {
-            bIsPerformingMelee = false;
-            LastSeenTime = GetWorld()->GetTimeSeconds();
-            return;
-        }
+        bIsPerformingMelee = false;
+        LastSeenTime = GetWorld()->GetTimeSeconds();
     }
-    const float Dist = DistToTarget();
 
-    // 사거리를 충분히 벗어나면 추격 상태로 복귀
+    const float Dist = DistToTarget();
     const float ExitDistance = FMath::Max(AttackExitDistance, MeleeAttackDistance * 1.1f);
     if (Dist > ExitDistance)
     {
@@ -125,7 +107,6 @@ void ACTankerBrute::DoAttack()
         return;
     }
 
-    // 공격 사거리 확보 전까지는 계속 접근을 유지한다.
     const float DesiredRange = FMath::Max(MeleeAttackDistance, AttackRange);
     if (Dist > DesiredRange * 0.9f)
     {
@@ -135,10 +116,12 @@ void ACTankerBrute::DoAttack()
         }
         else
         {
-            FVector Dir = (Target->GetActorLocation() - GetActorLocation());
+            FVector Dir = Target->GetActorLocation() - GetActorLocation();
             Dir.Z = 0.f;
             if (Dir.Normalize())
+            {
                 AddMovementInput(Dir, 1.f);
+            }
         }
     }
     else
@@ -146,13 +129,12 @@ void ACTankerBrute::DoAttack()
         StopMove();
     }
 
-    // 쿨타임이 끝났고 사거리 안이라면 1회 공격을 수행한다.
+
     if (!bIsPerformingMelee && IsAttackReady() && Dist <= MeleeAttackDistance)
     {
         bIsPerformingMelee = true;
         LastAttackTime = GetWorld()->GetTimeSeconds();
-      
-
+        
         ApplyAttackDamage();
 
         EnsureWalkingAndResume();
@@ -165,42 +147,105 @@ void ACTankerBrute::OnDead()
 {
     Super::OnDead();
 
-    // 이동 비활성화
-    GetCharacterMovement()->DisableMovement();
-    GetCharacterMovement()->StopMovementImmediately();
-
-    // 콜리전 비활성화 (선택사항)
-   //GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-
-    // 공격 모션/사운드
-    if (DeadMontage)
+    if (UCharacterMovementComponent* Movement = GetCharacterMovement())
     {
-        if (USkeletalMeshComponent* mesh = GetMesh())
-            if (UAnimInstance* Anim = mesh->GetAnimInstance())
-                Anim->Montage_Play(DeadMontage, 1.0f);
+        Movement->DisableMovement();
+        Movement->StopMovementImmediately();
     }
-
     
+    if (USkeletalMeshComponent* MeshComp = GetMesh())
+    {
+        if (UAnimInstance* Anim = MeshComp->GetAnimInstance())
+        {
+            Anim->Montage_Play(DeadMontage, 1.0f);
+        }
+    }
     
-    // Niagara 이펙트 스폰
     if (HitEffect)
-        UNiagaraFunctionLibrary::SpawnSystemAtLocation(this,HitEffect,GetActorLocation(),GetActorRotation());
+    {
+        UNiagaraFunctionLibrary::SpawnSystemAtLocation(this,HitEffect,GetActorLocation(), GetActorRotation());
+    }
+        
     if (HitSound)
+    {
         UGameplayStatics::PlaySoundAtLocation(this, HitSound, GetActorLocation());
+    }
 }
+
+
+void ACTankerBrute::InitialiseChargeComponent()
+{
+    if (!ensure(ChargeComp))
+    {
+        return;
+    }
+    
+    ChargeComp->OnChargeStateChanged.AddDynamic(this, &ACTankerBrute::HandleChargeStateChanged);
+    ChargeComp->OnChargeFinished.AddDynamic(this, &ACTankerBrute::HandleChargeFinished);
+}
+
+bool ACTankerBrute::ShouldAttemptCharge() const
+{
+    return bPreferCharge
+        && ChargeComp
+        && Target
+        && !ChargeComp->IsOnCooldown()
+        && HasVisualOnTarget();
+}
+
+bool ACTankerBrute::TryStartCharge()
+{
+    if (!ShouldAttemptCharge())
+    {
+        return false;
+    }
+    
+    if (!ChargeComp->RequestCharge(Target.Get()))
+    {
+        return false;
+    }
+    
+    LastSeenTime = GetWorld()->GetTimeSeconds();
+    return true;
+}
+
+void ACTankerBrute::UpdateChargeStopOverride(float CurrentTime)
+{
+    if (CurrentTime < ChargeStopOverrideRestoreTime)
+    {
+        return;
+    }
+    
+    if (CachedChaseStopDistance >= 0.f)
+    {
+        ChaseStopDistance = CachedChaseStopDistance;
+    }
+    
+    ChargeStopOverrideRestoreTime = -1.f;
+}
+
+
+void ACTankerBrute::HandleImmediatePostCharge(float CurrentTime)
+{
+    LastChargeFinishedTime = CurrentTime;
+    LastSeenTime = CurrentTime;
+    
+    if (PostChargeChaseGraceTime > 0.f)
+    {
+        ChargeStopOverrideRestoreTime = CurrentTime + PostChargeChaseGraceTime;
+    }
+    else
+    {
+        
+        ChargeStopOverrideRestoreTime = CurrentTime;
+    }
+}
+    
 
 void ACTankerBrute::HandleChargeStateChanged(EChargeState NewState, EChargeState /*PrevState*/)
 {
     // 사운드/FX/상태표시 등 필요 시 구현
-    if (NewState == EChargeState::Charging)
-    {
-        // 예: 카메라 쉐이크, 머티리얼 틴트 등
-    }
-
-    
-    if (NewState == EChargeState::PreCharge
-        || NewState == EChargeState::Windup
-        || NewState == EChargeState::Charging)
+    if (NewState == EChargeState::PreCharge || NewState == EChargeState::Windup || NewState == EChargeState::Charging)
     {
         if (CachedChaseStopDistance < 0.f)
         {
@@ -214,7 +259,8 @@ void ACTankerBrute::HandleChargeStateChanged(EChargeState NewState, EChargeState
     }
 }
 
-void ACTankerBrute::HandleChargeFinished(EChargeEndReason /*Reason*/, AActor* /*Hit*/)
+
+void ACTankerBrute::HandleChargeFinished(EChargeEndReason Reason, AActor* HitActor)
 {
     // 돌진 종료 → 상위 FSM 정상 복귀
     if (State != EEnemyState::Dead)
@@ -224,17 +270,6 @@ void ACTankerBrute::HandleChargeFinished(EChargeEndReason /*Reason*/, AActor* /*
         else
             SetState(EEnemyState::ReturnHome);
     }
-
     const float Now = GetWorld()->GetTimeSeconds();
-    LastChargeFinishedTime = Now;
-    LastSeenTime = Now;
-    
-    if (PostChargeChaseGraceTime > 0.f)
-    {
-        ChargeStopOverrideRestoreTime = Now + PostChargeChaseGraceTime;
-    }
-    else
-    {
-        ChargeStopOverrideRestoreTime = Now;
-    }
+    HandleImmediatePostCharge(Now);
 }

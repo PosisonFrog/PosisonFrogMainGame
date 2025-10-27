@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Animation/AnimInstance.h"
-#include "00_Character/02_Component/01_EnemyComponent/CTankerChargeComponent.h" // Enum 정의된 헤더
+#include "00_Character/02_Component/01_EnemyComponent/CTankerChargeComponent.h"
 #include "CTankerAnimInstance.generated.h"
 
 UCLASS()
@@ -14,39 +14,38 @@ public:
 	virtual void NativeUpdateAnimation(float DeltaSeconds) override;
 
 protected:
-
+	void CacheOwnerReferences();
+	void UpdateChargeStateVariables();
+	void UpdateMovementVariables();
+	
+protected:
 	UPROPERTY(BlueprintReadOnly, Category = "Charge")
-	EChargeState ChargeState;
+	EChargeState ChargeState = EChargeState::Idle;
 	
 	// State Machine에서 사용할 Bool 변수들
 	UPROPERTY(BlueprintReadOnly, Category = "Charge")
-	bool bIsIdle;
+	bool bIsIdle = true;
 
 	UPROPERTY(BlueprintReadOnly, Category = "Charge")
-	bool bIsPreCharge;
+	bool bIsPreCharge = false;
 
 	UPROPERTY(BlueprintReadOnly, Category = "Charge")
-	bool bIsWindup;
+	bool bIsWindup = false;
 
 	UPROPERTY(BlueprintReadOnly, Category = "Charge")
-	bool bIsCharging;
+	bool bIsCharging = false;
 
 	UPROPERTY(BlueprintReadOnly, Category = "Charge")
-	bool bIsRecovery;
+	bool bIsRecovery = false;
 
 	UPROPERTY(BlueprintReadOnly, Category = "Charge")
-	bool bIsOnCooldown;
+	bool bIsOnCooldown = false;
 
 	UPROPERTY(BlueprintReadOnly, Category = "Movement")
-	float MoveSpeed;
+	float MoveSpeed = 0.f;
 
 private:
-	UPROPERTY()
-	TObjectPtr<UCTankerChargeComponent> ChargeComp;
-	
-	UPROPERTY()
-	TObjectPtr<UCharacterMovementComponent> MovementComp;
-	
-	UPROPERTY()
-	TObjectPtr<ACharacter> OwnerCharacter;
+	TWeakObjectPtr<UCTankerChargeComponent> ChargeComponent;
+	TWeakObjectPtr<UCharacterMovementComponent> MovementComponent;
+	TWeakObjectPtr<ACharacter> OwnerCharacter;
 };

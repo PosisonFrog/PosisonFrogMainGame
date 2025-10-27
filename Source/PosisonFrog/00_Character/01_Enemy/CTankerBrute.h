@@ -8,7 +8,14 @@
 class UCTankerChargeComponent;
 class UAnimMontage;
 class USoundBase;
+class USoundBase;
 class UNiagaraSystem;
+
+
+/**
+ * Brute-style enemy that relies on the tanker charge component for mobility and damage.
+ * The logic mirrors the previous implementation but is reorganised for clarity.
+*/
 
 UCLASS()
 class POSISONFROG_API ACTankerBrute : public ACEnemyCharacterBase
@@ -17,50 +24,59 @@ class POSISONFROG_API ACTankerBrute : public ACEnemyCharacterBase
 
 public:
 	ACTankerBrute();
-
+	virtual void Tick(float DeltaSeconds) override;
+	
 protected:
 	virtual void BeginPlay() override;
-	virtual void Tick(float DeltaSeconds) override;
+
+
+private:
 
 	// 상위 FSM 훅
 	virtual bool HasVisualOnTarget() const override;
 	virtual void DoChase() override;
 	virtual void DoAttack() override; // (선택) 근접 기본 공격
 	virtual void OnDead() override;
-
-
-	UFUNCTION() void HandleChargeStateChanged(EChargeState NewState, EChargeState PrevState);
-	UFUNCTION() void HandleChargeFinished(EChargeEndReason Reason, AActor* Hit);
+	
+	void InitialiseChargeComponent();
+	bool ShouldAttemptCharge() const;
+	bool TryStartCharge();
+	void UpdateChargeStopOverride(float CurrentTime);
+	void HandleImmediatePostCharge(float CurrentTime);
+	
+	UFUNCTION()
+	void HandleChargeStateChanged(EChargeState NewState, EChargeState PreviousState);
+	
+	UFUNCTION()
+	void HandleChargeFinished(EChargeEndReason Reason, AActor* HitActor);
 
 public:
 	UPROPERTY(EditAnywhere, Category="PF|Animation")
-	UAnimMontage* DeadMontage = nullptr;
+	TObjectPtr<UAnimMontage> DeadMontage = nullptr;
 
 	UPROPERTY(EditAnywhere, Category="PF|Sound")
-	USoundBase* HitSound = nullptr;
+	TObjectPtr<USoundBase> HitSound = nullptr;
 
 	UPROPERTY(EditAnywhere, Category="PF|Effects")
-	UNiagaraSystem* HitEffect = nullptr;
+	TObjectPtr<UNiagaraSystem> HitEffect = nullptr;
 	
 private:
-	UPROPERTY(VisibleAnywhere, Category="PF|Component")
-	UCTankerChargeComponent* ChargeComp = nullptr;
-
-	// 돌진을 우선 시도할지
-	UPROPERTY(EditDefaultsOnly, Category="PF|Charge")
+	UPROPERTY(VisibleAnywhere, Category = "PF|Component")
+	TObjectPtr<UCTankerChargeComponent> ChargeComp = nullptr;
+	
+	UPROPERTY(EditDefaultsOnly, Category = "PF|Charge")
 	bool bPreferCharge = true;
-	// 돌진 후 복귀 허용 거리/시간 여유
-    UPROPERTY(EditDefaultsOnly, Category="PF|Charge", meta=(ClampMin="0"))
+	
+	UPROPERTY(EditDefaultsOnly, Category = "PF|Charge", meta = (ClampMin = "0"))
 	float PostChargeChaseGraceTime = 2.5f;
 	
-	UPROPERTY(EditDefaultsOnly, Category="PF|Charge", meta=(ClampMin="0"))
+	UPROPERTY(EditDefaultsOnly, Category = "PF|Charge", meta = (ClampMin = "0"))
 	float ChargeStopDistanceOverride = 4500.f;
 	
 	float ChargeStopOverrideRestoreTime = -1.f;
-	float CachedChaseStopDistance      = -1.f;
-	float LastChargeFinishedTime       = -1000.f;
+	float CachedChaseStopDistance = -1.f;
+	float LastChargeFinishedTime = -1000.f;
 	
-	// 기본 근접 공격 거리(옵션)
-	UPROPERTY(EditDefaultsOnly, Category="PF|Melee", meta=(ClampMin="0"))
+	UPROPERTY(EditDefaultsOnly, Category = "PF|Melee", meta = (ClampMin = "0"))
 	float MeleeAttackDistance = 220.f;
 };

@@ -8,8 +8,7 @@
 AACTankerWeapon::AACTankerWeapon()
 {
 	Damage = TankerWeaponDamage;
-
-	DamageBoxSocketName = TankerDamageBoxSocketName;
-	DamageBoxExtent = TankerDamageBoxExtent;
+    DamageBoxSocketName = TankerDamageBoxSocketName;
+    DamageBoxExtent = TankerDamageBoxExtent;
 }
 

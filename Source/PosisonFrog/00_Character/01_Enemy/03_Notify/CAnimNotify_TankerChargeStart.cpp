@@ -2,10 +2,22 @@
 #include "00_Character/02_Component/01_EnemyComponent/CTankerChargeComponent.h"
 #include "GameFramework/Character.h"
 
-void UCAnimNotify_TankerChargeStart::Notify(USkeletalMeshComponent* MeshComp, UAnimSequenceBase*)
+
+void UCAnimNotify_TankerChargeStart::Notify(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation)
 {
-	if (!MeshComp) return;
-	if (ACharacter* Ch = Cast<ACharacter>(MeshComp->GetOwner()))
-		if (UCTankerChargeComponent* Comp = Ch->FindComponentByClass<UCTankerChargeComponent>())
-			Comp->Anim_ChargeStart();
+	Super::Notify(MeshComp, Animation);
+	
+	if (!MeshComp)
+		return;
+	
+	
+	ACharacter* Character = Cast<ACharacter>(MeshComp->GetOwner());
+	if(!Character)
+	 	return;
+	 
+	
+	if (UCTankerChargeComponent* ChargeComponent = Character->FindComponentByClass<UCTankerChargeComponent>())
+	{
+		ChargeComponent->Anim_ChargeStart();
+	}
 }
