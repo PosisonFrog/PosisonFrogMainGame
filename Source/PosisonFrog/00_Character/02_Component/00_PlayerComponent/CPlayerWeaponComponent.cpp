@@ -115,6 +115,8 @@ void UCPlayerWeaponComponent::PlayComboAttack()
         return;
     }
 
+    UE_LOG(LogTemp, Log, TEXT("[PlayerComboAttack] index : %d"), CurrentCombo);
+
     UAnimMontage* PlayerMontage = PlayerComboMontages[CurrentCombo];
     UAnimMontage* HammerMontage = HammerComboMontages[CurrentCombo];
 
@@ -147,7 +149,7 @@ void UCPlayerWeaponComponent::PlayComboAttack()
         ResetCombo();
         return;
     }
- 
+    
     PlayerAnimInst->Montage_Play(PlayerMontage);
     HammerAnimInst->Montage_Play(HammerMontage);
 
@@ -158,7 +160,6 @@ void UCPlayerWeaponComponent::PlayComboAttack()
     FOnMontageEnded EndDelegate;
     EndDelegate.BindUObject(this, &UCPlayerWeaponComponent::OnMontageEnded);
     PlayerAnimInst->Montage_SetEndDelegate(EndDelegate, PlayerMontage);
-    HammerAnimInst->Montage_SetEndDelegate(EndDelegate, HammerMontage);
     
     // 콤보 리셋 타이머
     GetWorld()->GetTimerManager().ClearTimer(ComboResetTimer);
@@ -173,28 +174,69 @@ void UCPlayerWeaponComponent::StepToNextCombo()
     ++CurrentCombo;
     bQueuedNextInput = false; // 소비
     bCanNextCombo = false;    // 창 닫힘으로 간주(다음 애님에서 다시 열림)
+
+    GetWorld()->GetTimerManager().ClearTimer(ComboResetTimer);
+    UE_LOG(LogTemp, Log, TEXT("[StepToNextCombo] Cleared previous timer, advancing to combo %d"), CurrentCombo);
+    
     PlayComboAttack();
 }
 
 void UCPlayerWeaponComponent::ResetCombo()
 {
+    if (!bIsAttacking)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[ResetCombo] Already reset - IGNORING"));
+        return;
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("==== ResetCombo() CALLED ===="));
     GetWorld()->GetTimerManager().ClearTimer(ComboResetTimer);
 
     bIsAttacking = false;
     bCanNextCombo = false;
     bQueuedNextInput = false;
     CurrentCombo = 0;
-
+    
     // 안전: 히트창 닫기
     DisableAttackBoxCollider();
+    UE_LOG(LogTemp, Log, TEXT("[ResetCombo] RESET COMPLETE"));
 }
 
-void UCPlayerWeaponComponent::OnMontageEnded(UAnimMontage* /*Montage*/, bool bInterrupted)
+void UCPlayerWeaponComponent::OnMontageEnded(UAnimMontage* Montage, bool bInterrupted)
 {
+    UE_LOG(LogTemp, Warning, TEXT("==== OnMontageEnded() CALLED ===="));
+    UE_LOG(LogTemp, Warning, TEXT("[OnMontageEnded] Montage=%s, CurrentCombo=%d"),
+        *GetNameSafe(Montage), CurrentCombo);
+
     if (bInterrupted)
+    {
+        UE_LOG(LogTemp, Log, TEXT("[OnMontageEnded] Interrupted - IGNORING"));
         return;
-    
-    // 애님이 어떤 이유로 끝나면 항상 정리
+    }
+
+    // 이 몽타주가 현재 콤보의 몽타주가 아니면 무시
+    if (!PlayerComboMontages.IsValidIndex(CurrentCombo) || 
+        PlayerComboMontages[CurrentCombo] != Montage)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[OnMontageEnded] Old montage - IGNORING"));
+        return;
+    }
+
+    // 현재 다른 몽타주가 재생 중이면 무시
+    if (OwnerChar.IsValid() && OwnerChar->GetMesh())
+    {
+        if (UAnimInstance* AnimInst = OwnerChar->GetMesh()->GetAnimInstance())
+        {
+            UAnimMontage* CurrentlyPlaying = AnimInst->GetCurrentActiveMontage();
+            if (CurrentlyPlaying && CurrentlyPlaying != Montage)
+            {
+                UE_LOG(LogTemp, Warning, TEXT("[OnMontageEnded] Different montage playing - IGNORING"));
+                return;
+            }
+        }
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("[OnMontageEnded] Valid end - Resetting"));
     ResetCombo();
 }
 
@@ -211,7 +253,7 @@ void UCPlayerWeaponComponent::BeginAction()
 }
 void UCPlayerWeaponComponent::EndAction()
 {
-    ResetCombo();
+    //ResetCombo();
     if (ACharacter* Ch = OwnerChar.Get())
     {
         if (ACPlayerCharacter* PC = Cast<ACPlayerCharacter>(Ch))
