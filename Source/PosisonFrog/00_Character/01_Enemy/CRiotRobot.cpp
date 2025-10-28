@@ -1,15 +1,29 @@
 ﻿#include "CRiotRobot.h"
-
+ 
+#include "AIController.h"
+#include "Animation/AnimInstance.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetMathLibrary.h"
-#include "NiagaraFunctionLibrary.h"       
+#include "NiagaraFunctionLibrary.h"
 #include "Sound/SoundBase.h"
-
+#include "TimerManager.h"
+ 
 #include "01_AIController/CTacticalEnemyAIController.h"  // 전술 컨트롤러
-#include "00_Character/00_Player/CPlayerCharacter.h"
+
+namespace RiotRobot
+{
+    constexpr float TacticalRingPadding = 80.f;
+    constexpr float TacticalStrafeOffset = 60.f;
+    constexpr float TacticalStrafeAngularSpeed = 120.f;
+    constexpr float TacticalStrafeDuration = 0.6f;
+    constexpr float TacticalStrafeAcceleration = 100.f;
+    const FName AttackEffectSocketName(TEXT("SignSocket"));
+}
+
+using namespace RiotRobot;
 
 // ─────────────────────────────────────────────────────
 // 생성/초기화
@@ -32,8 +46,8 @@ ACRiotRobot::ACRiotRobot()
     CapsuleAngularDamping = 0.5f;
 
     // Base에 있는 기본 값과 동기화
-    AttackInterval   = AttackIntervalRiot;
-    BaseDamage       = AttackDamage;
+    AttackInterval      = AttackIntervalRiot;
+    BaseDamage          = AttackDamage;
     AttackEnterDistance = 160.f;
     AttackExitDistance  = 220.f;
 
@@ -46,12 +60,14 @@ void ACRiotRobot::BeginPlay()
     SetupCapsulePhysics();
 
     // 대기 몽타주가 있으면 루프 재생(선택)
-    if (IdleMontage)
-    {
-        if (USkeletalMeshComponent* mesh = GetMesh())
-            if (UAnimInstance* Anim = mesh->GetAnimInstance())
-                Anim->Montage_Play(IdleMontage, 1.0f);
-    }
+    // if (IdleMontage)
+    // {
+    //     if (USkeletalMeshComponent* mesh = GetMesh())
+    //         if (UAnimInstance* Anim = mesh->GetAnimInstance())
+    //             Anim->Montage_Play(IdleMontage, 1.0f);
+    // }
+
+    TryPlayIdleMontage();
 }
 
 void ACRiotRobot::SetupCapsulePhysics()
@@ -80,30 +96,14 @@ void ACRiotRobot::DoChase()
         return;
     }
 
-    const float Dist = DistToTarget();
-
-    if (Dist <= AttackEnterDistance && HasVisualOnTarget())
+    if (ShouldEnterAttackFromChase())
     {
-        if (AAIController* AI = Cast<AAIController>(GetController()))
-            AI->StopMovement();
-
+        StopMovement();
         SetState(EEnemyState::Attack);
         return;
     }
 
-    // ─ 전술 컨트롤러로 링 포위 추적 ─
-    if (AAIController* AIC = Cast<AAIController>(GetController()))
-    {
-        if (ACTacticalEnemyAIController* TAC = Cast<ACTacticalEnemyAIController>(AIC))
-        {
-            const float RingRadius = AttackEnterDistance + 80.f; // 약간의 패딩
-            TAC->TacticalChaseRing(Target, RingRadius, /*acc*/PatrolPointReachRadius, /*focus*/true);
-            return;
-        }
-    }
-
-    // NavMesh가 없거나 전술컨이 아니라면 기본 이동
-    RequestMoveTo(Target->GetActorLocation(), PatrolPointReachRadius);
+    RequestTacticalChase();
 }
 
 void ACRiotRobot::DoAttack()
@@ -123,16 +123,7 @@ void ACRiotRobot::DoAttack()
         return;
     }
 
-    // 쿨타임/후딜 동안 타깃을 중심으로 짧게 스트레이프하여 줄서기/경로끼임 완화
-    if (bIsAttacking == false && !IsAttackReady())
-    {
-        if (ACTacticalEnemyAIController* TAC = Cast<ACTacticalEnemyAIController>(GetController()))
-        {
-            const float Sign = (FMath::FRand() > 0.5f) ? +1.f : -1.f;
-            TAC->TacticalStrafe(Target, AttackEnterDistance + 60.f, /*deg/s*/Sign*120.f,
-                                /*duration*/0.6f, /*acc*/100.f);
-        }
-    }
+    HandleCooldownStrafe();
 }
 
 // ─────────────────────────────────────────────────────
@@ -146,44 +137,17 @@ void ACRiotRobot::StartAttack()
     bIsAttacking = true;
     AttackStartedTime = GetWorld()->GetTimeSeconds();
 
-    USkeletalMeshComponent* CharMesh = GetMesh();
-    // Niagara 이펙트 스폰
-    if (AttackEffect && CharMesh)
-    {
-        UNiagaraFunctionLibrary::SpawnSystemAttached(
-            AttackEffect,
-            CharMesh,
-            TEXT("SignSocket"), 
-            FVector::ZeroVector,
-            FRotator::ZeroRotator,
-            EAttachLocation::SnapToTarget,
-            true 
-        );
-    }
+    StopMovementAndFaceTarget();
+    SpawnAttackEffect();
+    PlayMontageIfValid(AttackMontage);
+    PlaySoundIfValid(AttackSound);
     
-    // 실제 공격 시작 시점에 쿨타임 갱신
-    LastAttackTime = AttackStartedTime;
-
-    // 이동 정지(히트 안정화)
-    if (AAIController* AI = Cast<AAIController>(GetController()))
-        AI->StopMovement();
-
-    // 타깃을 바라봄
-    const FRotator LookAt = UKismetMathLibrary::FindLookAtRotation(GetActorLocation(), Target->GetActorLocation());
-    SetActorRotation(FRotator(0.f, LookAt.Yaw, 0.f));
-
-    // 공격 모션/사운드
-    if (AttackMontage)
-    {
-        if (USkeletalMeshComponent* mesh = GetMesh())
-            if (UAnimInstance* Anim = mesh->GetAnimInstance())
-                Anim->Montage_Play(AttackMontage, 1.0f);
-    }
-    if (AttackSound)
-        UGameplayStatics::PlaySoundAtLocation(this, AttackSound, GetActorLocation());
-
-    // ─ 윈드업 후 스윙 창 열기 ─
-    GetWorldTimerManager().SetTimer(Timer_WindUp, this, &ACRiotRobot::BeginAttackWindow, AttackWindUpTime, false);
+    GetWorldTimerManager().SetTimer(
+        Timer_WindUp,
+        this,
+        &ACRiotRobot::BeginAttackWindow,
+        AttackWindUpTime,
+        false);
 }
 
 void ACRiotRobot::BeginAttackWindow()
@@ -191,33 +155,24 @@ void ACRiotRobot::BeginAttackWindow()
     // Base의 분할 스윕 시스템 사용: 창을 열고, 시작 시 즉시 1회 판정
     AttackWindowBegin(AttackActiveWindow);
     ApplyAttackDamage(/*bCheckAngle=*/true);
+    SpawnHitEffectAtForward();
+    
+    FTimerManager& TimerManager = GetWorldTimerManager();
+    const FTimerDelegate EndWindowDelegate = FTimerDelegate::CreateUObject(this, &ACRiotRobot::EndAttackWindow, false);
+    TimerManager.SetTimer(Timer_EndWindow, EndWindowDelegate, AttackActiveWindow, false);
 
-    // Niagara 이펙트 스폰
-    if (HitEffect)
-    {
-        UNiagaraFunctionLibrary::SpawnSystemAtLocation(
-            this,
-            HitEffect,
-            GetActorLocation() + GetActorForwardVector() * 100.f,
-            GetActorRotation()
-        );
-    }
-
-    // 스윙 창 자동 종료 타이머(안전)
-    GetWorldTimerManager().SetTimer(Timer_EndWindow, FTimerDelegate::CreateUObject(
-        this, &ACRiotRobot::EndAttackWindow, true), AttackActiveWindow, false);
-
-    // 리커버리 종료 → FinishAttack
     const float FinishDelay = AttackActiveWindow + AttackRecoveryTime;
-    GetWorldTimerManager().SetTimer(Timer_Finish, this, &ACRiotRobot::FinishAttack, FinishDelay, false);
-
+    TimerManager.SetTimer(Timer_Finish, this, &ACRiotRobot::FinishAttack, FinishDelay, false);
+ 
     if (bDebugAttackLog)
+    {
         UE_LOG(LogTemp, Log, TEXT("[Riot] Attack window opened (%.2fs)"), AttackActiveWindow);
+    }
 }
 
 void ACRiotRobot::EndAttackWindow(bool bForced /*=true*/)
 {
-    AttackWindowEnd(/*bForce*/bForced);
+    AttackWindowEnd(bForced);
     GetWorldTimerManager().ClearTimer(Timer_EndWindow);
 }
 
@@ -225,37 +180,31 @@ void ACRiotRobot::FinishAttack()
 {
     bIsAttacking = false;
 
-    
-    // 대기 모션(선택)
-    if (IdleMontage)
-    {
-        if (USkeletalMeshComponent* mesh = GetMesh())
-            if (UAnimInstance* Anim = mesh->GetAnimInstance())
-                Anim->Montage_Play(IdleMontage, 1.0f);
-    }
-
-    // 타이머 클린업
-    GetWorldTimerManager().ClearTimer(Timer_WindUp);
-    GetWorldTimerManager().ClearTimer(Timer_EndWindow);
-    GetWorldTimerManager().ClearTimer(Timer_Finish);
-
+    TryPlayIdleMontage();
+    ClearAttackTimers();
+ 
     if (bDebugAttackLog)
+    {
         UE_LOG(LogTemp, Verbose, TEXT("[Riot] Attack finished"));
+    }
 }
 
 void ACRiotRobot::CancelAttack()
 {
-    if (!bIsAttacking) return;
-
-    EndAttackWindow(true);
-    bIsAttacking = false;
-
-    GetWorldTimerManager().ClearTimer(Timer_WindUp);
-    GetWorldTimerManager().ClearTimer(Timer_EndWindow);
-    GetWorldTimerManager().ClearTimer(Timer_Finish);
-
-    if (bDebugAttackLog)
+    const bool bWasAttacking = bIsAttacking;
+ 
+    if (bWasAttacking)
+    {
+        EndAttackWindow(true);
+        bIsAttacking = false;
+    }
+ 
+    ClearAttackTimers();
+ 
+    if (bDebugAttackLog && bWasAttacking)
+    {
         UE_LOG(LogTemp, Verbose, TEXT("[Riot] Attack canceled"));
+    }
 }
 
 // Attack 상태에서 벗어날 때(Chase 등으로 전환 시) 안전하게 타이머 정리
@@ -273,27 +222,147 @@ void ACRiotRobot::OnDead()
 {
     CancelAttack();
     Super::OnDead();
+    
+    PlayMontageIfValid(DeadMontage);
+    SpawnHitEffectAtLocation();
+    PlaySoundIfValid(HitSound);
+}
 
-    // 이동 비활성화
-    GetCharacterMovement()->DisableMovement();
-    GetCharacterMovement()->StopMovementImmediately();
+// ─────────────────────────────────────────────────────
+// 헬퍼
+// ─────────────────────────────────────────────────────
+AAIController* ACRiotRobot::GetEnemyAIController() const
+{
+    return Cast<AAIController>(GetController());
+}
 
-    // 콜리전 비활성화 (선택사항)
-    GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+ACTacticalEnemyAIController* ACRiotRobot::GetTacticalController() const
+{
+    return Cast<ACTacticalEnemyAIController>(GetController());
+}
 
-    // 공격 모션/사운드
-    if (DeadMontage)
+void ACRiotRobot::StopMovement() const
+{
+    if (AAIController* AI = GetEnemyAIController())
     {
-        if (USkeletalMeshComponent* mesh = GetMesh())
-            if (UAnimInstance* Anim = mesh->GetAnimInstance())
-                Anim->Montage_Play(DeadMontage, 1.0f);
+        AI->StopMovement();
     }
+}
 
-    
-    
-    // Niagara 이펙트 스폰
-    if (HitEffect)
-        UNiagaraFunctionLibrary::SpawnSystemAtLocation(this,HitEffect,GetActorLocation(),GetActorRotation());
-    if (HitSound)
-        UGameplayStatics::PlaySoundAtLocation(this, HitSound, GetActorLocation());
+void ACRiotRobot::StopMovementAndFaceTarget()
+{
+    StopMovement();
+
+    if (!Target)
+        return;
+
+    const FRotator LookAt = UKismetMathLibrary::FindLookAtRotation(GetActorLocation(), Target->GetActorLocation());
+    SetActorRotation(FRotator(0.f, LookAt.Yaw, 0.f));
+}
+
+void ACRiotRobot::RequestTacticalChase()
+{
+    if (!Target)
+        return;
+
+    if (ACTacticalEnemyAIController* Tactical = GetTacticalController())
+    {
+        const float RingRadius = AttackEnterDistance + TacticalRingPadding;
+        Tactical->TacticalChaseRing(Target, RingRadius, PatrolPointReachRadius, /*focus*/true);
+        return;
+    }
+ 
+    // 콜리전 비활성화 (선택사항)
+    RequestMoveTo(Target->GetActorLocation(), PatrolPointReachRadius);
+}
+ 
+bool ACRiotRobot::ShouldEnterAttackFromChase() const
+{
+    return Target && DistToTarget() <= AttackEnterDistance && HasVisualOnTarget();
+}
+
+void ACRiotRobot::HandleCooldownStrafe()
+{
+    if (!Target || bIsAttacking || IsAttackReady())
+        return;
+
+    if (ACTacticalEnemyAIController* Tactical = GetTacticalController())
+    {
+        const float Sign = (FMath::FRand() > 0.5f) ? 1.f : -1.f;
+        Tactical->TacticalStrafe(Target,
+                                 AttackEnterDistance + TacticalStrafeOffset,
+                                 Sign * TacticalStrafeAngularSpeed,
+                                 TacticalStrafeDuration,
+                                 TacticalStrafeAcceleration);
+    }
+}
+
+void ACRiotRobot::PlayMontageIfValid(UAnimMontage* Montage, float PlayRate) const
+{
+    if (!Montage)
+        return;
+
+    if (USkeletalMeshComponent* MeshComp = GetMesh())
+    {
+        if (UAnimInstance* AnimInstance = MeshComp->GetAnimInstance())
+        {
+            AnimInstance->Montage_Play(Montage, PlayRate);
+        }
+    }
+}
+
+void ACRiotRobot::TryPlayIdleMontage() const
+{
+    PlayMontageIfValid(IdleMontage);
+}
+
+void ACRiotRobot::PlaySoundIfValid(USoundBase* Sound) const
+{
+    if (Sound)
+    {
+        UGameplayStatics::PlaySoundAtLocation(this, Sound, GetActorLocation());
+    }
+}
+
+void ACRiotRobot::SpawnAttackEffect() const
+{
+    if (!AttackEffect)
+        return;
+
+    if (USkeletalMeshComponent* MeshComp = GetMesh())
+    {
+        UNiagaraFunctionLibrary::SpawnSystemAttached(
+            AttackEffect,
+            MeshComp,
+            AttackEffectSocketName,
+            FVector::ZeroVector,
+            FRotator::ZeroRotator,
+            EAttachLocation::SnapToTarget,
+            true);
+    }
+}
+
+void ACRiotRobot::SpawnHitEffectAtForward() const
+{
+    if (!HitEffect)
+        return;
+
+    const FVector SpawnLocation = GetActorLocation() + GetActorForwardVector() * 100.f;
+    UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, HitEffect, SpawnLocation, GetActorRotation());
+}
+
+void ACRiotRobot::SpawnHitEffectAtLocation() const
+{
+    if (!HitEffect)
+        return;
+
+    UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, HitEffect, GetActorLocation(), GetActorRotation());
+}
+
+void ACRiotRobot::ClearAttackTimers()
+{
+    FTimerManager& TimerManager = GetWorldTimerManager();
+    TimerManager.ClearTimer(Timer_WindUp);
+    TimerManager.ClearTimer(Timer_EndWindow);
+    TimerManager.ClearTimer(Timer_Finish);
 }

@@ -12,6 +12,7 @@
 #include "00_Character/00_Player/CPlayerCharacter.h"
 #include "00_Character/02_Component/00_PlayerComponent/CFuryGaugeComponent.h"
 #include "00_Character/02_Component/01_EnemyComponent/CEnemyHealthComponent.h"
+#include "01_AIController/CTacticalEnemyAIController.h"
 #include "01_Item/CHealOrbPoolSubsystem.h"
 #include "03_Combat/Damage/DamageType_FuryCountable.h"
 
@@ -657,10 +658,25 @@ void ACEnemyCharacterBase::OnHealthChanged(float Cur, float Max)
 
 void ACEnemyCharacterBase::OnDead()
 {
-	if (UCharacterMovementComponent* M = GetCharacterMovement())
-		M->DisableMovement();
+	if (UCharacterMovementComponent* Movement = GetCharacterMovement())
+	{
+		Movement->DisableMovement();
+		Movement->StopMovementImmediately();
+	}
+
+	if (AAIController* AIC = Cast<AAIController>(GetController()))
+	{
+		if (ACTacticalEnemyAIController* TacAI = Cast<ACTacticalEnemyAIController>(AIC))
+		{
+			TacAI->TacticalStop();
+		}
+	}
+	
 	if (UCapsuleComponent* Cap = GetCapsuleComponent())
 		Cap->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	
+	if (USkeletalMeshComponent* MeshComp = GetMesh())
+		MeshComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
 	bAttackWindowActive = false;
 	SwingHitActors.Reset();

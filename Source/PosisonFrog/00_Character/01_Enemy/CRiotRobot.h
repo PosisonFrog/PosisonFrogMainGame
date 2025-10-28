@@ -6,6 +6,9 @@
 class UAnimMontage;
 class USoundBase;
 class UNiagaraSystem;
+class AAIController;
+class ACTacticalEnemyAIController;
+
 /**
  * 일반형: 진압 로봇 [Riot Robot]
  * - 근접 1타 위주의 근접형
@@ -39,6 +42,22 @@ protected:
     // ───────── 물리/설정 ─────────
     void SetupCapsulePhysics();
 
+    // ───────── 헬퍼 ─────────
+    AAIController* GetEnemyAIController() const;
+    ACTacticalEnemyAIController* GetTacticalController() const;
+    void StopMovement() const;
+    void StopMovementAndFaceTarget();
+    void RequestTacticalChase();
+    bool ShouldEnterAttackFromChase() const;
+    void HandleCooldownStrafe();
+    void PlayMontageIfValid(UAnimMontage* Montage, float PlayRate = 1.f) const;
+    void TryPlayIdleMontage() const;
+    void PlaySoundIfValid(USoundBase* Sound) const;
+    void SpawnAttackEffect() const;
+    void SpawnHitEffectAtForward() const;
+    void SpawnHitEffectAtLocation() const;
+    void ClearAttackTimers();
+    
 protected:
     // ───────── 공격 설정(튜닝) ─────────
     /** 공격 주기(쿨다운) */

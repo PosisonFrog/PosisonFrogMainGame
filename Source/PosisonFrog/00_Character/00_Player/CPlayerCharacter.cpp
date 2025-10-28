@@ -223,6 +223,9 @@ void ACPlayerCharacter::Look(const FInputActionValue& Value)
 // ────────────────────────────────────────────────────────────────────────────
 void ACPlayerCharacter::Attack()
 {
+    if (SpinAttackComponent && SpinAttackComponent->IsSkillActive())
+        return;
+    
     if (CommandLaunchSlamComponent && CommandLaunchSlamComponent->ShouldBlockOtherActions())
         return;
     
@@ -261,6 +264,9 @@ void ACPlayerCharacter::OnAttackDashReady()
 // ────────────────────────────────────────────────────────────────────────────
 void ACPlayerCharacter::DashStart()
 {
+    if (SpinAttackComponent && SpinAttackComponent->IsSkillActive())
+        SpinAttackComponent->StopSpin();
+    
     if (CommandLaunchSlamComponent && CommandLaunchSlamComponent->ShouldBlockOtherActions())
         return;
     
@@ -391,6 +397,9 @@ void ACPlayerCharacter::HandleDeath()
     bIsDead = true;
     CLog::Log(TEXT("[Player] Death processing started"));
 
+    if (SpinAttackComponent && SpinAttackComponent->IsSkillActive())
+        SpinAttackComponent->StopSpin();
+    
     // 입력 차단
     ACPlayerController* Pc = Cast<ACPlayerController>(GetController());
     if (Pc)
@@ -562,6 +571,9 @@ void ACPlayerCharacter::OnSpinReleased()
 // ────────────────────────────────────────────────────────────────────────────
 void ACPlayerCharacter::OnCommandPressed()
 {
+    if (SpinAttackComponent && SpinAttackComponent->IsSkillActive())
+        return;
+    
     if (CommandLaunchSlamComponent)
     {
         if (CommandLaunchSlamComponent->IsAirCommandActive())

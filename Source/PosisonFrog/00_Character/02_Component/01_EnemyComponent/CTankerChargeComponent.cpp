@@ -1,43 +1,39 @@
-﻿// Source/PosisonFrog/00_Character/01_Enemy/Components/CTankerChargeComponent.cpp
-#include "CTankerChargeComponent.h"
+﻿#include "CTankerChargeComponent.h"
 
 #include "AIController.h"
+#include "Animation/AnimInstance.h"
 #include "DrawDebugHelpers.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
-#include "Animation/AnimInstance.h"
 #include "GameFramework/DamageType.h"
 #include "Kismet/GameplayStatics.h"
 #include "NavigationSystem.h"
-#include "99_Util/CLog.h"
+
 
 UCTankerChargeComponent::UCTankerChargeComponent()
 {
     PrimaryComponentTick.bCanEverTick = true;
-    DamageTypeClass = UDamageType::StaticClass(); // Fury/스택 비연동(항상 일반 데미지)
+    if (!DamageTypeClass)
+    {
+                    DamageTypeClass = UDamageType::StaticClass();
+    }
 }
 
 void UCTankerChargeComponent::BeginPlay()
 {
     Super::BeginPlay();
-
-    OwnerChar = Cast<ACharacter>(GetOwner());
-    if (OwnerChar.IsValid())
-    {
-        MoveComp = OwnerChar->GetCharacterMovement();
-        AI = Cast<AAIController>(OwnerChar->GetController());
-    }
+    EnsureOwnerAndMovement();
 }
 
 void UCTankerChargeComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-    if (AI.IsValid())
+    if (CachedAI.IsValid())
     {
-        AI->StopMovement();
+        CachedAI->StopMovement();
     }
     
-    ClearAllTimers();
-    ResetChargeState();
+    ClearTimers();
+    ResetTransientData();
     State = EChargeState::Idle;
 
     /*
@@ -48,99 +44,102 @@ void UCTankerChargeComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
     
     OwnerChar.Reset();
     MoveComp.Reset();
-    AI.Reset();
+    TargetActor.Reset();
+    CachedAI.Reset();
     
     Super::EndPlay(EndPlayReason);
 }
 
-void UCTankerChargeComponent::TickComponent(float DeltaTime, ELevelTick, FActorComponentTickFunction*)
+void UCTankerChargeComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
-    if (!OwnerChar.IsValid() || !MoveComp.IsValid()) return;
-
-    if (State == EChargeState::PreCharge)
+    Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+    
+    if (!EnsureOwnerAndMovement())
     {
-        PreChargeTick(DeltaTime);
         return;
     }
-
-    if (State == EChargeState::Charging)
+    switch (State)
     {
-        if (IsValidTarget())
-        {
-            const FVector To = (TargetActor->GetActorLocation() - OwnerChar->GetActorLocation());
-            FaceTowards(To, DeltaTime);
-            ChargeDir2D = To.GetSafeNormal2D();
-        }
-
-        FVector Vel = ChargeDir2D * ChargeSpeed;
-        Vel.Z = MoveComp->Velocity.Z;
-        MoveComp->Velocity = Vel;
-
-        ChargeTraceAndHit(DeltaTime);
+    case EChargeState::PreCharge:
+        TickPreCharge(DeltaTime);
+        break;
+    case EChargeState::Charging:
+        UpdateCharging(DeltaTime);
+        break;
+    default:
+        break;
     }
 }
 
 bool UCTankerChargeComponent::RequestCharge(AActor* InTarget)
 {
-    if (!OwnerChar.IsValid() || !MoveComp.IsValid()) return false;
-    if (State != EChargeState::Idle) return false;
-
+    if (!EnsureOwnerAndMovement())
+    {
+        return false;
+    }
+    if (State != EChargeState::Idle)
+    {
+        return false;
+    }
+    
     UWorld* World = GetWorld();
-    if (!World) return false;
+    if (!World)
+    {
+        return false;
+    }
     
     TargetActor = InTarget;
-    if (!IsValidTarget()) return false;
+    if (!HasValidTarget())
+    {
+        return false;
+    }
 
-    const float Dist = DistToTarget2D();
-    if (Dist > ChargeMaxDistance) return false;
+    const float Distance2D = DistanceToTarget2D();
+    if (Distance2D > ChargeMaxDistance)
+    {
+        return false;
+    }
 
-    const bool bTooCloseForPreCharge = (Dist < ChargeMinDistance);
-    
+    const bool bTooCloseForPreCharge = Distance2D <= ChargeMaxDistance;
+
     bool bHasPreChargeGoal = false;
-    FVector CandidateGoal = FVector::ZeroVector;
-    int32  CandidateSide = LastSideSign;
+    FVector Goal = FVector::ZeroVector;
+    int32 SideSign = LastSideSign;
     
     if (bUsePreChargeOffset && !bTooCloseForPreCharge)
     {
-        int32  SideSign = LastSideSign;
-        FVector Goal;
-        if (ComputePreChargeGoal(Goal, SideSign))
-        {
-            bHasPreChargeGoal = true;
-            CandidateGoal = Goal;
-            CandidateSide = SideSign;
-            
-        }
+        bHasPreChargeGoal = TryBuildPreChargeGoal(Goal, SideSign);
     }
     
+
+    if (CachedAI.IsValid())
+    {
+        CachedAI->StopMovement();
+    }
     
-    if (!bHasPreChargeGoal && !bTooCloseForPreCharge && Dist < ChargeMinDistance)
-        return false;
-
-    if (AI.IsValid()) AI->StopMovement();
-
-    // 1) PreCharge(사선 오프셋) 우선
-    //if (bUsePreChargeOffset && ComputePreChargeGoal(PreChargeGoal, LastSideSign))
+    // 1) PreCharge(사선 오프셋) 
     if (bHasPreChargeGoal)
     {
-        PreChargeGoal = CandidateGoal;
-        LastSideSign  = CandidateSide;
+        PreChargeGoal = Goal;
+        LastSideSign = SideSign;
+        PreChargeStartTime = World->GetTimeSeconds();
+        bPreChargeUsingNav = CachedAI.IsValid();
+
         EnterState(EChargeState::PreCharge);
-        PreChargeStartTime = GetWorld()->GetTimeSeconds();
-        bPreChargeUsingNav = AI.IsValid();
 
         if (bPreChargeUsingNav)
-            AI->MoveToLocation(PreChargeGoal, PreChargeAcceptanceRadius, /*bStopOnOverlap*/false);
+        {
+            CachedAI->MoveToLocation(PreChargeGoal, PreChargeAcceptanceRadius, /*bStopOnOverlap*/false);
+        }
 
-        // 타임아웃 폴백: 멈추지 않고 진행
-        FTimerManager& TM = World->GetTimerManager();
-        TM.ClearTimer(TH_PreChargeTimeout);
-        TM.SetTimer(TH_PreChargeTimeout, this, &UCTankerChargeComponent::BeginWindup, PreChargeMaxTime, false);
+        FTimerManager& TimerManager = World->GetTimerManager();
+        TimerManager.ClearTimer(TH_PreChargeTimeout);
+        TimerManager.SetTimer(TH_PreChargeTimeout, this, &UCTankerChargeComponent::BeginWindupInternal, PreChargeMaxTime, false);
         return true;
     }
 
     // 2) 바로 Windup (근접한 상황에서는 바로 돌진 준비)
-    BeginWindup();
+    BeginWindupInternal();
     return true;
 }
 
@@ -151,188 +150,172 @@ void UCTankerChargeComponent::AbortCharge()
     case EChargeState::PreCharge:
     case EChargeState::Windup:
     case EChargeState::Charging:
-        EndCharging(EChargeEndReason::Aborted, nullptr);
+        EndChargingInternal(EChargeEndReason::Aborted, nullptr);
         break;
     case EChargeState::Recovery:
-        BeginCooldown();
+        StartCooldownInternal();
         break;
     default:
         break;
     }
 }
 
+bool UCTankerChargeComponent::IsChargingOrWindup() const
+{
+    return State == EChargeState::PreCharge
+        || State == EChargeState::Windup
+        || State == EChargeState::Charging;
+}
+
 void UCTankerChargeComponent::Anim_ChargeStart()
 {
     if (State == EChargeState::Windup)
-        BeginCharging();
+        BeginChargingInternal();
 }
 
-bool UCTankerChargeComponent::ComputePreChargeGoal(FVector& OutGoal, int32& OutSideSign)
+void UCTankerChargeComponent::EnterState(EChargeState NewState)
 {
-    if (!OwnerChar.IsValid() || !IsValidTarget()) return false;
+    if (State == NewState)
+    {
+        return;
+    }
 
-    const FVector OwnerLoc  = OwnerChar->GetActorLocation();
-    const FVector TargetLoc = TargetActor->GetActorLocation();
-
-    // 타겟 → 오너 벡터(원형 배치 기준 반지름 방향)
-    FVector FromTarget = (OwnerLoc - TargetLoc); FromTarget.Z = 0.f;
-    if (!FromTarget.Normalize())
-        FromTarget = -TargetActor->GetActorForwardVector().GetSafeNormal2D();
-
-    const FVector Right = FVector(-FromTarget.Y, FromTarget.X, 0.f);
-
-    // 좌/우 번갈이(혼잡 분산)
-    OutSideSign = (bAlternateSideBetweenCharges ? -OutSideSign : (FMath::RandBool() ? +1 : -1));
-
-    FVector Candidate = TargetLoc + FromTarget * PreChargeDistance + Right * (OutSideSign * PreChargeLateralOffset);
+    const EChargeState Previous = State;
+    State = NewState;
+    OnChargeStateChanged.Broadcast(State, Previous);
 
     UWorld* World = GetWorld();
     
-    if (bClampToNavMesh && World)
+#if !(UE_BUILD_SHIPPING)
+    if (bDrawPreChargeGoal && NewState == EChargeState::PreCharge)
     {
-        if (UNavigationSystemV1* NS = UNavigationSystemV1::GetCurrent(World))
+        if (bDrawPreChargeGoal && NewState == EChargeState::PreCharge)
         {
-            FNavLocation Projected;
-            if (NS->ProjectPointToNavigation(Candidate, Projected, FVector(200,200,200)))
+            DrawDebugSphere(World, PreChargeGoal, 30.f, 12, FColor::Cyan, false, 2.f);
+            if (TargetActor.IsValid())
             {
-                OutGoal = Projected.Location;
-                if (bDrawPreChargeGoal) DrawDebugSphere(World, OutGoal, 30.f, 12, FColor::Green, false, 1.0f);
-                return true;
+                DrawDebugCircle(World, TargetActor->GetActorLocation(), PreChargeDistance, 32, FColor::Blue, false, 2.f, 0, 1.f, FVector::RightVector, FVector::ForwardVector, false);
             }
         }
     }
-
-    OutGoal = Candidate;
-    if (bDrawPreChargeGoal) DrawDebugSphere(GetWorld(), OutGoal, 30.f, 12, FColor::Yellow, false, 1.0f);
-    return true;
+#endif
 }
 
-void UCTankerChargeComponent::PreChargeTick(float DeltaSeconds)
+void UCTankerChargeComponent::ResetTransientData()
 {
-    if (State != EChargeState::PreCharge) return;
-
-    if (!OwnerChar.IsValid() || !MoveComp.IsValid())
-    {
-        ClearAllTimers();
-        ResetChargeState();
-        State = EChargeState::Idle;
-        return;
-    }
-    
-    UWorld* World = GetWorld();
-    if (!World)
-        return;
-    
-    // Nav 사용 시: 도달 판정만
-    if (bPreChargeUsingNav)
-    {
-        if (Reached(PreChargeGoal, PreChargeAcceptanceRadius))
-        {
-            if (AI.IsValid()) AI->StopMovement();
-            World->GetTimerManager().ClearTimer(TH_PreChargeTimeout);
-            BeginWindup();
-        }
-        return;
-    }
-
-    // 비Nav: 직진 스티어링
-    FVector To = (PreChargeGoal - OwnerChar->GetActorLocation()); To.Z = 0.f;
-    const float Dist = To.Size();
-    if (Dist <= PreChargeAcceptanceRadius)
-    {
-        World->GetTimerManager().ClearTimer(TH_PreChargeTimeout);
-        BeginWindup();
-        return;
-    }
-
-    if (To.Normalize())
-    {
-        FaceTowards(To, DeltaSeconds);
-        MoveComp->MaxWalkSpeed = FMath::Max(MoveComp->MaxWalkSpeed, PreChargeMoveSpeed);
-        OwnerChar->AddMovementInput(To, 1.f);
-    }
+    HitActorsThisCharge.Reset();
+    TargetActor.Reset();
+    bPreChargeUsingNav = false;
+    ChargeDirection = FVector::ForwardVector;
+    bPendingFailedChargeRecovery = false;
 }
 
-void UCTankerChargeComponent::BeginWindup()
+void UCTankerChargeComponent::ClearTimers()
 {
-    if (!OwnerChar.IsValid())
+    if (UWorld* World = GetWorld())
     {
-        ClearAllTimers();
-        ResetChargeState();
+        FTimerManager& TimerManager = World->GetTimerManager();
+        TimerManager.ClearTimer(TH_Windup);
+        TimerManager.ClearTimer(TH_MaxCharge);
+        TimerManager.ClearTimer(TH_Recovery);
+        TimerManager.ClearTimer(TH_Cooldown);
+        TimerManager.ClearTimer(TH_PreChargeTimeout);
+    }
+    bPendingFailedChargeRecovery = false;
+}
+
+void UCTankerChargeComponent::BeginWindupInternal()
+{
+    if (!EnsureOwnerAndMovement())
+    {
+        ClearTimers();
+        ResetTransientData();
         State = EChargeState::Idle;
         return;
     }
  
 
-    if (AI.IsValid())
+    if (CachedAI.IsValid())
     {
-        AI->StopMovement();
+        CachedAI->StopMovement();
     }
     
     if (UWorld* World = GetWorld())
     {
-        FTimerManager& TM = World->GetTimerManager();
-        TM.ClearTimer(TH_PreChargeTimeout);
+        FTimerManager& TimerManager = World->GetTimerManager();
+        TimerManager.ClearTimer(TH_PreChargeTimeout);
         
         EnterState(EChargeState::Windup);
         HitActorsThisCharge.Reset();
         
         // 애님 노티가 없더라도 폴백으로 진행
         const float WindupDuration = bStartOnAnimNotify ? WindupTime + 0.1f : WindupTime;
-        TM.SetTimer(TH_Windup, this, &UCTankerChargeComponent::BeginCharging, WindupDuration, false);
+        TimerManager.SetTimer(TH_Windup, this, &UCTankerChargeComponent::BeginChargingInternal, WindupDuration, false);
     }
 }
 
-void UCTankerChargeComponent::BeginCharging()
+void UCTankerChargeComponent::BeginChargingInternal()
 {
-    if (State != EChargeState::Windup) return;
-
-    if (!OwnerChar.IsValid() || !MoveComp.IsValid())
+    if (State != EChargeState::Windup)
     {
-        ClearAllTimers();
-        ResetChargeState();
+        return;
+    }
+    
+    if (!EnsureOwnerAndMovement())
+    {
+        ClearTimers();
+        ResetTransientData();
         State = EChargeState::Idle;
         return;
     }
 
+    if (!HasValidTarget())
+    {
+        StartCooldownInternal();
+        return;
+    }
+    
     if (UWorld* World = GetWorld())
     {
-        FTimerManager& TM = World->GetTimerManager();
-        TM.ClearTimer(TH_Windup);
-        
-        if (!IsValidTarget())
-        {
-            BeginCooldown();
-            return;
-        }
+        FTimerManager& TimerManager = World->GetTimerManager();
+        TimerManager.ClearTimer(TH_Windup);
         
         EnterState(EChargeState::Charging);
         ChargeStartTime = World->GetTimeSeconds();
-        ChargeDir2D = (TargetActor->GetActorLocation() - OwnerChar->GetActorLocation()).GetSafeNormal2D();
+        ChargeDirection  = (TargetActor->GetActorLocation() - OwnerChar->GetActorLocation()).GetSafeNormal2D();
         
-        TM.SetTimer(TH_MaxCharge, this, &UCTankerChargeComponent::HandleMaxChargeTimeElapsed, MaxChargeTime, false);
+        TimerManager.SetTimer(TH_MaxCharge, this, &UCTankerChargeComponent::HandleMaxChargeTime, MaxChargeTime, false);
     }
 }
 
-void UCTankerChargeComponent::EndCharging(EChargeEndReason Reason, AActor* HitActor)
+void UCTankerChargeComponent::EndChargingInternal(EChargeEndReason Reason, AActor* HitActor)
 {
     if (State != EChargeState::Charging && State != EChargeState::Windup && State != EChargeState::PreCharge)
+    {
         return;
-
-    GetWorld()->GetTimerManager().ClearTimer(TH_MaxCharge);
-    GetWorld()->GetTimerManager().ClearTimer(TH_PreChargeTimeout);
-
-    if (MoveComp.IsValid()) MoveComp->StopMovementImmediately();
-
-    BeginRecovery(Reason, HitActor);
+    }
+ 
+    if (UWorld* World = GetWorld())
+    {
+        FTimerManager& TimerManager = World->GetTimerManager();
+        TimerManager.ClearTimer(TH_MaxCharge);
+        TimerManager.ClearTimer(TH_PreChargeTimeout);
+    }
+ 
+    if (MoveComp.IsValid())
+    {
+        MoveComp->StopMovementImmediately();
+    }
+    
+    BeginRecoveryInternal(Reason, HitActor);
 }
 
-void UCTankerChargeComponent::BeginRecovery(EChargeEndReason Reason, AActor* HitActor)
+void UCTankerChargeComponent::BeginRecoveryInternal(EChargeEndReason Reason, AActor* HitActor)
 {
     if (!OwnerChar.IsValid())
     {
-        ClearAllTimers();
-        ResetChargeState();
+        ClearTimers();
+        ResetTransientData();
         State = EChargeState::Idle;
         return;
     }
@@ -346,93 +329,55 @@ void UCTankerChargeComponent::BeginRecovery(EChargeEndReason Reason, AActor* Hit
    
     if (bFailedCharge)
     {
-        BeginCooldown();
+        StartCooldownInternal();
         return;
     } 
 
     if (UWorld* World = GetWorld())
     {
         World->GetTimerManager().ClearTimer(TH_Recovery);
-        const float Stun = (Reason == EChargeEndReason::HitWorld)
-        ? WallStunTime
-        : RecoveryTime;
-
-        /*const bool bFailedCharge = (Reason == EChargeEndReason::Aborted)
-            || (Reason == EChargeEndReason::MaxTime)
-            || (Reason == EChargeEndReason::MaxDistance);
         
-        const float Stun = (Reason == EChargeEndReason::HitWorld)
-        ? WallStunTime
-        : (bFailedCharge ? FailedChargeStunTime : RecoveryTime);
-
-        bPendingFailedChargeRecovery = false;
-        
-        if (bFailedCharge)
-        {
-            bPendingFailedChargeRecovery = true;
-            const float RecoveryDelay = (FailedChargeRecoveryDelay > 0.f)
-                ? FMath::Min(Stun, FailedChargeRecoveryDelay)
-                : 0.f;
-                
-            if (RecoveryDelay <= KINDA_SMALL_NUMBER)
-            {
-                FinishFailedChargeRecovery();
-            }
-            else
-            {
-                World->GetTimerManager().SetTimer(TH_Recovery, this,
-                &UCTankerChargeComponent::HandleFailedChargeRecoveryTimeout,
-                RecoveryDelay, false);
-            }
-        }
-        else
-        {
-            World->GetTimerManager().SetTimer(TH_Recovery, this, &UCTankerChargeComponent::BeginCooldown, Stun, false);
-        }*/
+        const float StunDuration = (Reason == EChargeEndReason::HitWorld) ? WallStunTime : RecoveryTime;
+        World->GetTimerManager().SetTimer(TH_Recovery, this, &UCTankerChargeComponent::StartCooldownInternal, StunDuration, false);
     }
 }
 
-void UCTankerChargeComponent::BeginCooldown()
+void UCTankerChargeComponent::StartCooldownInternal()
 {
-    if (!OwnerChar.IsValid())
+    if (!EnsureOwnerAndMovement())
     {
-        ClearAllTimers();
-        ResetChargeState();
+        ClearTimers();
+        ResetTransientData();
         State = EChargeState::Idle;
         return;
     }
 
     if (State != EChargeState::Recovery)
-        return;
+    {
+        EnterState(EChargeState::Recovery);
+    }
     
     EnterState(EChargeState::Cooldown);
  
     if (UWorld* World = GetWorld())
     {
+        World->GetTimerManager().ClearTimer(TH_Recovery);
         World->GetTimerManager().SetTimer(TH_Cooldown, this, &UCTankerChargeComponent::HandleCooldownFinished, ChargeCooldown, false);
         FTimerManager& TM = World->GetTimerManager();
-        TM.ClearTimer(TH_Recovery);
-        TM.SetTimer(TH_Cooldown, this, &UCTankerChargeComponent::HandleCooldownFinished, ChargeCooldown, false);
     }
 }
 
-//void UCTankerChargeComponent::HandleOwnerDamaged(AActor* DamagedActor, float Damage, const UDamageType* /*DamageType*/,
-  //  AController* /*InstigatedBy*/, AActor* /*DamageCauser*/)
-/*{
-    if (Damage <= 0.f)
-        return;
-    
-    if (DamagedActor != OwnerChar.Get())
-        return;
-    
-    if (!bPendingFailedChargeRecovery)
-        return;
-    
-    if (State != EChargeState::Recovery)
-        return;
-    
-        FinishFailedChargeRecovery();
-}*/
+void UCTankerChargeComponent::HandleMaxChargeTime()
+{
+    EndChargingInternal(EChargeEndReason::MaxTime, nullptr);
+}
+
+void UCTankerChargeComponent::HandleCooldownFinished()
+{
+    ClearTimers();
+    ResetTransientData();
+    EnterState(EChargeState::Idle);
+}
 
 /*void UCTankerChargeComponent::HandleFailedChargeRecoveryTimeout()
 {
@@ -455,167 +400,280 @@ void UCTankerChargeComponent::FinishFailedChargeRecovery()
 }
 */
 
-void UCTankerChargeComponent::ChargeTraceAndHit(float /*DeltaSeconds*/)
+
+bool UCTankerChargeComponent::TryBuildPreChargeGoal(FVector& OutGoal, int32& OutSideSign)
 {
-    if (!OwnerChar.IsValid())
-        return;
+    if (!EnsureOwnerAndMovement() || !HasValidTarget())
+    {
+        return false;
+    }
+    const FVector OwnerLocation = OwnerChar->GetActorLocation();
+    const FVector TargetLocation = TargetActor->GetActorLocation();
+    FVector FromTarget = OwnerLocation - TargetLocation;
+    FromTarget.Z = 0.f;
+
+    if (!FromTarget.Normalize())
+    {
+        FromTarget = -TargetActor->GetActorForwardVector().GetSafeNormal2D();
+    }
+
+    const FVector RightVector(-FromTarget.Y, FromTarget.X, 0.f);
+    
+    if (bAlternateSideBetweenCharges)
+    {
+        OutSideSign = -OutSideSign;
+    }
+    else
+    {
+        OutSideSign = FMath::RandBool() ? +1 : -1;
+    }
+    
+    FVector Candidate = TargetLocation + FromTarget * PreChargeDistance + RightVector * (OutSideSign * PreChargeLateralOffset);
     
     UWorld* World = GetWorld();
     if (!World)
-        return;
+    {
+        OutGoal = Candidate;
+        return true;
+    }
     
+    if (bClampToNavMesh)
+    {
+        if (UNavigationSystemV1* NavSys = UNavigationSystemV1::GetCurrent(World))
+        {
+            FNavLocation Projected;
+            if (NavSys->ProjectPointToNavigation(Candidate, Projected, FVector(200.f)))
+            {
+                OutGoal = Projected.Location;
+                if (bDrawPreChargeGoal)
+                {
+                    DrawDebugSphere(World, OutGoal, 30.f, 12, FColor::Green, false, 1.f);
+                }
+                return true;
+            }
+        }
+    }
+    
+    OutGoal = Candidate;
+    if (bDrawPreChargeGoal)
+    {
+        DrawDebugSphere(World, OutGoal, 30.f, 12, FColor::Yellow, false, 1.f);
+    }
+    return true;
+}
+
+void UCTankerChargeComponent::TickPreCharge(float DeltaSeconds)
+{
+    if (State != EChargeState::PreCharge)
+    {
+        return;
+    }
+    
+    if (!EnsureOwnerAndMovement()){
+        ClearTimers();
+        ResetTransientData();
+        State = EChargeState::Idle;
+        return;
+    }
+    
+    UWorld* World = GetWorld();
+    if (!World)
+    {
+        return;
+    }
+
+    if (bPreChargeUsingNav)
+    {
+        if (HasReached(PreChargeGoal, PreChargeAcceptanceRadius))
+        {
+            if (CachedAI.IsValid())
+            {
+                CachedAI->StopMovement();
+                World->GetTimerManager().ClearTimer(TH_PreChargeTimeout);
+                BeginWindupInternal();
+            }
+            return;
+        }
+        FVector Direction = PreChargeGoal - OwnerChar->GetActorLocation();
+        Direction.Z = 0.f;
+        if (Direction.Size() <= PreChargeAcceptanceRadius)
+        {
+            World->GetTimerManager().ClearTimer(TH_PreChargeTimeout);
+            BeginWindupInternal();
+            return;
+        }
+ 
+       
+        if (Direction.Normalize())
+        {
+            FaceTowards(Direction, DeltaSeconds);
+            MoveComp->MaxWalkSpeed = FMath::Max(MoveComp->MaxWalkSpeed, PreChargeMoveSpeed);
+            OwnerChar->AddMovementInput(Direction, 1.f);
+        }
+    }
+}
+
+bool UCTankerChargeComponent::HasReached(const FVector& Point, float Radius) const
+{
+    if (!OwnerChar.IsValid())
+    {
+        return false;
+    }
+    return FVector::DistSquared(OwnerChar->GetActorLocation(), Point) <= FMath::Square(Radius);
+}
+
+void UCTankerChargeComponent::UpdateCharging(float DeltaSeconds)
+{
+    if (!EnsureOwnerAndMovement())
+    {
+        EndChargingInternal(EChargeEndReason::Aborted, nullptr);
+        return;
+    }
+   
+    if (HasValidTarget())
+    {
+        const FVector ToTarget = TargetActor->GetActorLocation() - OwnerChar->GetActorLocation();
+        FaceTowards(ToTarget, DeltaSeconds);
+        ChargeDirection = ToTarget.GetSafeNormal2D();
+    }
+  
+    FVector Velocity = ChargeDirection * ChargeSpeed;
+    Velocity.Z = MoveComp->Velocity.Z;
+    MoveComp->Velocity = Velocity;
+   
+    PerformChargeTrace();
+}
+
+void UCTankerChargeComponent::PerformChargeTrace()
+{
+    if (!OwnerChar.IsValid())
+    {
+        return;
+    }
     FHitResult Hit;
-    if (!SweepHitAhead(Hit, TraceAhead)) return;
- 
+    if (!SweepAhead(Hit, TraceAhead))
+    {
+        return;
+    }
+    
     AActor* Other = Hit.GetActor();
-    if (!Other) return;
- 
-    // 월드 충돌
+    
+    if (!Other)
+    {
+        return;
+    }
+
     if (Hit.Component.IsValid() && Hit.Component->GetCollisionObjectType() == ECC_WorldStatic)
     {
-        EndCharging(EChargeEndReason::HitWorld, Other);
+        EndChargingInternal(EChargeEndReason::HitWorld, Other);
         return;
     }
- 
-    // Pawn 충돌 (팀/타입 필터 적용)
-    if (!HitActorsThisCharge.Contains(Other))
+  
+    if (HitActorsThisCharge.Contains(Other))
     {
-        // 자기 자신 제외
-        if (Other == OwnerChar.Get()) return;
- 
-        // Pawn만 타격
-        APawn* HitPawn = Cast<APawn>(Other);
-        if (!HitPawn) return;
- 
-        // 플레이어만 타격 (적 → 플레이어 돌진)
-        if (!HitPawn->IsPlayerControlled())
+        return;
+    }
+    if (Other == OwnerChar.Get())
+    {
+        return;
+    }
+   
+    APawn* HitPawn = Cast<APawn>(Other);
+    if (!HitPawn)
+    {
+        return;
+    }
+  
+   
+   
+    HitActorsThisCharge.Add(Other);
 
-            HitActorsThisCharge.Add(Other);
-        AController* Inst = OwnerChar.IsValid() ? OwnerChar->GetController() : nullptr;
-        UGameplayStatics::ApplyDamage(Other, HitDamage, Inst, OwnerChar.Get(), DamageTypeClass);
-         
-        EndCharging(EChargeEndReason::HitPawn, Other);
+    if (HitPawn->IsPlayerControlled())
+    {
+        AController* InstigatorController = OwnerChar.IsValid() ? OwnerChar->GetController() : nullptr;
+        UGameplayStatics::ApplyDamage(Other, HitDamage, InstigatorController, OwnerChar.Get(), DamageTypeClass);
+    }
+    EndChargingInternal(EChargeEndReason::HitPawn, Other);
+}
+    
+
+bool UCTankerChargeComponent::SweepAhead(FHitResult& OutHit, float Distance) const
+{
+    if (!OwnerChar.IsValid())
+    {
+        return false;
+    }
+    UWorld* World = GetWorld();
+    if (!World)
+    {
+        return false;
     }
  
-    /* // Pawn 충돌 (필요 시 팀/태그 필터) - DamageTypeClass ? DamageTypeClass가 모호하며, AppluDamage 인수개수 에러
-    if (!HitActorsThisCharge.Contains(Other))
-    {
-        HitActorsThisCharge.Add(Other);
-
-        AController* Inst = OwnerChar.IsValid() ? OwnerChar->GetController() : nullptr;
-        UGameplayStatics::ApplyDamage(
-            Other, HitDamage, Inst, OwnerChar.Get(),
-            DamageTypeClass ? DamageTypeClass : UDamageType::StaticClass());
-
-        EndCharging(EChargeEndReason::HitPawn, Other);
-    }*/
-}
-
-bool UCTankerChargeComponent::SweepHitAhead(FHitResult& OutHit, float Distance) const
-{
-    if (!OwnerChar.IsValid()) return false;
-
-    UWorld* World = GetWorld();
-    if (!World) return false;
-    
     const FVector Start = OwnerChar->GetActorLocation();
-    const FVector Dir   = ChargeDir2D.IsNearlyZero()
-                        ? OwnerChar->GetActorForwardVector().GetSafeNormal2D()
-                        : ChargeDir2D;
-    const FVector End   = Start + Dir * Distance;
-
-    FCollisionQueryParams P(SCENE_QUERY_STAT(TankerCharge), false, OwnerChar.Get());
-    FCollisionShape Capsule = FCollisionShape::MakeCapsule(TraceRadius, OwnerChar->GetSimpleCollisionHalfHeight());
-
-    // Pawn → WorldStatic 순서로 검사
-    if (World->SweepSingleByChannel(OutHit, Start, End, FQuat::Identity, ECC_Pawn, Capsule, P))
+    const FVector Direction = ChargeDirection.IsNearlyZero() ? OwnerChar->GetActorForwardVector().GetSafeNormal2D() : ChargeDirection;
+    const FVector End = Start + Direction * Distance;
+   
+    FCollisionQueryParams Params(SCENE_QUERY_STAT(TankerCharge), false, OwnerChar.Get());
+    const FCollisionShape Capsule = FCollisionShape::MakeCapsule(TraceRadius, OwnerChar->GetSimpleCollisionHalfHeight());
+   
+    if (World->SweepSingleByChannel(OutHit, Start, End, FQuat::Identity, ECC_Pawn, Capsule, Params))
+    {
         return true;
-
-    return World->SweepSingleByChannel(OutHit, Start, End, FQuat::Identity, ECC_WorldStatic, Capsule, P);
+    }
+  
+    return World->SweepSingleByChannel(OutHit, Start, End, FQuat::Identity, ECC_WorldStatic, Capsule, Params);
+}
+    
+bool UCTankerChargeComponent::EnsureOwnerAndMovement()
+{
+    if (!OwnerChar.IsValid())
+        {
+               OwnerChar = Cast<ACharacter>(GetOwner());
+                if (OwnerChar.IsValid())
+                    {
+                            MoveComp = OwnerChar->GetCharacterMovement();
+                             CachedAI = Cast<AAIController>(OwnerChar->GetController());
+                         }
+             }
+  
+      if (OwnerChar.IsValid() && !MoveComp.IsValid())
+         {
+                  MoveComp = OwnerChar->GetCharacterMovement();
+             }
+   
+      if (OwnerChar.IsValid() && !CachedAI.IsValid())
+           {
+                  CachedAI = Cast<AAIController>(OwnerChar->GetController());
+             }
+ 
+       return OwnerChar.IsValid() && MoveComp.IsValid();
 }
 
-bool UCTankerChargeComponent::IsValidTarget() const
+bool UCTankerChargeComponent::HasValidTarget() const
 {
     return TargetActor.IsValid() && !TargetActor->IsPendingKill();
 }
 
-float UCTankerChargeComponent::DistToTarget2D() const
+float UCTankerChargeComponent::DistanceToTarget2D() const
 {
-    if (!OwnerChar.IsValid() || !TargetActor.IsValid()) return TNumericLimits<float>::Max();
+    if (!OwnerChar.IsValid() || !TargetActor.IsValid())
+    {
+        return TNumericLimits<float>::Max();
+    }
+   
     return FVector::Dist2D(OwnerChar->GetActorLocation(), TargetActor->GetActorLocation());
 }
 
-void UCTankerChargeComponent::FaceTowards(const FVector& To, float DeltaSeconds)
+void UCTankerChargeComponent::FaceTowards(const FVector& Direction, float DeltaSeconds)
 {
-    if (!OwnerChar.IsValid()) return;
-    FRotator R = OwnerChar->GetActorRotation();
-    const FRotator TargetYaw(0.f, To.Rotation().Yaw, 0.f);
-    R.Yaw = FMath::FixedTurn(R.Yaw, TargetYaw.Yaw, TurnRateDegPerSec * DeltaSeconds);
-    OwnerChar->SetActorRotation(R);
-}
-
-void UCTankerChargeComponent::EnterState(EChargeState NewState)
-{
-    if (State == NewState) return;
-    EChargeState Prev = State;
-    State = NewState;
-    OnChargeStateChanged.Broadcast(State, Prev);
-
-#if !(UE_BUILD_SHIPPING)
-    if (bDrawPreChargeGoal && NewState == EChargeState::PreCharge)
+    if (!OwnerChar.IsValid())
     {
-        DrawDebugSphere(GetWorld(), PreChargeGoal, 30.f, 12, FColor::Cyan, false, 2.0f);
-        if (TargetActor.IsValid())
-        {
-            DrawDebugCircle(GetWorld(), TargetActor->GetActorLocation(),
-                PreChargeDistance, 32, FColor::Blue, false, 2.0f, 0, 1.0f,
-                FVector(1,0,0), FVector(0,1,0), false);
-        }
+        return;
     }
-#endif
+ 
+    FRotator Current = OwnerChar->GetActorRotation();
+    const FRotator TargetYaw(0.f, Direction.Rotation().Yaw, 0.f);
+    Current.Yaw = FMath::FixedTurn(Current.Yaw, TargetYaw.Yaw, TurnRateDegPerSec * DeltaSeconds);
+    OwnerChar->SetActorRotation(Current);
 }
-
-void UCTankerChargeComponent::ExitState(EChargeState /*OldState*/) {}
-
-bool UCTankerChargeComponent::Reached(const FVector& P, float Radius) const
-{
-    if (!OwnerChar.IsValid()) return false;
-    return FVector::DistSquared(OwnerChar->GetActorLocation(), P) <= FMath::Square(Radius);
-}
-
-void UCTankerChargeComponent::ClearAllTimers()
-{
-    if (UWorld* World = GetWorld())
-    {
-        FTimerManager& TM = World->GetTimerManager();
-        TM.ClearTimer(TH_Windup);
-        TM.ClearTimer(TH_MaxCharge);
-        TM.ClearTimer(TH_Recovery);
-        TM.ClearTimer(TH_Cooldown);
-        TM.ClearTimer(TH_PreChargeTimeout);
-    }
-
-    bPendingFailedChargeRecovery = false;
-}
-
-void UCTankerChargeComponent::ResetChargeState()
-{
-    HitActorsThisCharge.Reset();
-    TargetActor = nullptr;
-    bPreChargeUsingNav = false;
-    ChargeDir2D = FVector::ForwardVector;
-}
-
-void UCTankerChargeComponent::HandleMaxChargeTimeElapsed()
-{
-    EndCharging(EChargeEndReason::MaxTime, nullptr);
-}
-
-void UCTankerChargeComponent::HandleCooldownFinished()
-{
-    ClearAllTimers();
-    ResetChargeState();
-    EnterState(EChargeState::Idle);
-}
-
 
