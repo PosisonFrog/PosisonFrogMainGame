@@ -584,16 +584,15 @@ void UCTankerChargeComponent::PerformChargeTrace()
         return;
     }
   
-    if (!HitPawn->IsPlayerControlled())
-    {
-        return;
-    }
+   
    
     HitActorsThisCharge.Add(Other);
-   
-    AController* InstigatorController = OwnerChar.IsValid() ? OwnerChar->GetController() : nullptr;
-    UGameplayStatics::ApplyDamage(Other, HitDamage, InstigatorController, OwnerChar.Get(), DamageTypeClass);
-   
+
+    if (HitPawn->IsPlayerControlled())
+    {
+        AController* InstigatorController = OwnerChar.IsValid() ? OwnerChar->GetController() : nullptr;
+        UGameplayStatics::ApplyDamage(Other, HitDamage, InstigatorController, OwnerChar.Get(), DamageTypeClass);
+    }
     EndChargingInternal(EChargeEndReason::HitPawn, Other);
 }
     
