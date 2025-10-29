@@ -400,7 +400,13 @@ void ACEnemyCharacterBase::DoDead()
 // ─────────────────────────────────────────────────────────────────────────────
 bool ACEnemyCharacterBase::IsAttackReady() const
 {
-	return (GetWorld()->GetTimeSeconds() - LastAttackTime) >= AttackInterval;
+	//return (GetWorld()->GetTimeSeconds() - LastAttackTime) >= AttackInterval;
+	// AttackInterval은 CEnemyCharacterBase.h 또는 CRiotRobot.h에 UPROPERTY로 정의되어 있을 것입니다.
+	if (GetWorld() && AttackInterval > 0.f)
+	{
+		return GetWorld()->GetTimeSeconds() >= LastAttackTime + AttackInterval;
+	}
+	return true; // AttackInterval이 0이하면 항상 공격 가능
 }
 
 bool ACEnemyCharacterBase::IsInAttackDistance() const
@@ -677,6 +683,7 @@ void ACEnemyCharacterBase::OnDead()
 		Movement->DisableMovement();
 		Movement->StopMovementImmediately();
 	}
+	
 
 	if (AAIController* AIC = Cast<AAIController>(GetController()))
 	{
@@ -685,19 +692,48 @@ void ACEnemyCharacterBase::OnDead()
 			TacAI->TacticalStop();
 		}
 	}
-	
-	if (UCapsuleComponent* Cap = GetCapsuleComponent())
-		Cap->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	
-	if (USkeletalMeshComponent* MeshComp = GetMesh())
-		MeshComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
+	if (AAIController* AIC = Cast<AAIController>(GetController()))
+	{
+		if (ACTacticalEnemyAIController* TacAI = Cast<ACTacticalEnemyAIController>(AIC))
+		{
+			TacAI->TacticalStop();}
+	}
+	
+	//if (UCapsuleComponent* Cap = GetCapsuleComponent())
+	//Cap->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	
+	//if (USkeletalMeshComponent* MeshComp = GetMesh())
+	//MeshComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+	DisableAllCollisions();
+	
 	bAttackWindowActive = false;
 	SwingHitActors.Reset();
 	AttackWindowEndTime = -1.f;
 
 	TryDropHealPack();
 	SetLifeSpan(3.0f);
+}
+
+void ACEnemyCharacterBase::DisableAllCollisions()
+{
+	TInlineComponentArray<UPrimitiveComponent*> PrimitiveComponents;
+	GetComponents(PrimitiveComponents);
+	
+	for (UPrimitiveComponent* Component : PrimitiveComponents)
+	{
+		if (!Component)
+		{
+			continue;
+		}
+		
+		Component->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Component->SetCollisionResponseToAllChannels(ECR_Ignore);
+		Component->SetGenerateOverlapEvents(false);
+	        	
+	}
+	SetActorEnableCollision(false);
 }
 
 void ACEnemyCharacterBase::TryDropHealPack()

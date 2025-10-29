@@ -133,7 +133,8 @@ void ACRiotRobot::DoAttack()
 void ACRiotRobot::StartAttack()
 {
     if (!Target) return;
-
+    
+    LastAttackTime = GetWorld()->GetTimeSeconds();
     bIsAttacking = true;
     AttackStartedTime = GetWorld()->GetTimeSeconds();
 

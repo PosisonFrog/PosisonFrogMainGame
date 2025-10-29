@@ -237,6 +237,7 @@ protected:
     UFUNCTION() void OnHealthChanged(float Cur, float Max);
     virtual void OnDead();
     virtual void TryDropHealPack();
+    void DisableAllCollisions();
 
     // 전투(스윙 창(애님 노티파이) + 분할 스윕)
     UFUNCTION(BlueprintCallable, Category="PF|Combat")

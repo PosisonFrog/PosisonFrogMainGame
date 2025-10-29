@@ -9,6 +9,7 @@
 #include "TimerManager.h"
 #include "Engine/World.h"
 #include "99_Util/CLog.h"
+#include "AnimNodes/AnimNode_RandomPlayer.h"
 #include "Kismet/GameplayStatics.h"
 
 class IBuffable;
@@ -59,7 +60,15 @@ void UCPlayerWeaponComponent::HandleWeaponHit(AActor* InstigatorActor, AActor* H
         PlayerChar->AddUltimateGain(gain);
     }
 
-    float FinalDamage = Damage;
+    // 콤보 배율 적용
+    float ComboMultiplier = 1.0f;
+    if (ComboAttackRatio.IsValidIndex(CurrentCombo))
+    {
+        ComboMultiplier = ComboAttackRatio[CurrentCombo];
+    }
+    
+    float CurrentDamage = Damage * ComboMultiplier;
+    float FinalDamage = CurrentDamage;
 
     if (IBuffable* Buffable = Cast<IBuffable>(OwnerChar))
     {
@@ -88,8 +97,11 @@ void UCPlayerWeaponComponent::DoAttack()
     // 이미 공격 중: 창이 열려 있으면 즉시 다음 스텝, 아니면 큐잉
     if (bIsAttacking)
     {
-       	if (bCanNextCombo && CurrentCombo < PlayerComboMontages.Num() - 1 && CurrentCombo < HammerComboMontages.Num() - 1)
-       	{
+        if (bCanNextCombo 
+                   && CurrentCombo < PlayerComboMontages.Num() - 1 
+                   && CurrentCombo < HammerComboMontages.Num() - 1
+                   && CurrentCombo < ComboAttackRatio.Num() - 1)
+        {
        	    StepToNextCombo();
        	}
         else

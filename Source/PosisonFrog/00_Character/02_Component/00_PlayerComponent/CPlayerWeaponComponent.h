@@ -63,6 +63,9 @@ protected:
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Attack", meta = (ClampMin = "0.1"))
     float ComboResetTime = 0.8f;
 
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Attack", meta = (ClampMin = "0.1"))
+    TArray <float> ComboAttackRatio  = {0.9f, 1.1f, 1.4f}; 
+
     // --- 궁극기 게이지 ---
     UPROPERTY(EditAnywhere, Category = "Ultimate|State")
     float AddUltGaugeMul = 0.02f;

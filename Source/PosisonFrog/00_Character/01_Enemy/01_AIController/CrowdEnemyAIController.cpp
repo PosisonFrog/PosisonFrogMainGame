@@ -49,6 +49,13 @@ void ACrowdEnemyAIController::OnPossess(APawn* InPawn)
         CrowdComp->SetGroupsToIgnore(GroupsToIgnore);
     }
 
+
+    /*if (UCrowdFollowingComponent* CrowdComp = Cast<UCrowdFollowingComponent>(GetPathFollowingComponent()))
+    {
+        CrowdComp->SetGroupsToIgnore(CrowdComp->GetGroupsToIgnore() | 0x80000000); 
+    }
+    */
+    
     // 컨트롤러가 올바른 Pawn에 빙의되었는지 확인합니다. (디버깅용 로그)
     if (Cast<ACEnemyCharacterBase>(InPawn))
     {
