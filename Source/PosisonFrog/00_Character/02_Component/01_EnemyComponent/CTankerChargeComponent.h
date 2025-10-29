@@ -139,7 +139,7 @@ private:
     float PreChargeAcceptanceRadius = 140.f;
 
     UPROPERTY(EditDefaultsOnly, Category = "PF|Charge|PreCharge", meta = (ClampMin = "0.3", ClampMax = "5.0"))
-    float PreChargeMaxTime = 2.5f;                  // 실패 폴백(시간 초과)
+    float PreChargeMaxTime = 1.6f;                  // 실패 폴백(시간 초과)
 
     UPROPERTY(EditDefaultsOnly, Category = "PF|Charge|PreCharge")
     bool  bAlternateSideBetweenCharges = true;      // 좌/우 번갈이

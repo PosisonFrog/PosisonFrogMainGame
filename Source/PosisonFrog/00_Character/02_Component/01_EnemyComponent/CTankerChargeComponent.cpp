@@ -8,6 +8,7 @@
 #include "GameFramework/DamageType.h"
 #include "Kismet/GameplayStatics.h"
 #include "NavigationSystem.h"
+#include "Components/CapsuleComponent.h"
 
 
 UCTankerChargeComponent::UCTankerChargeComponent()
@@ -15,7 +16,7 @@ UCTankerChargeComponent::UCTankerChargeComponent()
     PrimaryComponentTick.bCanEverTick = true;
     if (!DamageTypeClass)
     {
-                    DamageTypeClass = UDamageType::StaticClass();
+        DamageTypeClass = UDamageType::StaticClass();
     }
 }
 
@@ -283,6 +284,11 @@ void UCTankerChargeComponent::BeginChargingInternal()
         EnterState(EChargeState::Charging);
         ChargeStartTime = World->GetTimeSeconds();
         ChargeDirection  = (TargetActor->GetActorLocation() - OwnerChar->GetActorLocation()).GetSafeNormal2D();
+
+        if (UCapsuleComponent* Capsule = OwnerChar->FindComponentByClass<UCapsuleComponent>())
+        {
+            Capsule->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
+        }
         
         TimerManager.SetTimer(TH_MaxCharge, this, &UCTankerChargeComponent::HandleMaxChargeTime, MaxChargeTime, false);
     }
@@ -300,6 +306,11 @@ void UCTankerChargeComponent::EndChargingInternal(EChargeEndReason Reason, AActo
         FTimerManager& TimerManager = World->GetTimerManager();
         TimerManager.ClearTimer(TH_MaxCharge);
         TimerManager.ClearTimer(TH_PreChargeTimeout);
+
+        if (UCapsuleComponent* Capsule = OwnerChar->FindComponentByClass<UCapsuleComponent>())
+        {
+            Capsule->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
+        }
     }
  
     if (MoveComp.IsValid())
@@ -583,8 +594,13 @@ void UCTankerChargeComponent::PerformChargeTrace()
     {
         return;
     }
-  
-   
+
+    AController* HitController = HitPawn->GetController();
+    AAIController* AIController = Cast<AAIController>(HitController);
+    if (AIController)
+    {
+        return;  
+    }
    
     HitActorsThisCharge.Add(Other);
 

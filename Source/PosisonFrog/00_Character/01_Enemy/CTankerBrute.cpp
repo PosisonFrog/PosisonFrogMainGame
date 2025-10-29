@@ -6,6 +6,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "NiagaraFunctionLibrary.h"       
+#include "Components/CapsuleComponent.h"
 #include "Sound/SoundBase.h"
 
 
@@ -16,7 +17,13 @@ ACTankerBrute::ACTankerBrute()
     Tags.AddUnique(TEXT("Enemy.Type.Tank"));
     SightDistance = FMath::Max(SightDistance, ChargeStopDistanceOverride);
     ChaseStartDistance = FMath::Max(ChaseStartDistance, SightDistance);
-     
+
+ 
+  if (UCapsuleComponent* Capsule = GetCapsuleComponent())
+  {
+      const float DesiredSeparation = Capsule->GetScaledCapsuleRadius() * 2.f + 5.f;
+      SeparationRadius = FMath::Max(SeparationRadius, DesiredSeparation);
+  }   
 }
 
 void ACTankerBrute::BeginPlay()

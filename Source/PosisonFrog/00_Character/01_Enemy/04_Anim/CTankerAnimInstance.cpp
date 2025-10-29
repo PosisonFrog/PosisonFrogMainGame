@@ -64,23 +64,11 @@ void UCTankerAnimInstance::UpdateChargeStateVariables()
 	ChargeState = ChargeComponent->GetState();
 	
 	bIsIdle = (ChargeState == EChargeState::Idle);
-	if (bIsIdle == true)
-		CLog::Log(TEXT("TankerAniminst = IDleState"));
 	bIsPreCharge = (ChargeState == EChargeState::PreCharge);
-	if (bIsPreCharge == true)
-		CLog::Log(TEXT("TankerAniminst = PreChargeState"));
 	bIsWindup = (ChargeState == EChargeState::Windup);
-	if (bIsWindup == true)
-		CLog::Log(TEXT("TankerAniminst = WindupState"));
 	bIsCharging = (ChargeState == EChargeState::Charging);
-	if (bIsCharging == true)
-		CLog::Log(TEXT("TankerAniminst = ChargeState"));
 	bIsRecovery = (ChargeState == EChargeState::Recovery);
-	if (bIsRecovery == true)
-		CLog::Log(TEXT("TankerAniminst = RecoveryState"));
 	bIsOnCooldown = (ChargeState == EChargeState::Cooldown);
-	if (bIsOnCooldown == true)
-		CLog::Log(TEXT("TankerAniminst = CooldownState"));
 }
 
 void UCTankerAnimInstance::UpdateMovementVariables()
