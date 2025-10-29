@@ -54,6 +54,16 @@ public:
     UFUNCTION(BlueprintPure,   Category="CommandSkill")
     bool ShouldBlockOtherActions() const { return bBlockOtherActionsWhileAir && IsAirCommandActive(); }
 
+    // ─ 쿨타임 ─
+    UFUNCTION(BlueprintPure, Category="CommandSkill|Cooldown")
+    bool IsOnCooldown() const;
+    
+    UFUNCTION(BlueprintPure, Category="CommandSkill|Cooldown")
+    float GetRemainingCooldown() const;
+    
+    UFUNCTION(BlueprintPure, Category="CommandSkill|Cooldown")
+    float GetCooldownPercent() const;
+    
     UPROPERTY(BlueprintAssignable, Category="CommandSkill")
     FOnAirCommandLockChanged OnAirCommandLockChanged;
 
@@ -76,7 +86,7 @@ private:
     bool IsLaunchableEnemy(ACharacter* C) const;
     void ForceDropEnemiesInRange() ;
 
-
+    void StartCooldown();
     void StartSlamConfirmDelay();
     void ClearSlamWaiting();
     
@@ -109,6 +119,9 @@ private:
 
     UPROPERTY(EditDefaultsOnly, Category="CommandSkill|Timing", meta=(ClampMin="0.0", ClampMax="3.0"))
     float SlamConfirmDelay = 0.7f;
+
+    UPROPERTY(EditDefaultsOnly, Category="CommandSkill|Cooldown", meta=(ClampMin="0.0"))
+    float CooldownTime = 2.0f;
     
     UPROPERTY(EditDefaultsOnly, Category="CommandSkill|Slam", meta=(ClampMin="200"))
     float SlamDownSpeed   = 2200.f;
@@ -177,10 +190,12 @@ private:
 
     bool  bAwaitingSlamConfirm = false;
     float EarliestSlamConfirmTime = 0.f;
+    float LastUsedTime = -999999.f; 
     
     TWeakObjectPtr<ACharacter> OwnerChar;
     TWeakObjectPtr<ACHammer> Hammer;
     TWeakObjectPtr<UCharacterMovementComponent> MoveComp;
     FTimerHandle TimerHandle_EnemyDrop; 
     FTimerHandle TimerHandle_AirWindow;
+    FTimerHandle TimerHandle_CoolDownCommand;
 };

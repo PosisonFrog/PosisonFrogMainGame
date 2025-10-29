@@ -55,6 +55,8 @@ void UCSkill_CommandLaunchSlam::TickComponent(float DeltaTime, ELevelTick, FActo
             State = ECommandAirState::Inactive;
             bPendingSlam = false;
             
+            StartCooldown();
+            
             if (bBlockOtherActionsWhileAir)
                 OnAirCommandLockChanged.Broadcast(false);
         }
@@ -63,6 +65,10 @@ void UCSkill_CommandLaunchSlam::TickComponent(float DeltaTime, ELevelTick, FActo
 
 bool UCSkill_CommandLaunchSlam::TryStartCommand()
 {
+    if (IsOnCooldown())
+    {
+        return false;
+    }
     UCPlayerWeaponComponent* WeaponComp = OwnerChar->FindComponentByClass<UCPlayerWeaponComponent>();
     Hammer = WeaponComp ? WeaponComp->GetHammer() : nullptr;
     
@@ -190,10 +196,13 @@ void UCSkill_CommandLaunchSlam::Anim_SlamImpact()
 
     State = ECommandAirState::Inactive;
     bPendingSlam = false;
+
+    StartCooldown();
     
     if (bBlockOtherActionsWhileAir)
         OnAirCommandLockChanged.Broadcast(false);
 }
+
 
 void UCSkill_CommandLaunchSlam::EnterAirborneWaiting()
 {
@@ -457,6 +466,8 @@ void UCSkill_CommandLaunchSlam::ForceDropEnemiesInRange()
 }
 
 
+
+
 UAnimInstance* UCSkill_CommandLaunchSlam::GetPlayerAnimInstance() const
 {
     return (OwnerChar.IsValid() && OwnerChar->GetMesh())
@@ -489,5 +500,47 @@ void UCSkill_CommandLaunchSlam::PlayHammerMontageSafe(UAnimMontage* Montage, FNa
         float Len = Anim->Montage_Play(Montage, PlayRate);
         if (Len > 0.f && Section != NAME_None)
             Anim->Montage_JumpToSection(Section, Montage);
+    }
+}
+
+
+bool UCSkill_CommandLaunchSlam::IsOnCooldown() const
+{
+    if (UWorld* World = GetWorld())
+    {
+        const float TimeSinceUse = World->GetTimeSeconds() - LastUsedTime;
+        return TimeSinceUse < CooldownTime;
+    }
+    return false;
+}
+
+float UCSkill_CommandLaunchSlam::GetRemainingCooldown() const
+{
+    if (!IsOnCooldown())
+        return 0.f;
+    
+    if (UWorld* World = GetWorld())
+    {
+        const float TimeSinceUse = World->GetTimeSeconds() - LastUsedTime;
+        return FMath::Max(0.f, CooldownTime - TimeSinceUse);
+    }
+    return 0.f;
+}
+
+float UCSkill_CommandLaunchSlam::GetCooldownPercent() const
+{
+    if (CooldownTime <= 0.f)
+        return 0.f;
+    
+    const float Remaining = GetRemainingCooldown();
+    return FMath::Clamp(Remaining / CooldownTime, 0.f, 1.f);
+}
+
+void UCSkill_CommandLaunchSlam::StartCooldown()
+{
+    if (UWorld* World = GetWorld())
+    {
+        LastUsedTime = World->GetTimeSeconds();
+        UE_LOG(LogTemp, Log, TEXT("[CommandSlam] Cooldown started: %.1fs"), CooldownTime);
     }
 }
