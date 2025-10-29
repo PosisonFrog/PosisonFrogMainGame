@@ -30,6 +30,7 @@ void UCSkill_CommandLaunchSlam::BeginPlay()
     OwnerChar = Cast<ACharacter>(GetOwner());
     if (OwnerChar.IsValid())
         MoveComp = OwnerChar->GetCharacterMovement();
+    
 }
 
 void UCSkill_CommandLaunchSlam::TickComponent(float DeltaTime, ELevelTick, FActorComponentTickFunction*)
@@ -43,6 +44,7 @@ void UCSkill_CommandLaunchSlam::TickComponent(float DeltaTime, ELevelTick, FActo
         if (!bImpactDone)
         {
             bImpactDone = true;
+            
 
             if (bPendingSlam && !bImpactByNotify)
             {
@@ -61,7 +63,7 @@ bool UCSkill_CommandLaunchSlam::TryStartCommand()
 {
     UCPlayerWeaponComponent* WeaponComp = OwnerChar->FindComponentByClass<UCPlayerWeaponComponent>();
     Hammer = WeaponComp ? WeaponComp->GetHammer() : nullptr;
-
+    
     if (State != ECommandAirState::Inactive)
         return false;
     
@@ -123,7 +125,7 @@ bool UCSkill_CommandLaunchSlam::TryConfirmSlam()
     if (SlamCharMontage)
         PlayCharMontageSafe(SlamCharMontage, SlamSection);
 
-    if (LaunchHammerMontage)
+    if (SlamHammerMontage)
         PlayHammerMontageSafe(SlamHammerMontage, SlamSection);
 
     return true;
@@ -235,7 +237,19 @@ void UCSkill_CommandLaunchSlam::ForceDescend(bool bAsSlam)
 
     if (bAsSlam)
     {
-        ForceDropEnemiesInRange();
+        if (EnemyDropDelay > 0.f)
+        {
+            GetWorld()->GetTimerManager().SetTimer(
+                TimerHandle_EnemyDrop,
+                this,
+                &UCSkill_CommandLaunchSlam::ForceDropEnemiesInRange,
+                EnemyDropDelay,
+                false);
+        }
+        else
+        {
+            ForceDropEnemiesInRange();
+        }
     }
 
     State = ECommandAirState::Descending;
@@ -382,7 +396,7 @@ bool UCSkill_CommandLaunchSlam::IsLaunchableEnemy(ACharacter* C) const
     return false; // 정보 없으면 보수적
 }
 
-void UCSkill_CommandLaunchSlam::ForceDropEnemiesInRange() const
+void UCSkill_CommandLaunchSlam::ForceDropEnemiesInRange()
 {
     if (!OwnerChar.IsValid())
         return;
