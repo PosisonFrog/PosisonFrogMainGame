@@ -394,13 +394,14 @@ void ACHealOrb::EnterSpawnState()
     State = HealOrbState::Spawn;
     bChaseAllowed = false;
     bSpawnPickupLocked = true;
-
-    PickupSphere->SetCollisionResponseToChannel(ECC_WorldStatic, ECR_Block);
-    PickupSphere->SetCollisionResponseToChannel(ECC_WorldDynamic, ECR_Block);
-    PickupSphere->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
-    PickupSphere->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Ignore);
-    PickupSphere->BodyInstance.bUseCCD = true;
-
+    if (ensureMsgf(PickupSphere != nullptr, TEXT("HealOrb missing PickupSphere component")))
+    {
+        PickupSphere->SetCollisionResponseToChannel(ECC_WorldStatic, ECR_Block);
+        PickupSphere->SetCollisionResponseToChannel(ECC_WorldDynamic, ECR_Block);
+        PickupSphere->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
+        PickupSphere->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Ignore);
+        PickupSphere->BodyInstance.bUseCCD = true;
+    }
     const FVector Rand2D = FVector(FMath::FRandRange(-1.0f,1.0f), FMath::FRandRange(-1.0f,1.0f), 0.0f).GetSafeNormal();
 
     if (SpawnProjectile)
@@ -420,13 +421,14 @@ void ACHealOrb::EnterChaseState()
         SpawnProjectile->StopMovementImmediately();
         SpawnProjectile->Deactivate();
     }
-
-    PickupSphere->SetCollisionResponseToChannel(ECC_WorldStatic, ECR_Overlap);
-    PickupSphere->SetCollisionResponseToChannel(ECC_WorldDynamic, ECR_Overlap);
-    PickupSphere->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
-    PickupSphere->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Overlap);
-    PickupSphere->BodyInstance.bUseCCD = true;
-
+    if (ensureMsgf(PickupSphere != nullptr, TEXT("HealOrb missing PickupSphere component")))
+    {
+        PickupSphere->SetCollisionResponseToChannel(ECC_WorldStatic, ECR_Overlap);
+        PickupSphere->SetCollisionResponseToChannel(ECC_WorldDynamic, ECR_Overlap);
+        PickupSphere->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+        PickupSphere->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Overlap);
+        PickupSphere->BodyInstance.bUseCCD = true;
+    }
     if (AActor* T = TargetActor.Get())
     {
         LastKnownTargetLocation = T->GetActorLocation();
@@ -636,9 +638,14 @@ void ACHealOrb::OnDetectEndOverlap(UPrimitiveComponent* Overlapped, AActor* Othe
 
 void ACHealOrb::OnSpawnProjectileStop(const FHitResult& ImpactResult)
 {
-    bSpawnPickupLocked = false;
-    PickupSphere->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
-    PickupSphere->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Overlap);
-    SpawnProjectile->StopMovementImmediately();
-    SpawnProjectile->Deactivate();
+    if (ensureMsgf(PickupSphere != nullptr, TEXT("HealOrb missing PickupSphere component")))
+    {
+        PickupSphere->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+        PickupSphere->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Overlap);
+    }
+    if (SpawnProjectile)
+    {
+        SpawnProjectile->StopMovementImmediately();
+        SpawnProjectile->Deactivate();
+    }
 }

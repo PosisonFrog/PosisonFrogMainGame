@@ -142,11 +142,25 @@ void ACEnemyCharacterBase::Think(float /*DeltaTime*/)
 
 void ACEnemyCharacterBase::EnterState(EEnemyState NewState)
 {
-	StateEnterTime = GetWorld()->GetTimeSeconds();
-	
-	if (NewState == EEnemyState::Chase)
+	if (const UWorld* World = GetWorld())
 	{
-		LastSeenTime = GetWorld()->GetTimeSeconds();
+		const float Now = World->GetTimeSeconds();
+		StateEnterTime = Now;
+		
+		if (NewState == EEnemyState::Chase)
+		{
+			LastSeenTime = Now;
+		}
+	}
+	else
+	{
+		// PIE 편집 등 월드가 없는 컨텍스트에서 호출될 수 있으므로
+		StateEnterTime = 0.f;
+		
+		if (NewState == EEnemyState::Chase)
+		{
+			LastSeenTime = 0.f;
+		}
 	}
 }
 
