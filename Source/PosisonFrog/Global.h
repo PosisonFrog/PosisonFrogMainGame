@@ -7,3 +7,11 @@
 
 #include "99_Util/CLog.h"
 #include "99_Util/CHelpers.h"
+
+namespace PF
+{
+	namespace Collision
+	{
+		constexpr ECollisionChannel RiotEnemy = ECollisionChannel::ECC_GameTraceChannel3;
+	}
+}

@@ -62,13 +62,23 @@ void APosisonFrogCharacter::BeginPlay()
 	//Add Input Mapping Context
 	if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
 	{
-		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
+		if (ULocalPlayer* LocalPlayer = PlayerController->GetLocalPlayer())
 		{
-			Subsystem->AddMappingContext(DefaultMappingContext, 0);
+			if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(LocalPlayer))
+			{
+				if (DefaultMappingContext)
+				{
+					Subsystem->AddMappingContext(DefaultMappingContext, DefaultMappingPriority);
+				}
+							
+				if (GamepadMappingContext)
+				{
+					Subsystem->AddMappingContext(GamepadMappingContext, GamepadMappingPriority);
+				}
+			}
 		}
 	}
 }
-
 //////////////////////////////////////////////////////////////////////////
 // Input
 

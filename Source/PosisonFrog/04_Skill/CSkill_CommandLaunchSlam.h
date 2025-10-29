@@ -67,7 +67,11 @@ private:
     void ForceDescend(bool bAsSlam);
     void OnAirWindowExpired();
     void DoShockwaveImpact();
-    void CollectCharactersInRadius(TArray<ACharacter*>& OutChars, float Radius, bool bIncludeLaunchedIgnoringZ = false) const;
+    void CollectCharactersInRadius(
+     TArray<ACharacter*>& OutChars,
+     float Radius,
+     bool bIncludeLaunchedIgnoringZ = false,
+     bool bRiotOnly = false) const;
     bool IsOnGroundNow() const;
     bool IsLaunchableEnemy(ACharacter* C) const;
     void ForceDropEnemiesInRange() ;

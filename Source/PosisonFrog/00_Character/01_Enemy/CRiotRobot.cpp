@@ -10,6 +10,7 @@
 #include "NiagaraFunctionLibrary.h"
 #include "Sound/SoundBase.h"
 #include "TimerManager.h"
+#include "Global.h"
  
 #include "01_AIController/CTacticalEnemyAIController.h"  // 전술 컨트롤러
 
@@ -74,11 +75,13 @@ void ACRiotRobot::SetupCapsulePhysics()
 {
     if (UCapsuleComponent* Capsule = GetCapsuleComponent())
     {
+        Capsule->SetCollisionObjectType(PF::Collision::RiotEnemy);
         Capsule->SetLinearDamping(CapsuleLinearDamping);
         Capsule->SetAngularDamping(CapsuleAngularDamping);
         Capsule->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
         Capsule->SetCollisionResponseToChannel(ECC_WorldStatic, ECR_Block);
         Capsule->SetCollisionResponseToChannel(ECC_WorldDynamic, ECR_Block);
+        Capsule->SetCollisionResponseToChannel(PF::Collision::RiotEnemy, ECR_Block);
         // 상세 마찰은 물리재질(Physical Material)에서 별도 관리 권장
     }
 }

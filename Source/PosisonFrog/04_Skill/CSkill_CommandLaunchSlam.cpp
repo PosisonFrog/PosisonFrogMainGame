@@ -1,4 +1,5 @@
 ﻿#include "CSkill_CommandLaunchSlam.h"
+#include "Components/CapsuleComponent.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
@@ -11,6 +12,7 @@
 #include "Animation/AnimInstance.h"
 #include "Animation/AnimMontage.h"
 
+#include "Global.h"
 #include "00_Character/01_Enemy/CEnemyCharacterBase.h"
 #include "00_Character/02_Component/00_PlayerComponent/CPlayerWeaponComponent.h"
 
@@ -145,8 +147,8 @@ void UCSkill_CommandLaunchSlam::Anim_PerformLaunch()
     // 주변 적(Launch 허용) 띄우기
     TArray<ACharacter*> Neighbors;
     
-    CollectCharactersInRadius(Neighbors, LaunchRadius, /*bIncludeLaunchedIgnoringZ=*/true);
-
+    CollectCharactersInRadius(Neighbors, LaunchRadius, /*bIncludeLaunchedIgnoringZ=*/true, /*bRiotOnly=*/true);
+    
     AController* Inst = OwnerChar->GetController();
         const TSubclassOf<UDamageType> LaunchDamageClass = IsValid(LaunchDamageType)
             ? LaunchDamageType
@@ -307,7 +309,7 @@ void UCSkill_CommandLaunchSlam::DoShockwaveImpact()
     
     // 탱커/보스 포함 모든 적에 피해 적용
     TArray<ACharacter*> Affected;
-    CollectCharactersInRadius(Affected, ShockwaveRadius, /*bIncludeLaunchedIgnoringZ=*/true);
+    CollectCharactersInRadius(Affected, ShockwaveRadius, /*bIncludeLaunchedIgnoringZ=*/true, /*bRiotOnly=*/false);
     AController* Inst = OwnerChar->GetController();
 
     for (ACharacter* C : Affected)
@@ -328,14 +330,25 @@ void UCSkill_CommandLaunchSlam::DoShockwaveImpact()
 }
 
 void UCSkill_CommandLaunchSlam::CollectCharactersInRadius(TArray<ACharacter*>& OutChars, float Radius,
-    bool bIncludeLaunchedIgnoringZ) const
+    bool bIncludeLaunchedIgnoringZ, bool bRiotOnly) const
 {
     OutChars.Reset();
     if (!OwnerChar.IsValid()) return;
     UWorld* W = GetWorld(); if (!W) return;
  
     const FVector Center = OwnerChar->GetActorLocation();
-    FCollisionObjectQueryParams Obj; Obj.AddObjectTypesToQuery(ECC_Pawn);
+    FCollisionObjectQueryParams Obj;
+
+    if (bRiotOnly)
+    {
+        Obj.AddObjectTypesToQuery(PF::Collision::RiotEnemy);
+    }
+    else
+    {
+        Obj.AddObjectTypesToQuery(ECC_Pawn);
+        Obj.AddObjectTypesToQuery(PF::Collision::RiotEnemy);
+    }  
+    
     FCollisionShape Sphere = FCollisionShape::MakeSphere(Radius);
     FCollisionQueryParams  Q(SCENE_QUERY_STAT(CmdOverlap), false, OwnerChar.Get());
  
@@ -346,7 +359,19 @@ void UCSkill_CommandLaunchSlam::CollectCharactersInRadius(TArray<ACharacter*>& O
     {
         ACharacter* C = Cast<ACharacter>(O.GetActor());
         if (!C || C == OwnerChar.Get()) continue;
- 
+
+        if (OutChars.Contains(C)) continue;
+    
+       if (bRiotOnly)
+       {
+           const UCapsuleComponent* Capsule = C->FindComponentByClass<UCapsuleComponent>();
+           if (!Capsule || Capsule->GetCollisionObjectType() != PF::Collision::RiotEnemy)
+           {
+               continue;
+           }
+       }       
+
+        
         const float ZDiff = FMath::Abs(C->GetActorLocation().Z - Center.Z);
         if (ZDiff > ZTolerance)
         {
@@ -402,7 +427,7 @@ void UCSkill_CommandLaunchSlam::ForceDropEnemiesInRange()
         return;
     
     TArray<ACharacter*> Neighbors;
-    CollectCharactersInRadius(Neighbors, FMath::Max(LaunchRadius, ShockwaveRadius), /*bIncludeLaunchedIgnoringZ=*/true);
+    CollectCharactersInRadius(Neighbors, FMath::Max(LaunchRadius, ShockwaveRadius), /*bIncludeLaunchedIgnoringZ=*/true, /*bRiotOnly=*/true);
          
     const float DropSpeed = FMath::Max(EnemyForceDropSpeed, 0.f);
     if (DropSpeed <= 0.f)

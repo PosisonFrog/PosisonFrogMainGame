@@ -47,10 +47,10 @@ protected:
     float FireInterval = 0.45f;          // 연사 딜레이
 
     UPROPERTY(EditAnywhere, Category="PF|Ranged|Combat")
-    float DesiredRangeMin = 600.f;
+    float DesiredRangeMin = 597.f;
 
     UPROPERTY(EditAnywhere, Category="PF|Ranged|Combat")
-    float DesiredRangeMax = 900.f;
+    float DesiredRangeMax = 897.f;
 
     UPROPERTY(EditAnywhere, Category="PF|Ranged|Combat")
     float ProjectileSpeed = 2400.f;      // 리드샷 계산 및 탄환 초기속도
@@ -79,20 +79,20 @@ protected:
     bool bCanEvade = true;
 
     UPROPERTY(EditAnywhere, Category="PF|Ranged|Evade")
-    float EvadeCooldown = 2.0f;
+    float EvadeCooldown = 3.0f;
 
     UPROPERTY(EditAnywhere, Category="PF|Ranged|Evade")
     float EvadeImpulse = 900.f; // LaunchCharacter 측면 임펄스
 
     UPROPERTY(EditAnywhere, Category="PF|Ranged|Evade")
-    float EvadeChanceOnThink = 0.08f;    // 주기적(DoAttack 틱) 확률
+    float EvadeChanceOnThink = 0.04f;    // 주기적(DoAttack 틱) 확률
 
     UPROPERTY(EditAnywhere, Category="PF|Ranged|Evade")
     float EvadeTriggerDistance = 900.f;  // 가까울수록 회피 적극
 
     /*추가된 부분 -> 최대 회피 거리(TriggerDistance)에서 적용될 확률 배율 (0~1 범위) */
     UPROPERTY(EditAnywhere, Category="PF|Ranged|Evade", meta=(ClampMin="0.0", ClampMax="1.0"))
-    float EvadeChanceAtMaxDistanceScale = 0.35f;
+    float EvadeChanceAtMaxDistanceScale = 0.2f;
     
     float LastEvadeTime = -1000.f;
 

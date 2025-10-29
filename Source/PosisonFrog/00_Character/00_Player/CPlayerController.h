@@ -48,10 +48,18 @@ private:
     UPROPERTY(EditDefaultsOnly, Category = "Input")
     TObjectPtr<UInputMappingContext> DefaultMappingContext = nullptr;
 
+    /** 패드 전용 IMC (선택) */
+    UPROPERTY(EditDefaultsOnly, Category = "Input")
+    TObjectPtr<UInputMappingContext> GamepadMappingContext = nullptr;
+    
     /** IMC 적용 우선순위 (0: 기본) */
     UPROPERTY(EditDefaultsOnly, Category = "Input")
     int32 MappingPriority = 0;
 
+    /** 패드 IMC 적용 우선순위 (기본 컨텍스트보다 우선순위를 높게 설정하는 것이 좋습니다) */
+    UPROPERTY(EditDefaultsOnly, Category = "Input")
+    int32 GamepadMappingPriority = 1;
+    
     /** 일시정지 액션 (IMC에 매핑되어 있어야 함). 없으면 ESC 키 폴백 */
     UPROPERTY(EditDefaultsOnly, Category = "Input")
     TObjectPtr<UInputAction> IA_Pause = nullptr;

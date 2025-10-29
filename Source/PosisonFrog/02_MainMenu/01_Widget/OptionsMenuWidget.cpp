@@ -356,16 +356,38 @@ void UOptionsMenuWidget::OnBackClicked()
 
 void UOptionsMenuWidget::EnsureRuntimeMapping()
 {
-    if (!BaseMappingContext || RuntimeMapping) return;
+    if (!RuntimeMapping && BaseMappingContext)
+    {
+        RuntimeMapping = DuplicateObject<UInputMappingContext>(BaseMappingContext, this);
+    }
 
     RuntimeMapping = DuplicateObject<UInputMappingContext>(BaseMappingContext, this);
-
+    if (!RuntimeGamepadMapping && BaseGamepadMappingContext)
+    {
+        RuntimeGamepadMapping = DuplicateObject<UInputMappingContext>(BaseGamepadMappingContext, this);
+    }
+    
     if (const ULocalPlayer* LP = GetOwningLocalPlayer())
     {
         if (auto* Subsys = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(LP))
         {
-            Subsys->AddMappingContext(RuntimeMapping, 0);
+            if (RuntimeMapping && !bKeyboardContextAdded)
+            {
+                Subsys->AddMappingContext(RuntimeMapping, BaseMappingPriority);
+                bKeyboardContextAdded = true;
+            }
+           
+            if (RuntimeGamepadMapping && !bGamepadContextAdded)
+            {
+                Subsys->AddMappingContext(RuntimeGamepadMapping, GamepadMappingPriority);
+                bGamepadContextAdded = true;
+            }
         }
+    }
+
+    if (!RuntimeMapping && !RuntimeGamepadMapping)
+    {
+        return;
     }
 
     // 저장된 키 불러오기
@@ -385,19 +407,31 @@ void UOptionsMenuWidget::EnsureRuntimeMapping()
 
 void UOptionsMenuWidget::UpdateKeyLabels()
 {
-    if (!RuntimeMapping) return;
+    if (!RuntimeMapping && !RuntimeGamepadMapping) return;
 
     auto FirstKeyFor = [&](UInputAction* Action)->FKey
+    {
+        auto FindInContext = [&](UInputMappingContext* Context)->FKey
         {
-            if (!Action) return EKeys::Invalid;
-            const TArray<struct FEnhancedActionKeyMapping>& Maps = RuntimeMapping->GetMappings();
+            if (!Context) return EKeys::Invalid;
+            const TArray<FEnhancedActionKeyMapping>& Maps = Context->GetMappings();
             for (const auto& M : Maps)
             {
                 if (M.Action == Action)
+                {
                     return M.Key;
+                }
             }
             return EKeys::Invalid;
         };
+        
+        FKey Key = FindInContext(RuntimeMapping);
+        if (!Key.IsValid())
+        {
+            Key = FindInContext(RuntimeGamepadMapping);
+        }
+        return Key;
+    };
 
     if (Label_AttackKey) Label_AttackKey->SetText(FText::FromString(KeyToText(FirstKeyFor(Action_Attack))));
     if (Label_DashKey)   Label_DashKey->SetText(FText::FromString(KeyToText(FirstKeyFor(Action_Dash))));
@@ -446,25 +480,47 @@ FReply UOptionsMenuWidget::NativeOnKeyDown(const FGeometry& InGeometry, const FK
 
 void UOptionsMenuWidget::ApplyRebind(UInputAction* Action, const FKey& NewKey)
 {
-    if (!RuntimeMapping || !Action) return;
-
-    // 기존 키 제거
-    TArray<FKey> ToRemove;
-    const TArray<struct FEnhancedActionKeyMapping>& Maps = RuntimeMapping->GetMappings();
-    for (const auto& M : Maps)
+    if (!Action) return;
+    
+    // 사용할 런타임 컨텍스트를 결정한다.
+    UInputMappingContext* TargetContext = nullptr;
+    if (NewKey.IsGamepadKey())
     {
-        if (M.Action == Action)
-            ToRemove.Add(M.Key);
+        TargetContext = RuntimeGamepadMapping ? RuntimeGamepadMapping : RuntimeMapping;
     }
-    for (const FKey& K : ToRemove)
-        RuntimeMapping->UnmapKey(Action, K);
-
+    else
+    {
+        TargetContext = RuntimeMapping ? RuntimeMapping : RuntimeGamepadMapping;
+    }
+   
+    if (!TargetContext)
+    {
+        return;
+    }
+  
+    auto RemoveExisting = [&](UInputMappingContext* Context)
+    {
+        if (!Context) return;
+        TArray<FKey> ToRemove;
+        const TArray<FEnhancedActionKeyMapping>& Maps = Context->GetMappings();
+        for (const auto& M : Maps)
+        {
+            if (M.Action == Action)
+            {
+                ToRemove.Add(M.Key);
+            }
+        }
+        for (const FKey& Key : ToRemove)
+        {
+            Context->UnmapKey(Action, Key);
+        }
+    };
+    RemoveExisting(TargetContext);
+ 
     // 새 키 매핑
-    RuntimeMapping->MapKey(Action, NewKey);
-
+    TargetContext->MapKey(Action, NewKey);
     UpdateKeyLabels();
 }
-
 /* ===================== 유틸 ===================== */
 
 FString UOptionsMenuWidget::ToResString(const FIntPoint& P) const

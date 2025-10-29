@@ -73,8 +73,15 @@ protected:
     // ===================== 입력(Enhanced Input) =====================
     /** 에디터에서 지정할 기본 매핑 컨텍스트(복제하여 런타임 편집) */
     UPROPERTY(EditDefaultsOnly, Category = "Input|Rebind") UInputMappingContext* BaseMappingContext = nullptr;
+    /** 선택: 게임패드 매핑 컨텍스트(복제하여 런타임 편집) */
+    UPROPERTY(EditDefaultsOnly, Category = "Input|Rebind") UInputMappingContext* BaseGamepadMappingContext = nullptr;
     /** 런타임 복제본 (여기에서 Unmap/MapKey 수행) */
     UPROPERTY() UInputMappingContext* RuntimeMapping = nullptr;
+    UPROPERTY() UInputMappingContext* RuntimeGamepadMapping = nullptr;
+    
+       /** 런타임 추가 시 사용할 우선순위 */
+    UPROPERTY(EditDefaultsOnly, Category = "Input|Rebind") int32 BaseMappingPriority = 0;
+    UPROPERTY(EditDefaultsOnly, Category = "Input|Rebind") int32 GamepadMappingPriority = 1;
 
     /** 리바인드 대상 액션(예시: 공격/대시) */
     UPROPERTY(EditDefaultsOnly, Category = "Input|Rebind") UInputAction* Action_Attack = nullptr;
@@ -87,6 +94,8 @@ protected:
     float MouseSensitivity = 1.0f;     // 0.1~2.0 권장
     bool  bWaitingForRebind = false;
     UInputAction* PendingAction = nullptr;
+    bool bKeyboardContextAdded = false;
+    bool bGamepadContextAdded = false;
 
     // ===================== 초기화/저장/적용 =====================
     void BuildResolutionList();

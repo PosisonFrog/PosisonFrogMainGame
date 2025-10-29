@@ -1,5 +1,5 @@
 ﻿#include "CSkill_SpinAttack.h"
-
+#include "Global.h"
 #include "NiagaraFunctionLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/Pawn.h"
@@ -225,7 +225,8 @@ void UCSkill_SpinAttack::CollectTargetsInRadius(TArray<AActor*>& OutTargets, flo
     // Pawn 채널 오버랩
     FCollisionObjectQueryParams ObjParams;
     ObjParams.AddObjectTypesToQuery(ECC_Pawn);
-
+    ObjParams.AddObjectTypesToQuery(PF::Collision::RiotEnemy);
+    
     FCollisionShape Sphere = FCollisionShape::MakeSphere(Radius);
     FCollisionQueryParams  QueryParams(SCENE_QUERY_STAT(SpinAttackOverlap), false, Owner);
 

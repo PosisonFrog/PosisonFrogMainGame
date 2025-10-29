@@ -49,6 +49,11 @@ void ACPlayerController::BeginPlay()
             {
                 Subsys->AddMappingContext(DefaultMappingContext, MappingPriority);
             }
+
+            if (GamepadMappingContext)
+            {
+                Subsys->AddMappingContext(GamepadMappingContext, GamepadMappingPriority);
+            }
         }
     }
 

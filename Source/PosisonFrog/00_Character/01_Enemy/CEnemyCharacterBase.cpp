@@ -9,6 +9,7 @@
 #include "GameFramework/DamageType.h"
 #include "Navigation/PathFollowingComponent.h"
 
+#include "Global.h"
 #include "00_Character/00_Player/CPlayerCharacter.h"
 #include "00_Character/02_Component/00_PlayerComponent/CFuryGaugeComponent.h"
 #include "00_Character/02_Component/01_EnemyComponent/CEnemyHealthComponent.h"
@@ -545,7 +546,9 @@ void ACEnemyCharacterBase::DirectMoveTick(float /*DeltaSeconds*/)
 	if (bUseSeparation)
 	{
 		TArray<FOverlapResult> Overlaps;
-		FCollisionObjectQueryParams Obj; Obj.AddObjectTypesToQuery(ECC_Pawn);
+		FCollisionObjectQueryParams Obj;
+		Obj.AddObjectTypesToQuery(ECC_Pawn);
+		Obj.AddObjectTypesToQuery(PF::Collision::RiotEnemy);
 		FCollisionQueryParams Q(SCENE_QUERY_STAT(PF_AI_Separation), false, this);
 
 		const bool bAny = GetWorld()->OverlapMultiByObjectType(
@@ -845,7 +848,9 @@ bool ACEnemyCharacterBase::ApplyAttackDamage(bool bCheckAngle /*=true*/)
     {
         // ── 보조 1: Pawn ObjectType Overlap (채널 미스매치 대비)
         {
-            FCollisionObjectQueryParams ObjParams; ObjParams.AddObjectTypesToQuery(ECC_Pawn);
+            FCollisionObjectQueryParams ObjParams;
+        	ObjParams.AddObjectTypesToQuery(ECC_Pawn);
+        	ObjParams.AddObjectTypesToQuery(PF::Collision::RiotEnemy);
             FCollisionQueryParams QParams(SCENE_QUERY_STAT(PF_AttackOverlap), false, this);
 
             TArray<FOverlapResult> Overlaps;
