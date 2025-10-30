@@ -8,5 +8,5 @@
 void UCEnemyHealthComponent::OnDeathInternal()
 {
 	CLog::Log(FString::Printf(TEXT("UCEnemyHealthComponent::OnDeathInternal -> ['%s'] 사망"), *GetName()));
-	OnDeath.Broadcast();
+	OnDeath.Broadcast(GetOwner());
 }

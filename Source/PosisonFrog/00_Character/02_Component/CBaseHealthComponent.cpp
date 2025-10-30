@@ -61,6 +61,12 @@ float UCBaseHealthComponent::Damage(float InAmount)
 	return Old - New; // 실제 피해량
 }
 
+void UCBaseHealthComponent::SetHealth(float NewHealth)
+{
+	CurrentHealth = FMath::Clamp(NewHealth, 0.0f, MaxHealth);
+	OnHealthChanged.Broadcast(CurrentHealth, MaxHealth);
+}
+
 void UCBaseHealthComponent::SetMaxHealth(float NewMax, bool bClampCurrent, bool bResetToMax)
 {
 	const float PrevMax = MaxHealth;
@@ -85,7 +91,7 @@ void UCBaseHealthComponent::SetMaxHealth(float NewMax, bool bClampCurrent, bool 
 		}
 		if (!bWasDead && bIsDead)
 		{
-			OnDeath.Broadcast();
+			OnDeath.Broadcast(GetOwner());
 		}
 	}
 }
@@ -132,6 +138,6 @@ void UCBaseHealthComponent::SetHealthClamped(float NewValue)
 	// 이번 호출로 막 사망한 경우에만 1회 알림
 	if (!bWasDead && bIsDead)
 	{
-		OnDeath.Broadcast();
+		OnDeath.Broadcast(GetOwner());
 	}
 }

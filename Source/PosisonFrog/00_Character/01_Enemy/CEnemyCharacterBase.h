@@ -196,8 +196,6 @@ public:
     bool bDebugDrawAttack = false;
 
 protected:
-
-
     // AActor
     virtual void BeginPlay() override;
     virtual void Tick(float DeltaSeconds) override;

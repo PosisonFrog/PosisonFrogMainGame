@@ -390,7 +390,7 @@ void ACPlayerCharacter::HandleHealthChanged(float CurrentHealth, float MaxHealth
         PlayerWidget->UpdateHpBar(CurrentHealth, MaxHealth);
 }
 
-void ACPlayerCharacter::HandleDeath()
+void ACPlayerCharacter::HandleDeath(AActor* DeadActor)
 {
     if (bIsDead) return;
 

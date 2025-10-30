@@ -9,7 +9,7 @@
 class UCPlayerStatAssetData;
 // 체력 변경/사망 이벤트
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnHealthChanged, float, Current, float, Max);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDeath);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnDeath, AActor*, DeadActor);
 
 /*
  * 체력 컴포넌트 베이스
@@ -46,6 +46,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Health")
 	virtual float Damage(float InAmount);
 
+	UFUNCTION(BlueprintCallable, Category = "Health")
+	void SetHealth(float NewHealth);
+	
 	/**
 	 * @param NewMax	      최대체력 변경
 	 * @param bClampCurrent   현재 HP를 0..NewMax로 클램프

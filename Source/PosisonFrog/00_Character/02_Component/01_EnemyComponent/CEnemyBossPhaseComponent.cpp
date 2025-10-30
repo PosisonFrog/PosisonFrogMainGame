@@ -514,7 +514,7 @@ void UCEnemyBossPhaseComponent::HandleHealthChanged(float Current, float Max)
     EvaluatePhaseByHealth(Current / Max);
 }
 
-void UCEnemyBossPhaseComponent::HandleDeath()
+void UCEnemyBossPhaseComponent::HandleDeath(AActor* DeadActor)
 {
     if (State == EBossBattleState::ExecutingPattern && PhaseData)
     {

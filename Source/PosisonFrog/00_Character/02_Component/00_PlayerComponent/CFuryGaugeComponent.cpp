@@ -36,6 +36,12 @@ void UCFuryGaugeComponent::AddStack(int32 Amount)
     }
 }
 
+void UCFuryGaugeComponent::SetFury(int32 NewStacks)
+{
+    CurrentStacks = FMath::Clamp(NewStacks, 0, MaxStacks);
+    OnStacksChanged.Broadcast(CurrentStacks, MaxStacks);
+}
+
 int32 UCFuryGaugeComponent::FindTierIndexForStacks(int32 Stacks) const
 {
     for (int32 i=0; i<Tiers.Num(); ++i)

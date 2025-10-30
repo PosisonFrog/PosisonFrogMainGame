@@ -115,7 +115,7 @@ protected:
     void HandleHealthChanged(float Current, float Max);
 
     UFUNCTION()
-    void HandleDeath();
+    void HandleDeath(AActor* DeadActor);
 
 protected:
     TWeakObjectPtr<UCEnemyHealthComponent> CachedHealth;
