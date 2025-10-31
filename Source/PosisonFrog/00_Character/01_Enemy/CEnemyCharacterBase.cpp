@@ -17,13 +17,15 @@
 #include "01_Item/CHealOrbPoolSubsystem.h"
 #include "03_Combat/Damage/DamageType_FuryCountable.h"
 
-#include "99_Util/CLog.h"
 #include "Engine/DamageEvents.h"
 
 ACEnemyCharacterBase::ACEnemyCharacterBase()
 {
 	PrimaryActorTick.bCanEverTick = true;
 
+	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
+	AIControllerClass = ACTacticalEnemyAIController::StaticClass();
+	
 	HealthComponent = CreateDefaultSubobject<UCEnemyHealthComponent>(TEXT("HealthComponent"));
 
 	if (UCapsuleComponent* Cap = GetCapsuleComponent())
