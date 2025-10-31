@@ -85,7 +85,7 @@ private:
 private:
     // ─────────── HP ───────────
     UFUNCTION() void HandleHealthChanged(float CurrentHealth, float MaxHealth);
-    UFUNCTION() void HandleDeath();
+    UFUNCTION() void HandleDeath(AActor* DeadActor);
     void UpdateHpUI() const;
 
     virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser) override;

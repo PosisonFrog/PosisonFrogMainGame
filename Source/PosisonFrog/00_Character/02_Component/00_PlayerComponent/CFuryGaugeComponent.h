@@ -79,6 +79,12 @@ public:
     float GetEffectTotalDuration() const { return ActiveTotalDuration; }
 
     UFUNCTION(BlueprintPure,   Category="Fury")
+    int32 GetCurrentFury() const { return CurrentStacks; }
+
+    UFUNCTION(BlueprintCallable, Category="Fury")
+    void SetFury(int32 NewStacks);
+
+    UFUNCTION(BlueprintPure,   Category="Fury")
     int32 FindTierIndexForStacks(int32 Stacks) const;
 
 public: // 델리게이트

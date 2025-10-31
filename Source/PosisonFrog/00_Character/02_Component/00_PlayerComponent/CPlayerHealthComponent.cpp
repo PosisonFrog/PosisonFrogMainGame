@@ -25,5 +25,5 @@ float UCPlayerHealthComponent::Damage(float InAmount)
 void UCPlayerHealthComponent::OnDeathInternal()
 {
 	CLog::Log(TEXT("UCPlayerHealthComponent::OnDeathInternal -> 플레이어 사망"));
-	OnDeath.Broadcast();
+	OnDeath.Broadcast(GetOwner());
 }
