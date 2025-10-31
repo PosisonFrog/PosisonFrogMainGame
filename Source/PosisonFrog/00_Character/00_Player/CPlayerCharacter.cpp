@@ -607,7 +607,12 @@ void ACPlayerCharacter::HandleCommandMovementLockChanged(bool bLocked)
 
 void ACPlayerCharacter::ApplyAttackMovementOverride(bool bEnable)
 {
-    if (bEnable)
+
+    /*
+     *이동 애님을 8방향으로 갈꺼면 살려야 함. (지금은 이동이 단방향이라서 비활성화)
+     */
+    
+    /*if (bEnable)
     {
         if (bAttackMovementOverrideActive)
             return;
@@ -645,7 +650,7 @@ void ACPlayerCharacter::ApplyAttackMovementOverride(bool bEnable)
             Move->bOrientRotationToMovement = true;
             Move->bUseControllerDesiredRotation = false;
         }
-    }
+    }*/
 }
 
 // ────────────────────────────────────────────────────────────────────────────

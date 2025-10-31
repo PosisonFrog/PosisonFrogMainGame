@@ -238,33 +238,51 @@ void UCSkill_CommandLaunchSlam::ForceDescend(bool bAsSlam)
     
     bPendingSlam = bAsSlam;
     bImpactDone  = false;
-
-    FVector V = MoveComp->Velocity;
-    V.Z = -(bAsSlam ? SlamDownSpeed : AutoDescendSpeed);
-    MoveComp->Velocity = V;
-
-    if (MoveComp->MovementMode != MOVE_Falling)
-        MoveComp->SetMovementMode(MOVE_Falling);
-
-    if (bAsSlam)
+    
+    if (!bAsSlam)
     {
-        if (EnemyDropDelay > 0.f)
-        {
-            GetWorld()->GetTimerManager().SetTimer(
-                TimerHandle_EnemyDrop,
-                this,
-                &UCSkill_CommandLaunchSlam::ForceDropEnemiesInRange,
-                EnemyDropDelay,
-                false);
-        }
-        else
-        {
-            ForceDropEnemiesInRange();
-        }
+        FVector V = MoveComp->Velocity;
+        V.Z = -AutoDescendSpeed;
+        MoveComp->Velocity = V;
+
+        if (MoveComp->MovementMode != MOVE_Falling)
+            MoveComp->SetMovementMode(MOVE_Falling);
+
+        State = ECommandAirState::Descending;
+        return;
+    }
+   
+    if (EnemyDropDelay > 0.f)
+    {
+        GetWorld()->GetTimerManager().SetTimer(
+            TimerHandle_EnemyDrop,
+            [this]()
+            {
+                // 1. 적들 강제 낙하
+                ForceDropEnemiesInRange();
+                
+                // 2. 플레이어 하강 시작
+                if (MoveComp.IsValid())
+                {
+                    FVector V = MoveComp->Velocity;
+                    V.Z = -SlamDownSpeed;
+                    MoveComp->Velocity = V;
+                    
+                    if (MoveComp->MovementMode != MOVE_Falling)
+                        MoveComp->SetMovementMode(MOVE_Falling);
+                }
+            },
+            EnemyDropDelay,
+            false);
+    }
+        
+    else
+    {
+        ForceDropEnemiesInRange();
     }
 
-    State = ECommandAirState::Descending;
 
+    State = ECommandAirState::Descending;
 }
 
 void UCSkill_CommandLaunchSlam::StartSlamConfirmDelay()
