@@ -817,6 +817,13 @@ bool ACEnemyCharacterBase::ApplyAttackDamage(bool bCheckAngle /*=true*/)
     UWorld* W = GetWorld();
     if (!W) return false;
 
+	// 즉시 공격(스윙 창 미사용) 시 이전에 맞춘 액터 목록을 초기화하여
+	// 한 번만 피해를 주는 문제가 발생하지 않도록 한다.
+	if (!bAttackWindowActive)
+	{
+		SwingHitActors.Reset();
+	}
+	
     // 멀티 전용 처리 원하시면:
     // if (!HasAuthority()) return false;
 

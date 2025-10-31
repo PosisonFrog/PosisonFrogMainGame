@@ -608,6 +608,27 @@ void UCTankerChargeComponent::PerformChargeTrace()
     {
         AController* InstigatorController = OwnerChar.IsValid() ? OwnerChar->GetController() : nullptr;
         UGameplayStatics::ApplyDamage(Other, HitDamage, InstigatorController, OwnerChar.Get(), DamageTypeClass);
+
+        if ((PlayerKnockbackStrength > 0.f) || !FMath::IsNearlyZero(PlayerKnockbackUp))
+        {
+            if (ACharacter* HitCharacter = Cast<ACharacter>(HitPawn))
+            {
+                FVector KnockDirection;
+                if (OwnerChar.IsValid())
+                {
+                    KnockDirection = (HitCharacter->GetActorLocation() - OwnerChar->GetActorLocation()).GetSafeNormal2D();
+                }
+                        
+                if (KnockDirection.IsNearlyZero())
+                {
+                    KnockDirection = ChargeDirection.IsNearlyZero() ? FVector::ForwardVector : ChargeDirection.GetSafeNormal2D();
+                }
+                        
+                FVector LaunchVelocity = KnockDirection * PlayerKnockbackStrength;
+                LaunchVelocity.Z += PlayerKnockbackUp;
+                HitCharacter->LaunchCharacter(LaunchVelocity, /*bXYOverride=*/true, /*bZOverride=*/true);
+            }
+        }
     }
     EndChargingInternal(EChargeEndReason::HitPawn, Other);
 }
@@ -643,26 +664,26 @@ bool UCTankerChargeComponent::SweepAhead(FHitResult& OutHit, float Distance) con
 bool UCTankerChargeComponent::EnsureOwnerAndMovement()
 {
     if (!OwnerChar.IsValid())
+    {
+        OwnerChar = Cast<ACharacter>(GetOwner());
+        if (OwnerChar.IsValid())
         {
-               OwnerChar = Cast<ACharacter>(GetOwner());
-                if (OwnerChar.IsValid())
-                    {
-                            MoveComp = OwnerChar->GetCharacterMovement();
-                             CachedAI = Cast<AAIController>(OwnerChar->GetController());
-                         }
-             }
+            MoveComp = OwnerChar->GetCharacterMovement();
+            CachedAI = Cast<AAIController>(OwnerChar->GetController());
+        }
+    }
   
-      if (OwnerChar.IsValid() && !MoveComp.IsValid())
-         {
-                  MoveComp = OwnerChar->GetCharacterMovement();
-             }
+    if (OwnerChar.IsValid() && !MoveComp.IsValid())
+    {
+        MoveComp = OwnerChar->GetCharacterMovement();
+    }
    
-      if (OwnerChar.IsValid() && !CachedAI.IsValid())
-           {
-                  CachedAI = Cast<AAIController>(OwnerChar->GetController());
-             }
+    if (OwnerChar.IsValid() && !CachedAI.IsValid())
+    {
+        CachedAI = Cast<AAIController>(OwnerChar->GetController());
+    }
  
-       return OwnerChar.IsValid() && MoveComp.IsValid();
+    return OwnerChar.IsValid() && MoveComp.IsValid();
 }
 
 bool UCTankerChargeComponent::HasValidTarget() const
