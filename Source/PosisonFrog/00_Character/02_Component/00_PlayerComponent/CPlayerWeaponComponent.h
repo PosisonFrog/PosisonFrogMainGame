@@ -49,9 +49,10 @@ private:
     void PlayComboAttack();
     void StepToNextCombo();      // 다음 콤보 스텝으로 전진(인덱스 증가 + Play)
     void ResetCombo();
+    void RestoreMoveSpeed();
 
     UFUNCTION() void OnMontageEnded(UAnimMontage* Montage, bool bInterrupted);
-
+ 
 protected:
     // ---- 콤보 설정 ----
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "PlayerMontages")
@@ -85,6 +86,13 @@ protected:
     UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Attack")
     bool bQueuedNextInput = false;
 
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Attack", meta = (ClampMin = "0.1"))
+    float AttackMoveSpeedMul = 0.4f;
+
+private:
+    float CurrentMoveMaxSpeed_Snapshot = 0.f;
+    
+    
     FTimerHandle ComboResetTimer;
 };
 

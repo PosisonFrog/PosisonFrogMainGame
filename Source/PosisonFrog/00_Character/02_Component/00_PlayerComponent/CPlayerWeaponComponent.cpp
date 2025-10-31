@@ -1,5 +1,4 @@
 #include "00_Character/02_Component/00_PlayerComponent/CPlayerWeaponComponent.h"
-
 #include "00_Character/00_Player/CPlayerCharacter.h"
 #include "00_Character/00_Player/02_Weapon/CHammer.h"
 #include "00_Character/02_Component/00_PlayerComponent/Buffable.h"
@@ -10,6 +9,7 @@
 #include "Engine/World.h"
 #include "99_Util/CLog.h"
 #include "AnimNodes/AnimNode_RandomPlayer.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 
 class IBuffable;
@@ -24,6 +24,15 @@ void UCPlayerWeaponComponent::SpawnWeapon()
     UWorld* World = GetWorld();
     if (!IsValid(World) || !OwnerChar.IsValid())
         return;
+
+    UCharacterMovementComponent* OwnerMovement = OwnerChar.IsValid()
+      ? OwnerChar->GetCharacterMovement()
+      : nullptr;
+
+    if (!IsValid(OwnerMovement))
+        return;
+
+    CurrentMoveMaxSpeed_Snapshot = OwnerMovement->MaxWalkSpeed;
 
     FActorSpawnParameters Params;
     Params.Owner = OwnerChar.Get();
@@ -54,12 +63,15 @@ void UCPlayerWeaponComponent::HandleWeaponHit(AActor* InstigatorActor, AActor* H
     if (HitActor == OwnerChar)
         return;
     
+    
     if (ACPlayerCharacter* PlayerChar = Cast<ACPlayerCharacter>(GetOwner()))
     {
         const float gain = PlayerChar->GetMaxUltimateGauge() * AddUltGaugeMul;
         PlayerChar->AddUltimateGain(gain);
     }
 
+
+    
     // 콤보 배율 적용
     float ComboMultiplier = 1.0f;
     if (ComboAttackRatio.IsValidIndex(CurrentCombo))
@@ -93,6 +105,23 @@ void UCPlayerWeaponComponent::DoAttack()
 
     if (!IsValid(CurrentWeapon) || HammerComboMontages.Num() == 0)
         return;
+
+    UCharacterMovementComponent* OwnerMovement = OwnerChar.IsValid()
+       ? OwnerChar->GetCharacterMovement()
+       : nullptr;
+
+    if (!IsValid(OwnerMovement))
+        return;
+    
+    // 첫 공격 시작 시에만 스냅샷 저장 및 속도 감소
+    if (!bIsAttacking)
+    {
+        CurrentMoveMaxSpeed_Snapshot = OwnerMovement->MaxWalkSpeed;
+        OwnerMovement->MaxWalkSpeed = CurrentMoveMaxSpeed_Snapshot * AttackMoveSpeedMul;
+        
+        UE_LOG(LogTemp, Log, TEXT("[WeaponComp] Attack speed: %.1f -> %.1f (x%.2f)"), 
+               CurrentMoveMaxSpeed_Snapshot, OwnerMovement->MaxWalkSpeed, AttackMoveSpeedMul);
+    }
 
     // 이미 공격 중: 창이 열려 있으면 즉시 다음 스텝, 아니면 큐잉
     if (bIsAttacking)
@@ -203,16 +232,38 @@ void UCPlayerWeaponComponent::ResetCombo()
     bCanNextCombo = false;
     bQueuedNextInput = false;
     CurrentCombo = 0;
-    
+
+    RestoreMoveSpeed();
+
     // 안전: 히트창 닫기
     DisableAttackBoxCollider();
 }
 
+void UCPlayerWeaponComponent::RestoreMoveSpeed()
+{
+    UCharacterMovementComponent* OwnerMovement = OwnerChar.IsValid()
+          ? OwnerChar->GetCharacterMovement()
+          : nullptr;
+
+    if (!IsValid(OwnerMovement))
+        return;
+    
+    // 스냅샷 값으로 복구
+    if (CurrentMoveMaxSpeed_Snapshot > 0.f)
+    {
+        OwnerMovement->MaxWalkSpeed = CurrentMoveMaxSpeed_Snapshot;
+        
+        UE_LOG(LogTemp, Log, TEXT("[WeaponComp] Speed restored to %.1f"), CurrentMoveMaxSpeed_Snapshot);
+    }
+}
+
 void UCPlayerWeaponComponent::OnMontageEnded(UAnimMontage* Montage, bool bInterrupted)
 {
+    RestoreMoveSpeed();
+
     if (bInterrupted)
         return;
-
+    
     ResetCombo();
 }
 

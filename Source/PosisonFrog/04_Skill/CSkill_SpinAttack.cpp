@@ -156,12 +156,12 @@ void UCSkill_SpinAttack::OnFuryStarted(int32, float, float, int32)
 
 void UCSkill_SpinAttack::OnFuryEnded(bool /*bCanceled*/, float /*Remain*/)
 {
-    // 스킬 동작 중 Fury가 꺼지면 배율 제거하고 싶을 때:
-    // bFuryActiveSnapshot = false;
+    CancelSkill();
 }
 
 void UCSkill_SpinAttack::OnFuryFinisher(float FinisherDamage)
 {
+    CancelSkill();
     // 피니시 시작 전에 스핀 상태 완전히 정리
     if (TimerHandle_SpinTick.IsValid())
         GetWorld()->GetTimerManager().ClearTimer(TimerHandle_SpinTick);
