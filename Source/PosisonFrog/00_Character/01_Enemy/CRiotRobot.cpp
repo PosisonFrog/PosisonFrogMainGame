@@ -55,9 +55,25 @@ ACRiotRobot::ACRiotRobot()
     PrimaryActorTick.bCanEverTick = true; // Base의 Tick을 그대로 사용(전술은 컨트롤러 Tick에서)
 }
 
+void ACRiotRobot::PostInitProperties()
+{
+    Super::PostInitProperties();
+    SyncAttackTuning();
+}
+
+#if WITH_EDITOR
+void ACRiotRobot::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+    Super::PostEditChangeProperty(PropertyChangedEvent);
+    SyncAttackTuning();
+}
+#endif
+
 void ACRiotRobot::BeginPlay()
 {
     Super::BeginPlay();
+
+    SyncAttackTuning();
     SetupCapsulePhysics();
 
     // 대기 몽타주가 있으면 루프 재생(선택)
@@ -119,6 +135,16 @@ void ACRiotRobot::DoAttack()
         return;
     }
 
+    if (!IsGroundedForAttack())
+    {
+        if (bIsAttacking)
+        {
+            CancelAttack();
+        }
+        return;
+    }
+    
+
     // 공격 중이 아니고, 쿨타임이 끝났다면 공격 시작
     if (!bIsAttacking && IsAttackReady())
     {
@@ -136,6 +162,9 @@ void ACRiotRobot::DoAttack()
 void ACRiotRobot::StartAttack()
 {
     if (!Target) return;
+
+    if (!IsGroundedForAttack())
+        return;
     
     LastAttackTime = GetWorld()->GetTimeSeconds();
     bIsAttacking = true;
@@ -369,4 +398,20 @@ void ACRiotRobot::ClearAttackTimers()
     TimerManager.ClearTimer(Timer_WindUp);
     TimerManager.ClearTimer(Timer_EndWindow);
     TimerManager.ClearTimer(Timer_Finish);
+}
+
+void ACRiotRobot::SyncAttackTuning()
+{
+    AttackInterval = AttackIntervalRiot;
+    AttackRange = AttackRangeRiot;
+    BaseDamage = AttackDamage;
+}
+
+bool ACRiotRobot::IsGroundedForAttack() const
+{
+    if (const UCharacterMovementComponent* MovementComp = GetCharacterMovement())
+    {
+        return !MovementComp->IsFalling();
+    }
+    return true;
 }

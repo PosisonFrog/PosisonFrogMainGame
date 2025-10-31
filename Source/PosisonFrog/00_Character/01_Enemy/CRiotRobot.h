@@ -22,7 +22,15 @@ class POSISONFROG_API ACRiotRobot : public ACEnemyCharacterBase
 public:
     ACRiotRobot();
 
+    
 protected:
+
+
+    virtual void PostInitProperties() override;
+#if WITH_EDITOR
+    virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
+
     // AActor
     virtual void BeginPlay() override;
 
@@ -57,6 +65,8 @@ protected:
     void SpawnHitEffectAtForward() const;
     void SpawnHitEffectAtLocation() const;
     void ClearAttackTimers();
+    void SyncAttackTuning();
+    bool IsGroundedForAttack() const;
     
 protected:
     // ───────── 공격 설정(튜닝) ─────────
