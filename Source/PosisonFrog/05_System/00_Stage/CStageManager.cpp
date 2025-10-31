@@ -305,7 +305,11 @@ void ACStageManager::ProcessSpawnBatch()
 				if (AAIController* AI = Cast<AAIController>(Enemy->GetController()))
 				{
 					AI->StopMovement();
-					AI->GetBrainComponent()->PauseLogic(TEXT("Preload"));
+					
+					if (UBrainComponent* Brain = AI->GetBrainComponent())
+					{
+						Brain->PauseLogic(TEXT("Preload"));
+					}
 				}
 
 				PreloadedEnemies.FindOrAdd(SpawningStage).Add(Enemy);
@@ -406,7 +410,10 @@ void ACStageManager::ActivatePreloadedStage(int32 StageID)
 
 		if (AAIController* AI = Cast<AAIController>(Enemy->GetController()))
 		{
-			AI->GetBrainComponent()->ResumeLogic(TEXT("Activated"));
+			if (UBrainComponent* Brain = AI->GetBrainComponent())
+			{
+				Brain->ResumeLogic(TEXT("Activated"));
+			}
 		}
 
 		if (UCBaseHealthComponent* HealthComp = Enemy->FindComponentByClass<UCBaseHealthComponent>())
@@ -421,6 +428,7 @@ void ACStageManager::ActivatePreloadedStage(int32 StageID)
 	PreloadedStages.Remove(StageID);
 	CurrentStage = StageID;
 }
+
 
 void ACStageManager::OnStageComplete(int32 StageID)
 {
