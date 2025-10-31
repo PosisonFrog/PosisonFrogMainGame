@@ -257,7 +257,8 @@ protected:
 private:
     void PerformAttackSweep();                              // 분할 스윕 핵심 함수 -> 짧은 간격으로 스윕 트레이스 수행.
     bool PassAngleFilter(const AActor* Other) const;        // 공격에 맞은 액터가 실제 공격 각도 안에 있는가?
-
+    bool IsValidAttackTarget(AActor* Other) const;          // 공격 판정으로 피해를 줄 수 있는 대상인가?
+    
 protected:
     // 런타임 상태
     UPROPERTY(Transient) TObjectPtr<AActor> Target = nullptr;
