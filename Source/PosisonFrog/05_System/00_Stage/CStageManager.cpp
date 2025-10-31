@@ -10,7 +10,6 @@
 #include "CCheckPoint.h"
 #include "CEnemySpawnZone.h"
 #include "CStageBarrier.h"
-#include "00_Character/CMainGameModeBase.h"
 #include "00_Character/00_Player/CPlayerCharacter.h"
 #include "00_Character/01_Enemy/CEnemyCharacterBase.h"
 #include "00_Character/02_Component/CBaseHealthComponent.h"
@@ -43,6 +42,7 @@ void ACStageManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	if (SpawnTimer.IsValid())
 		GetWorldTimerManager().ClearTimer(SpawnTimer);
 
+	SpawnRequestQueue.Empty();
 	CleanupDelegates();
 	ClearAllEnemies();
 	
@@ -58,6 +58,25 @@ void ACStageManager::StartStageSpawn(int32 StageID)
 		return;
 	}
 
+	if (IsSpawnInProgress())
+	{
+		if (SpawningStage == StageID)
+		{
+			if (bIsPreloading)
+			{
+				QueueSpawnRequest(StageID, false);
+			}
+			else if (bEnableDebugLogs)
+			{
+				CLog::Log(FString::Printf(TEXT("[ACStageManager::StartStageSpawn] Stage %d already spawning."), StageID));
+			}
+			return;
+		}
+
+		QueueSpawnRequest(StageID, false);
+		return;
+	}
+	
 	if (PreloadedStages.Contains(StageID))
 	{
 		ActivatePreloadedStage(StageID);
@@ -88,6 +107,11 @@ void ACStageManager::RespawnStage(int32 StageID)
 		{
 			if (IsValid(Enemy))
 			{
+				if (UCBaseHealthComponent* HealthComp = Enemy->FindComponentByClass<UCBaseHealthComponent>())
+				{
+					HealthComp->OnDeath.RemoveAll(this);
+				}
+				
 				Enemy->Destroy();
 				ClearedCount++;
 			}
@@ -95,7 +119,13 @@ void ACStageManager::RespawnStage(int32 StageID)
 		Enemies->Empty();
 	}
 	
-	StartStageSpawn(StageID);
+	//StartStageSpawn(StageID);
+	FTimerHandle TempTimer;
+	GetWorldTimerManager().SetTimer(TempTimer, [this, StageID]()
+	{
+		CLog::Log(FString::Printf(TEXT("[RespawnStage] Stage %d 재스폰 시작"), StageID));
+		StartStageSpawn(StageID);
+	}, 0.1f, false);
 }
 
 int32 ACStageManager::GetRemainingEnemies(int32 StageID) const
@@ -174,9 +204,21 @@ void ACStageManager::CollectCheckpoints()
 
 void ACStageManager::StartDistributedSpawn(int32 StageID, bool bIsPreload)
 {
+	if (IsSpawnInProgress())
+	{
+		if (SpawningStage == StageID && bIsPreloading == bIsPreload)
+			return;
+
+		QueueSpawnRequest(StageID, bIsPreload);
+		return;
+	}
+	
 	TArray<TObjectPtr<ACEnemySpawnZone>>* SpawnZones = StageSpawnZones.Find(StageID);
 	if (!SpawnZones || SpawnZones->Num() == 0)
+	{
+		ProcessNextSpawnRequest();
 		return;
+	}
 
 	TArray<FSpawnTransformInfo> SpawnInfos;
 	int32 TotalCount = 0;
@@ -197,6 +239,7 @@ void ACStageManager::StartDistributedSpawn(int32 StageID, bool bIsPreload)
 	if (SpawnInfos.Num() == 0)
 	{
 		CLog::Log(FString::Printf(TEXT("[ACStageManager::StartDistributedSpawn] 스테이지 %d에 유요한 스폰 정보가 없음"), StageID));
+		ProcessNextSpawnRequest();
 		return;
 	}
 
@@ -216,8 +259,8 @@ void ACStageManager::ProcessSpawnBatch()
 {
 	if (SpawningStage == -1 || CurrentSpawnQueue.Num() == 0)
 	{
-		if (SpawnTimer.IsValid())
-			GetWorldTimerManager().ClearTimer(SpawnTimer);
+		ResetSpawnState();
+		ProcessNextSpawnRequest();
 		return;
 	}
 
@@ -269,6 +312,12 @@ void ACStageManager::ProcessSpawnBatch()
 			}
 			else
 			{
+				if (AAIController* AI = Cast<AAIController>(Enemy->GetController()))
+				{
+					AI->StopMovement();
+					AI->ClearFocus(EAIFocusPriority::Gameplay);
+				}
+				
 				if (UCBaseHealthComponent* HealthComp = Enemy->FindComponentByClass<UCBaseHealthComponent>())
 				{
 					HealthComp->OnDeath.AddDynamic(this, &ACStageManager::OnEnemyDied);
@@ -283,9 +332,6 @@ void ACStageManager::ProcessSpawnBatch()
 	// 스폰 완료 확인
 	if (SpawnProgress >= TotalCount)
 	{
-		if (SpawnTimer.IsValid())
-			GetWorldTimerManager().ClearTimer(SpawnTimer);
-
 		if (bIsPreloading)
 		{
 			PreloadedStages.Add(SpawningStage);
@@ -298,11 +344,38 @@ void ACStageManager::ProcessSpawnBatch()
 				SpawningStage, StageEnemies[SpawningStage].Num()));
 		}
 
-		// 상태 초기화
-		SpawningStage = -1;
-		bIsPreloading = false;
-		SpawnProgress = 0;
-		CurrentSpawnQueue.Empty();
+		ResetSpawnState();
+		ProcessNextSpawnRequest();
+	}
+}
+
+void ACStageManager::ProcessNextSpawnRequest()
+{
+	if (IsSpawnInProgress())
+		return;
+	
+	while (SpawnRequestQueue.Num() > 0)
+	{
+		FStageSpawnRequest Request = SpawnRequestQueue[0];
+		SpawnRequestQueue.RemoveAt(0);
+			
+		if (!StageSpawnZones.Contains(Request.StageID))
+			continue;
+			
+		if (Request.bIsPreload)
+		{
+			if (PreloadedStages.Contains(Request.StageID))
+				continue;
+					
+			StartDistributedSpawn(Request.StageID, true);
+		}
+		else
+		{
+			StartStageSpawn(Request.StageID);
+		}
+			
+		if (IsSpawnInProgress())
+			break;
 	}
 }
 
@@ -456,13 +529,22 @@ void ACStageManager::CheckPreloadTrigger()
 	if (Remaining <= PreloadTriggerCount && Remaining > 0)
 	{
 		int32 NextStage = CurrentStage + 1;
-
-		if (StageSpawnZones.Contains(NextStage) && !PreloadedStages.Contains(NextStage) && SpawningStage != NextStage)
+		
+		if (StageSpawnZones.Contains(NextStage) && !PreloadedStages.Contains(NextStage))
 		{
+			if (SpawningStage == NextStage && bIsPreloading)
+				return;
+				
 			CLog::Log(FString::Printf(TEXT("[ACStageManager::CheckPreloadTrigger] 선제 로딩 (남은 적: %d) → 스테이지 %d"), Remaining, NextStage));
-
-			// 선제적 로딩 시작
-			StartDistributedSpawn(NextStage, true);
+				
+			if (IsSpawnInProgress())
+			{
+				QueueSpawnRequest(NextStage, true);
+			}
+			else
+			{
+				StartDistributedSpawn(NextStage, true);
+			}
 		}
 	}
 }
@@ -480,6 +562,53 @@ void ACStageManager::CleanupDelegates()
 		}
 	}
 	PreloadedEnemies.Empty();
+}
+
+bool ACStageManager::IsSpawnInProgress() const
+{
+	return SpawnTimer.IsValid() && SpawningStage != -1 && CurrentSpawnQueue.Num() > 0;
+}
+
+void ACStageManager::QueueSpawnRequest(int32 StageID, bool bIsPreload)
+{
+	for (FStageSpawnRequest& Request : SpawnRequestQueue)
+	{
+		if (Request.StageID == StageID)
+		{
+			if (!bIsPreload && Request.bIsPreload)
+			{
+				Request.bIsPreload = false;
+			}
+			return;
+		}
+	}
+
+	SpawnRequestQueue.Add(FStageSpawnRequest(StageID, bIsPreload));
+	
+	if (bEnableDebugLogs)
+	{
+		const FString ModeString = bIsPreload ? TEXT("Preload") : TEXT("Spawn");
+		CLog::Log(FString::Printf(TEXT("[ACStageManager::QueueSpawnRequest] Stage %d queued (%s)"), StageID, *ModeString));
+	}
+	
+	if (!IsSpawnInProgress())
+	{
+		ProcessNextSpawnRequest();
+	}
+}
+
+void ACStageManager::ResetSpawnState()
+{
+	if (SpawnTimer.IsValid())
+	{
+		GetWorldTimerManager().ClearTimer(SpawnTimer);
+	}
+	
+	SpawningStage = -1;
+	bIsPreloading = false;
+	SpawnProgress = 0;
+	SpawnPerFrame = 0;
+	CurrentSpawnQueue.Empty();
 }
 
 void ACStageManager::ClearAllEnemies()

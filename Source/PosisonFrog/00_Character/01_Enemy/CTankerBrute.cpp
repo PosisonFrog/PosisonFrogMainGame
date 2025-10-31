@@ -1,9 +1,7 @@
 ﻿#include "CTankerBrute.h"
 
 #include "00_Character/02_Component/01_EnemyComponent/CTankerChargeComponent.h"
-#include "AIController.h"
 #include "Components/SkeletalMeshComponent.h"
-#include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "NiagaraFunctionLibrary.h"       
 #include "Components/CapsuleComponent.h"
@@ -47,6 +45,7 @@ void ACTankerBrute::Tick(float DeltaSeconds)
     {
         LastSeenTime = Now;
     }
+    
     const bool bCharging = ChargeComp && ChargeComp->IsChargingOrWindup();
     if (bCharging)
     {

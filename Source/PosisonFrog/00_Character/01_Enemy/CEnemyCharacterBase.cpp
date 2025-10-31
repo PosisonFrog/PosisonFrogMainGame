@@ -17,13 +17,15 @@
 #include "01_Item/CHealOrbPoolSubsystem.h"
 #include "03_Combat/Damage/DamageType_FuryCountable.h"
 
-#include "99_Util/CLog.h"
 #include "Engine/DamageEvents.h"
 
 ACEnemyCharacterBase::ACEnemyCharacterBase()
 {
 	PrimaryActorTick.bCanEverTick = true;
 
+	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
+	AIControllerClass = ACTacticalEnemyAIController::StaticClass();
+	
 	HealthComponent = CreateDefaultSubobject<UCEnemyHealthComponent>(TEXT("HealthComponent"));
 
 	if (UCapsuleComponent* Cap = GetCapsuleComponent())
@@ -797,12 +799,33 @@ void ACEnemyCharacterBase::AttackWindowEnd(bool bForce /*=true*/)
 		AttackWindowEndTime = GetWorld()->GetTimeSeconds();
 }
 
+bool ACEnemyCharacterBase::IsValidAttackTarget(AActor* Other) const
+{
+	if (!Other || Other == this)
+		return false;
+	
+	if (Other->IsA(ACEnemyCharacterBase::StaticClass()))
+		return false;
+	
+	if (bAttackHitOnlyPlayers && !Other->IsA(ACPlayerCharacter::StaticClass()))
+		return false;
+	
+	return Other->CanBeDamaged();
+}
+
 // 단발 판정 (스윕 + Overlap 보조 + 거리 안전망)
 bool ACEnemyCharacterBase::ApplyAttackDamage(bool bCheckAngle /*=true*/)
 {
     UWorld* W = GetWorld();
     if (!W) return false;
 
+	// 즉시 공격(스윙 창 미사용) 시 이전에 맞춘 액터 목록을 초기화하여
+	// 한 번만 피해를 주는 문제가 발생하지 않도록 한다.
+	if (!bAttackWindowActive)
+	{
+		SwingHitActors.Reset();
+	}
+	
     // 멀티 전용 처리 원하시면:
     // if (!HasAuthority()) return false;
 
@@ -831,10 +854,10 @@ bool ACEnemyCharacterBase::ApplyAttackDamage(bool bCheckAngle /*=true*/)
         for (const FHitResult& H : Hits)
         {
             AActor* A = H.GetActor();
-            if (!A || A == this) continue;
+        	if (!A) continue;
+        	if (!IsValidAttackTarget(A)) continue;
             if (SwingHitActors.Contains(A)) continue;
             if (bCheckAngle && !PassAngleFilter(A)) continue;
-            if (bAttackHitOnlyPlayers && !Cast<APawn>(A)) continue;
 
             SwingHitActors.Add(A);
             UGameplayStatics::ApplyDamage(A, BaseDamage, GetController(), this, UDamageType::StaticClass());
@@ -847,44 +870,45 @@ bool ACEnemyCharacterBase::ApplyAttackDamage(bool bCheckAngle /*=true*/)
     else
     {
         // ── 보조 1: Pawn ObjectType Overlap (채널 미스매치 대비)
-        {
-            FCollisionObjectQueryParams ObjParams;
-        	ObjParams.AddObjectTypesToQuery(ECC_Pawn);
-        	ObjParams.AddObjectTypesToQuery(PF::Collision::RiotEnemy);
-            FCollisionQueryParams QParams(SCENE_QUERY_STAT(PF_AttackOverlap), false, this);
+	    {
+		    FCollisionObjectQueryParams ObjParams;
+	    	ObjParams.AddObjectTypesToQuery(ECC_Pawn);
+	    	ObjParams.AddObjectTypesToQuery(PF::Collision::RiotEnemy);
+	    	FCollisionQueryParams QParams(SCENE_QUERY_STAT(PF_AttackOverlap), false, this);
 
-            TArray<FOverlapResult> Overlaps;
-            const bool bOver = W->OverlapMultiByObjectType(
-                Overlaps, End, Rot,
-                ObjParams, FCollisionShape::MakeCapsule(AttackSweepRadius, AttackSweepHalfHeight),
-                QParams
-            );
+	    	TArray<FOverlapResult> Overlaps;
+	    	const bool bOver = W->OverlapMultiByObjectType(
+				Overlaps, End, Rot,
+				ObjParams, FCollisionShape::MakeCapsule(AttackSweepRadius, AttackSweepHalfHeight),
+				QParams
+			);
 
-            if (bOver)
-            {
-                for (const FOverlapResult& O : Overlaps)
-                {
-                    AActor* A = O.GetActor();
-                    if (!A || A == this) continue;
-                    if (SwingHitActors.Contains(A)) continue;
-                    if (bCheckAngle && !PassAngleFilter(A)) continue;
-                    if (bAttackHitOnlyPlayers && !Cast<APawn>(A)) continue;
+	    	if (bOver)
+	    	{
+	    		for (const FOverlapResult& O : Overlaps)
+	    		{
+	    			AActor* A = O.GetActor();
+	    			if (!A || A == this) continue;
+	    			if (!A) continue;
+	    			if (!IsValidAttackTarget(A)) continue;
+	    			if (SwingHitActors.Contains(A)) continue;
+	    			if (bCheckAngle && !PassAngleFilter(A)) continue;
 
-                    SwingHitActors.Add(A);
-                    UGameplayStatics::ApplyDamage(A, BaseDamage, GetController(), this, UDamageType::StaticClass());
-                    bHitSomething = true;
+	    			SwingHitActors.Add(A);
+	    			UGameplayStatics::ApplyDamage(A, BaseDamage, GetController(), this, UDamageType::StaticClass());
+	    			bHitSomething = true;
 
-                    if (bDebugDrawAttack)
-                        DrawDebugPoint(W, A->GetActorLocation(), 10.f, FColor::Magenta, false, 0.2f);
-                }
-            }
-        }
+	    			if (bDebugDrawAttack)
+	    				DrawDebugPoint(W, A->GetActorLocation(), 10.f, FColor::Magenta, false, 0.2f);
+	    		}
+	    	}
+	    }
 
         // ── 보조 2: AttackRange 거리 안전망
         if (!bHitSomething && Target && AttackRange > 0.f
             && FVector::Dist(GetActorLocation(), Target->GetActorLocation()) <= AttackRange)
         {
-            if (!SwingHitActors.Contains(Target) && (!bCheckAngle || PassAngleFilter(Target)))
+        	if (IsValidAttackTarget(Target) && !SwingHitActors.Contains(Target) && (!bCheckAngle || PassAngleFilter(Target)))
             {
                 SwingHitActors.Add(Target);
                 UGameplayStatics::ApplyDamage(Target, BaseDamage, GetController(), this, UDamageType::StaticClass());
@@ -991,10 +1015,10 @@ void ACEnemyCharacterBase::PerformAttackSweep()
         for (const FHitResult& H : Hits)
         {
             AActor* A = H.GetActor();
-            if (!A || A == this)           continue;
+			if (!A)                        continue;
+        	if (!IsValidAttackTarget(A))   continue;
             if (SwingHitActors.Contains(A)) continue;
             if (!PassAngleFilter(A))        continue;
-            if (bAttackHitOnlyPlayers && !Cast<APawn>(A)) continue;
 
             SwingHitActors.Add(A);
             UGameplayStatics::ApplyDamage(A, BaseDamage, GetController(), this, UDamageType::StaticClass());

@@ -14,6 +14,15 @@ class ACCheckPoint;
 class ACEnemyCharacterBase;
 class ACEnemySpawnPoint;
 
+struct FStageSpawnRequest
+{
+	int32 StageID = INDEX_NONE;
+	bool bIsPreload = false;
+
+	FStageSpawnRequest() = default;
+	FStageSpawnRequest(int32 InStageID, bool bInIsPreload) : StageID(InStageID), bIsPreload(bInIsPreload) {}
+};
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnStageCleared, int32, StageID);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnCheckPointActivated, ACCheckPoint*, CheckPoint, ACPlayerCharacter*, Player);
 
@@ -58,6 +67,9 @@ protected:
 	// 스폰 배치 처리
 	void ProcessSpawnBatch();
 
+	// 다음 스폰 요청 처리
+	void ProcessNextSpawnRequest();
+	
 	// 선제적 로딩된 적들 활성화
 	void ActivatePreloadedStage(int32 StageID);
 
@@ -76,6 +88,10 @@ protected:
 	
 	// ──────────── 메모리 정리 ────────────
 	void CleanupDelegates();
+
+	bool IsSpawnInProgress() const;
+	void QueueSpawnRequest(int32 StageID, bool bIsPreload);
+	void ResetSpawnState();
 	
 private:
 	// ──────────── 데이터 저장 ────────────
@@ -112,6 +128,8 @@ private:
 
 	TSet<int32> PreloadedStages;
 
+	TArray<FStageSpawnRequest> SpawnRequestQueue;
+	
 	// 분산 스폰에서 사용할 타이머
 	FTimerHandle SpawnTimer;
 

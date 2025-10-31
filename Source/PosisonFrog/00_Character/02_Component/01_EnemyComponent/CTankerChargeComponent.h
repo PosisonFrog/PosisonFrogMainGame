@@ -181,6 +181,12 @@ private:
     
     UPROPERTY(EditDefaultsOnly, Category = "PF|Charge|Hit", meta=(ClampMin = "0"))
     float FailedChargeRecoveryDelay = 1.0f;
+
+    UPROPERTY(EditDefaultsOnly, Category = "PF|Charge|Hit", meta = (ClampMin = "0"))
+    float PlayerKnockbackStrength = 900.f;
+    
+    UPROPERTY(EditDefaultsOnly, Category = "PF|Charge|Hit")
+    float PlayerKnockbackUp = 120.f;
     
     // ─ Cooldown ─
     UPROPERTY(EditDefaultsOnly, Category = "PF|Charge|Cooldown", meta = (ClampMin = "0"))
@@ -196,8 +202,6 @@ private:
     UPROPERTY(EditDefaultsOnly, Category = "PF|Charge|Debug")
     bool  bDrawPreChargeGoal = false;
 
-
-
 private:
     // ─ Runtime ─
     UPROPERTY(Transient)
@@ -207,8 +211,6 @@ private:
     TWeakObjectPtr<UCharacterMovementComponent> MoveComp;
     TWeakObjectPtr<AActor> TargetActor;
     TWeakObjectPtr<AAIController> CachedAI;
- 
-    
 
     // Charging
     FVector ChargeDirection = FVector::ForwardVector;
