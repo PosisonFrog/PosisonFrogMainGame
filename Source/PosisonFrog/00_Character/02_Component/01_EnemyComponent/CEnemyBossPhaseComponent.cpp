@@ -12,6 +12,12 @@ UCEnemyBossPhaseComponent::UCEnemyBossPhaseComponent()
 {
     PrimaryComponentTick.bCanEverTick = true;
     PrimaryComponentTick.TickGroup = TG_PrePhysics;
+    PrimaryComponentTick.bCanEverTick = true;
+    CurrentPower = 0.f;
+    CurrentPhaseIndex = INDEX_NONE;
+    CombatState = EBossCombatState::None;
+    StateTimeRemaining = 0.f;
+    PendingRecoveryDuration = 0.f;
 }
 
 void UCEnemyBossPhaseComponent::BeginPlay()
@@ -19,6 +25,7 @@ void UCEnemyBossPhaseComponent::BeginPlay()
     Super::BeginPlay();
 
     InitializePhases();
+    InitialiseFromData();
 
     if (AActor* Owner = GetOwner())
     {
@@ -71,9 +78,46 @@ void UCEnemyBossPhaseComponent::TickComponent(float DeltaTime, ELevelTick TickTy
         return;
     }
 
+    CurrentPower = FMath::Clamp(CurrentPower + PhaseData->PassivePowerPerSecond * DeltaTime, 0.f, PhaseData->MaxPower);
+    
     UpdatePassivePower(DeltaTime);
     TryTriggerShout();
 
+    if (StateTimeRemaining > 0.f)
+    {
+        StateTimeRemaining -= DeltaTime;
+        if (StateTimeRemaining <= 0.f)
+        {
+            switch (CombatState)
+            {
+            case EBossCombatState::Intro:
+            case EBossCombatState::Recovery:
+                SetCombatState(EBossCombatState::Idle);
+                break;
+            case EBossCombatState::Pattern:
+                SetCombatState(EBossCombatState::Recovery);
+                StateTimeRemaining = PendingRecoveryDuration;
+                PendingRecoveryDuration = 0.f;
+                break;
+            case EBossCombatState::Shout:
+                SetCombatState(EBossCombatState::Idle);
+                break;
+            default:
+                break;
+            }
+        }
+    }
+
+
+    if (CombatState == EBossCombatState::Idle && PhaseData->ShoutTriggerRatio > 0.f && PhaseData->MaxPower > 0.f)
+    {
+        const float PowerRatio = CurrentPower / PhaseData->MaxPower;
+        if (PowerRatio >= PhaseData->ShoutTriggerRatio)
+        {
+            EnterShoutState();
+        }
+    }
+    
     if (State == EBossBattleState::Dormant || State == EBossBattleState::Dead)
     {
         return;
@@ -81,6 +125,60 @@ void UCEnemyBossPhaseComponent::TickComponent(float DeltaTime, ELevelTick TickTy
 
     TickState(DeltaTime);
 }
+void UCEnemyBossPhaseComponent::SetPhaseData(UBossPhaseDataAsset* InPhaseData)
+{
+    if (PhaseData == InPhaseData)
+    {
+        return;
+    }
+    
+    PhaseData = InPhaseData;
+    InitialiseFromData();
+}
+
+void UCEnemyBossPhaseComponent::RefreshPhaseFromHealth(float CurrentHealth, float MaxHealth)
+{
+    if (!PhaseData || PhaseData->Phases.IsEmpty())
+    {
+        return;
+    }
+  
+    const float HealthRatio = (MaxHealth > SMALL_NUMBER) ? CurrentHealth / MaxHealth : 0.f;
+    int32 TargetIndex = 0;
+    
+    for (int32 Index = 0; Index < PhaseData->Phases.Num(); ++Index)
+    {
+        if (HealthRatio <= PhaseData->Phases[Index].EnterHealthRatio + KINDA_SMALL_NUMBER)
+        {
+            TargetIndex = Index;
+        }
+    }
+    
+    if (CombatState == EBossCombatState::None)
+    {
+        HandlePhaseTransition(TargetIndex);
+        return;
+    }
+    
+    if (TargetIndex != CurrentPhaseIndex)
+    {
+        HandlePhaseTransition(TargetIndex);
+    }
+}
+
+const FBossPhaseDefinition* UCEnemyBossPhaseComponent::GetCurrentPhaseDefinition() const
+{
+        return ResolvePhaseDefinition(CurrentPhaseIndex);
+}
+
+float UCEnemyBossPhaseComponent::GetCurrentPowerRatio() const
+{
+    if (!PhaseData || PhaseData->MaxPower <= 0.f)
+        return 0.f;
+    
+    return CurrentPower / PhaseData->MaxPower;
+}
+
 
 void UCEnemyBossPhaseComponent::StartBattle(bool bSkipIntro)
 {
@@ -117,14 +215,156 @@ void UCEnemyBossPhaseComponent::ForceNextPattern(FName PatternId)
     ForcedPatternId = PatternId;
 }
 
-void UCEnemyBossPhaseComponent::AddPower(float Amount)
+void UCEnemyBossPhaseComponent::AddPower(float PowerDelta)
 {
-    if (Amount <= 0.f)
+    if (!PhaseData)
     {
         return;
     }
+  
+    if (FMath::IsNearlyZero(PowerDelta))
+    {
+        return;
+    }
+  
+    float AdjustedDelta = PowerDelta;
+   if (const FBossPhaseDefinition* PhaseDefinition = GetCurrentPhaseDefinition())
+    {
+        if (PowerDelta >= 0.f)
+        {
+            AdjustedDelta *= FMath::Max(0.f, PhaseDefinition->PowerGainMultiplier);
+        }
+        else
+        {
+            AdjustedDelta *= FMath::Max(0.f, PhaseDefinition->PowerDrainMultiplier);
+        }
+    }
+ 
+    CurrentPower = FMath::Clamp(CurrentPower + AdjustedDelta, 0.f, PhaseData->MaxPower);
+}
 
-    ApplyPowerDelta(Amount);
+void UCEnemyBossPhaseComponent::NotifyHitByPlayer(float PowerScale)
+{
+    if (!PhaseData)
+        return;
+    const float Scale = FMath::Max(0.f, PowerScale);
+    const float BonusPower = PhaseData->PowerGainOnHit * Scale;
+    if (BonusPower > 0.f)
+    {
+        AddPower(BonusPower);
+    }
+}
+
+
+bool UCEnemyBossPhaseComponent::TryStartPattern(FBossPatternRuntime& OutRuntimeInfo)
+{
+    OutRuntimeInfo = {};
+  
+    const FBossPhaseDefinition* PhaseDefinition = GetCurrentPhaseDefinition();
+    if (!PhaseDefinition || CombatState != EBossCombatState::Idle)
+    {
+        return false;
+    }
+   
+    TArray<const FBossPatternDefinition*> Candidates;
+    float TotalWeight = 0.f;
+    
+    for (const FBossPatternDefinition& Pattern : PhaseDefinition->Patterns)
+    {
+        if (IsPatternReady(Pattern))
+        {
+            Candidates.Add(&Pattern);
+            TotalWeight += Pattern.Weight;
+        }
+    }
+   
+    if (Candidates.IsEmpty() || TotalWeight <= 0.f)
+    {
+        return false;
+    }
+   
+    const float Roll = FMath::FRandRange(0.f, TotalWeight);
+    float Accumulated = 0.f;
+    const FBossPatternDefinition* SelectedPattern = Candidates.Last();
+    
+    for (const FBossPatternDefinition* Candidate : Candidates)
+    {
+        Accumulated += Candidate->Weight;
+        if (Roll <= Accumulated)
+        {
+            SelectedPattern = Candidate;
+            break;
+        }
+    }
+  
+    const float EffectiveCost = GetEffectivePowerCost(*SelectedPattern);
+    if (EffectiveCost > 0.f)
+    {
+        CurrentPower = FMath::Max(0.f, CurrentPower - EffectiveCost);
+    }
+   
+    const float BaseRecovery = PhaseDefinition->BaseRecoveryDuration;
+    PendingRecoveryDuration = BaseRecovery + SelectedPattern->RecoveryTime;
+    StateTimeRemaining = SelectedPattern->ExecutionTime;
+    PatternCooldowns.FindOrAdd(SelectedPattern->PatternId) = SelectedPattern->Cooldown;
+    ActivePatternId = SelectedPattern->PatternId;
+   
+    OutRuntimeInfo.PatternId = SelectedPattern->PatternId;
+    OutRuntimeInfo.ExecutionTime = SelectedPattern->ExecutionTime;
+    OutRuntimeInfo.RecoveryTime = SelectedPattern->RecoveryTime;
+    OutRuntimeInfo.bIsClimax = SelectedPattern->bIsClimax;
+    
+    SetCombatState(EBossCombatState::Pattern, SelectedPattern->PatternId);
+    return true;
+}
+
+
+void UCEnemyBossPhaseComponent::NotifyPatternFinished(bool bWasSuccessful)
+{
+    if (!PhaseData)
+    {
+        return;
+    }
+    
+    if (CombatState != EBossCombatState::Pattern)
+    {
+        return;
+    }
+  
+
+    /*
+    const FBossPhaseDefinition* PhaseDefinition = GetCurrentPhaseDefinition();
+    if (!PhaseDefinition)
+    {
+        return;
+    }
+ 
+    const FBossPatternDefinition* PatternDefinition = PhaseDefinition->Patterns.FindByPredicate([
+      PatternId = ActivePatternId
+    ](const FBossPatternDefinition& Definition)
+    {
+       return Definition.PatternId == PatternId;
+    });
+
+    if (bWasSuccessful && PatternDefinition)
+    {
+        const float Reward = GetEffectivePowerReward(*PatternDefinition);
+        if (Reward > 0.f)
+        {
+            CurrentPower = FMath::Clamp(CurrentPower + Reward, 0.f, PhaseData->MaxPower);
+        }
+    }
+    */
+    // 즉시 리커버리로 전환될 수 있도록 남은 시간을 0으로 처리.
+    StateTimeRemaining = 0.f;
+}
+
+
+void UCEnemyBossPhaseComponent::ApplyInterruptPenalty()
+{
+    if (!PhaseData)
+        return;
+    AddPower(-PhaseData->PowerLossOnInterrupt);
 }
 
 void UCEnemyBossPhaseComponent::ConsumePower(float Amount)
@@ -144,6 +384,28 @@ const FBossPhaseDefinition& UCEnemyBossPhaseComponent::GetCurrentPhase() const
         return GDummyPhase;
     }
     return PhaseData->Phases[CurrentPhaseIndex];
+}
+
+void UCEnemyBossPhaseComponent::InitialiseFromData()
+{
+    CurrentPower = 0.f;
+    CombatState = EBossCombatState::None;
+    ActivePatternId = NAME_None;
+    StateTimeRemaining = 0.f;
+    PendingRecoveryDuration = 0.f;
+    PatternCooldowns.Empty();
+   
+    if (!PhaseData)
+    {
+        CurrentPhaseIndex = INDEX_NONE;
+        return;
+    }
+ 
+    CurrentPhaseIndex = 0;
+    if (!PhaseData->Phases.IsEmpty())
+    {
+        HandlePhaseTransition(0);
+    }
 }
 
 void UCEnemyBossPhaseComponent::InitializePhases()
@@ -172,6 +434,33 @@ void UCEnemyBossPhaseComponent::InitializePhases()
         ResetPhaseRuntime();
         OnPhaseChanged.Broadcast(CurrentPhaseIndex, GetCurrentPhase());
     }
+}
+
+void UCEnemyBossPhaseComponent::HandlePhaseTransition(int32 NewPhaseIndex)
+{
+    if (!PhaseData || !PhaseData->Phases.IsValidIndex(NewPhaseIndex))
+    {
+        return;
+    }
+  
+    CurrentPhaseIndex = NewPhaseIndex;
+    CurrentPower = FMath::Clamp(CurrentPower, 0.f, PhaseData->MaxPower);
+    PatternCooldowns.Empty();
+    ActivePatternId = NAME_None;
+    PendingRecoveryDuration = 0.f;
+  
+    const FBossPhaseDefinition& PhaseDefinition = PhaseData->Phases[CurrentPhaseIndex];
+    StateTimeRemaining = PhaseDefinition.IntroDuration;
+    SetCombatState(EBossCombatState::Intro);
+    
+    OnBossPhaseChanged.Broadcast(CurrentPhaseIndex, PhaseDefinition.PhaseName);
+}
+
+void UCEnemyBossPhaseComponent::SetCombatState(EBossCombatState NewState, FName InPatternId)
+{
+    CombatState = NewState;
+    ActivePatternId = InPatternId;
+    OnBossStateChanged.Broadcast(CombatState, ActivePatternId);
 }
 
 void UCEnemyBossPhaseComponent::EvaluatePhaseByHealth(float HealthRatio)
@@ -218,7 +507,21 @@ void UCEnemyBossPhaseComponent::EnterPhase(int32 PhaseIndex)
 void UCEnemyBossPhaseComponent::ResetPhaseRuntime()
 {
     CurrentPatternIndex = INDEX_NONE;
-    PatternCooldowns.SetNumZeroed(GetCurrentPhase().Patterns.Num());
+    PatternCooldowns.Empty();
+}
+
+void UCEnemyBossPhaseComponent::EnterShoutState()
+{
+    const FBossPhaseDefinition* PhaseDefinition = GetCurrentPhaseDefinition();
+    if (!PhaseDefinition || PhaseDefinition->ShoutMetaId.IsNone())
+    {
+        return;
+    }
+ 
+    CurrentPower = 0.f;
+    StateTimeRemaining = PhaseDefinition->ShoutDuration;
+    SetCombatState(EBossCombatState::Shout, PhaseDefinition->ShoutMetaId);
+    
 }
 
 void UCEnemyBossPhaseComponent::EnterState(EBossBattleState NewState, float Duration)
@@ -297,11 +600,14 @@ void UCEnemyBossPhaseComponent::AdvanceState()
 
 void UCEnemyBossPhaseComponent::UpdateCooldowns(float DeltaTime)
 {
-    for (float& Cooldown : PatternCooldowns)
+    for (auto It = PatternCooldowns.CreateIterator(); It; ++It)
     {
-        Cooldown = FMath::Max(0.f, Cooldown - DeltaTime);
+        It->Value = FMath::Max(0.f, It->Value - DeltaTime);
+        if (It->Value <= SMALL_NUMBER)
+        {
+            It.RemoveCurrent();
+        }
     }
-
 }
 
 void UCEnemyBossPhaseComponent::UpdatePassivePower(float DeltaTime)
@@ -359,6 +665,42 @@ void UCEnemyBossPhaseComponent::ApplyPowerDelta(float Delta)
     }
 }
 
+const FBossPhaseDefinition* UCEnemyBossPhaseComponent::ResolvePhaseDefinition(int32 PhaseIndex) const
+{
+    if (!PhaseData || !PhaseData->Phases.IsValidIndex(PhaseIndex))
+    {
+        return nullptr;
+    }
+    return &PhaseData->Phases[PhaseIndex];
+}
+
+bool UCEnemyBossPhaseComponent::IsPatternReady(const FBossPatternDefinition& PatternDef) const
+{
+    if (!PhaseData)
+    {
+        return false;
+    }
+   
+    const float* CooldownPtr = PatternCooldowns.Find(PatternDef.PatternId);
+    if (CooldownPtr && *CooldownPtr > 0.f)
+    {
+        return false;
+    }
+  
+    const float EffectiveCost = GetEffectivePowerCost(PatternDef);
+    if (EffectiveCost > 0.f && CurrentPower < EffectiveCost)
+    {
+        return false;
+    }
+    
+    if (PatternDef.RequiredPower > 0.f && CurrentPower < PatternDef.RequiredPower)
+    {
+        return false;
+    }
+    
+    return true;
+}
+
 void UCEnemyBossPhaseComponent::BeginPattern(int32 PatternIndex)
 {
     if (!PhaseData)
@@ -375,10 +717,7 @@ void UCEnemyBossPhaseComponent::BeginPattern(int32 PatternIndex)
     CurrentPatternIndex = PatternIndex;
     const FBossPatternDefinition& Pattern = Patterns[PatternIndex];
 
-    if (PatternCooldowns.IsValidIndex(PatternIndex))
-    {
-        PatternCooldowns[PatternIndex] = Pattern.Cooldown;
-    }
+    PatternCooldowns.FindOrAdd(Pattern.PatternId) = Pattern.Cooldown;
 
     const float Drain = (Pattern.PowerCost + Pattern.RequiredPower) * GetCurrentPhase().PowerDrainMultiplier;
     if (Drain > 0.f)
@@ -433,6 +772,7 @@ int32 UCEnemyBossPhaseComponent::SelectNextPatternIndex() const
         return INDEX_NONE;
     }
 
+    
     if (!ForcedPatternId.IsNone())
     {
         for (int32 Index = 0; Index < Patterns.Num(); ++Index)
@@ -490,18 +830,48 @@ bool UCEnemyBossPhaseComponent::CanUsePattern(int32 PatternIndex) const
         return false;
     }
 
-    if (PatternCooldowns.IsValidIndex(PatternIndex) && PatternCooldowns[PatternIndex] > 0.f)
+    const FBossPatternDefinition& Pattern = Patterns[PatternIndex];
+
+    const float* CooldownPtr = PatternCooldowns.Find(Pattern.PatternId);
+    if (CooldownPtr && *CooldownPtr > 0.f)
     {
         return false;
     }
 
-    const FBossPatternDefinition& Pattern = Patterns[PatternIndex];
+    // 3. 기존의 파워 조건을 확인합니다.
     if (CurrentPower < Pattern.RequiredPower)
     {
         return false;
     }
 
     return true;
+}
+
+float UCEnemyBossPhaseComponent::GetEffectivePowerCost(const FBossPatternDefinition& PatternDef) const
+{
+ 
+    const FBossPhaseDefinition* PhaseDefinition = GetCurrentPhaseDefinition();
+     if (!PhaseDefinition)
+         {
+                 return PatternDef.PowerCost;
+              }
+   
+     return PatternDef.PowerCost * FMath::Max(0.f, PhaseDefinition->PowerDrainMultiplier);
+     
+    return 0.f; // 임시 반환값 <- 위에 수정되면 지워야함.
+}
+
+float UCEnemyBossPhaseComponent::GetEffectivePowerReward(const FBossPatternDefinition& PatternDef) const
+{
+   
+    const FBossPhaseDefinition* PhaseDefinition = GetCurrentPhaseDefinition();
+    if (!PhaseDefinition)
+    {
+        return PatternDef.PowerReward;
+    }
+   
+    return PatternDef.PowerReward * FMath::Max(0.f, PhaseDefinition->PowerGainMultiplier);
+
 }
 
 void UCEnemyBossPhaseComponent::HandleHealthChanged(float Current, float Max)
