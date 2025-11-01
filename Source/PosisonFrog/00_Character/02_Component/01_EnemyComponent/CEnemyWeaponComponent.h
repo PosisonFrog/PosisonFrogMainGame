@@ -18,6 +18,12 @@ public:
 	// CBaseWeaponComponent의 가상 함수를 재정의해서 적의 공격을 수행
 	virtual void DoAttack() override;
 
+	/** 현재 사용 중인 공격 인덱스를 변경합니다. */
+	void SetCurrentAttackIndex(int32 NewIndex);
+	
+	/** 지정한 인덱스에 유효한 공격 몽타주가 있는지 확인합니다. */
+	bool IsAttackIndexValid(int32 Index) const;
+
 protected:
 	// 무기 액터를 스폰하고 캐릭터에 부착
 	virtual void SpawnWeapon() override;

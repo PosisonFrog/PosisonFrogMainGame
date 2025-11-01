@@ -20,6 +20,7 @@ public:
     ACEnemyBossCharacter();
 
     virtual void BeginPlay() override;
+    virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
     virtual float TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
 
     UFUNCTION(BlueprintCallable, Category="Boss")
@@ -49,7 +50,15 @@ protected:
     UFUNCTION()
     void HandleShoutFinished(int32 PhaseIndex, FName ShoutId, float Duration);
 
+    UFUNCTION()
+    void HandleBossDeath(AActor* DeadActor);
+
 protected:
+
+    /** 레벨 시작 시 자동으로 전투를 시작할지 여부 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Boss")
+    bool bAutoStartBattle = false;
+    
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Boss|Components")
     TObjectPtr<UCEnemyHealthComponent> HealthComponent;
 
@@ -58,4 +67,14 @@ protected:
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Boss|Components")
     TObjectPtr<UCEnemyWeaponComponent> WeaponComponent;
+    /** 패턴과 공격 몽타주 인덱스를 매핑합니다. */
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Boss|Pattern")
+    TMap<FName, int32> PatternAttackIndexMap;
+    
+    /** 매핑되지 않은 패턴이 사용할 기본 공격 인덱스. */
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Boss|Pattern")
+    int32 DefaultAttackIndex = 0;
+
+    /** 보스의 사망 여부를 추적합니다. */
+    bool bIsBossDead = false;
 };

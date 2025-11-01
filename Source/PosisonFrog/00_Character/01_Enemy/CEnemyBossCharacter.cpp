@@ -8,7 +8,8 @@
 ACEnemyBossCharacter::ACEnemyBossCharacter()
 {
     PrimaryActorTick.bCanEverTick = true;
-
+    PrimaryActorTick.bStartWithTickEnabled = true;
+    
     HealthComponent = CreateDefaultSubobject<UCEnemyHealthComponent>(TEXT("HealthComponent"));
     BossPhaseComponent = CreateDefaultSubobject<UCEnemyBossPhaseComponent>(TEXT("BossPhaseComponent"));
     WeaponComponent = CreateDefaultSubobject<UCEnemyWeaponComponent>(TEXT("WeaponComponent"));
@@ -18,7 +19,34 @@ void ACEnemyBossCharacter::BeginPlay()
 {
     Super::BeginPlay();
 
+    if (bAutoStartBattle)
+    {
+        APawn* Player = GetWorld()->GetFirstPlayerController()
+                      ? GetWorld()->GetFirstPlayerController()->GetPawn() 
+                      : nullptr;
+        if (Player)
+        {
+            StartBossBattle(false); // bSkipIntro
+        }
+    }
+    
+    bIsBossDead = false;
     InitializeBossBindings();
+
+    if (IsValid(HealthComponent))
+    {
+        HealthComponent->OnDeath.AddDynamic(this, &ACEnemyBossCharacter::HandleBossDeath);
+    }    
+    
+}
+
+void ACEnemyBossCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+    if (IsValid(HealthComponent))
+    {
+        HealthComponent->OnDeath.RemoveDynamic(this, &ACEnemyBossCharacter::HandleBossDeath);
+    }
+    Super::EndPlay(EndPlayReason);
 }
 
 float ACEnemyBossCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
@@ -45,9 +73,21 @@ float ACEnemyBossCharacter::TakeDamage(float DamageAmount, FDamageEvent const& D
     {
         UE_LOG(LogTemp, Error, TEXT("[%s] HealthComponent를 찾을 수 없음!"), *GetName());
     }
+    
+    const bool bIsDead = IsValid(HealthComponent) && HealthComponent->IsDead();
+    if (bIsDead)
+    {
+        bIsBossDead = true;
+    }
 
+    
     if (BossPhaseComponent)
     {
+        if (bIsDead || BossPhaseComponent->GetCurrentState() == EBossBattleState::Dead)
+        {
+            return AppliedDamage;
+        }
+
         if (!BossPhaseComponent->IsBattleStarted())
         {
             BossPhaseComponent->StartBattle();
@@ -64,6 +104,12 @@ float ACEnemyBossCharacter::TakeDamage(float DamageAmount, FDamageEvent const& D
 
 void ACEnemyBossCharacter::StartBossBattle(bool bSkipIntro)
 {
+    if (bIsBossDead)
+    {
+        UE_LOG(LogTemp, Verbose, TEXT("[Boss] StartBossBattle ignored because boss is dead"));
+        return;
+    }
+    
     if (BossPhaseComponent)
     {
         BossPhaseComponent->StartBattle(bSkipIntro);
@@ -72,6 +118,11 @@ void ACEnemyBossCharacter::StartBossBattle(bool bSkipIntro)
 
 void ACEnemyBossCharacter::ForcePattern(FName PatternId)
 {
+    if (bIsBossDead)
+    {
+        UE_LOG(LogTemp, Verbose, TEXT("[Boss] ForcePattern(%s) ignored because boss is dead"), *PatternId.ToString());
+        return;
+    }
     if (BossPhaseComponent)
     {
         BossPhaseComponent->ForceNextPattern(PatternId);
@@ -100,6 +151,41 @@ void ACEnemyBossCharacter::HandlePhaseChanged(int32 PhaseIndex, const FBossPhase
 void ACEnemyBossCharacter::HandlePatternStarted(int32 PhaseIndex, FName PatternId, const FBossPatternDefinition& PatternData, float RemainingPower)
 {
     UE_LOG(LogTemp, Log, TEXT("[Boss] Pattern %s started (Phase %d, Power %.1f)"), *PatternId.ToString(), PhaseIndex, RemainingPower);
+
+    if (bIsBossDead || (IsValid(BossPhaseComponent) && BossPhaseComponent->GetCurrentState() == EBossBattleState::Dead))
+    {
+        UE_LOG(LogTemp, Verbose, TEXT("[Boss] Pattern %s ignored because boss is dead"), *PatternId.ToString());
+        return;
+    }
+    
+    if (IsValid(HealthComponent) && HealthComponent->IsDead())
+    {
+        bIsBossDead = true;
+        UE_LOG(LogTemp, Verbose, TEXT("[Boss] Pattern %s ignored due to dead health state"), *PatternId.ToString());
+        return;
+    }
+    
+    if (!IsValid(WeaponComponent))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[Boss] WeaponComponent is missing - cannot play attack montage"));
+        return;
+    }
+    
+    int32 AttackIndex = DefaultAttackIndex;
+    if (const int32* FoundIndex = PatternAttackIndexMap.Find(PatternId))
+    {
+        AttackIndex = *FoundIndex;
+    }
+   
+    WeaponComponent->SetCurrentAttackIndex(AttackIndex);
+  
+    if (!WeaponComponent->IsAttackIndexValid(AttackIndex))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[Boss] No valid attack montage for pattern %s (index %d)"), *PatternId.ToString(), AttackIndex);
+        return;
+    }
+    
+    WeaponComponent->DoAttack();
 }
 
 void ACEnemyBossCharacter::HandlePatternFinished(int32 PhaseIndex, FName PatternId, const FBossPatternDefinition& PatternData, float RemainingPower)
@@ -115,4 +201,23 @@ void ACEnemyBossCharacter::HandleShoutStarted(int32 PhaseIndex, FName ShoutId, f
 void ACEnemyBossCharacter::HandleShoutFinished(int32 PhaseIndex, FName ShoutId, float Duration)
 {
     UE_LOG(LogTemp, Warning, TEXT("[Boss] Shout %s finished (Phase %d)"), *ShoutId.ToString(), PhaseIndex);
+}
+
+
+void ACEnemyBossCharacter::HandleBossDeath(AActor* DeadActor)
+{
+    if (DeadActor != this)
+    {
+        return;
+    }
+  
+    bIsBossDead = true;
+   
+    if (USkeletalMeshComponent* mesh = GetMesh())
+    {
+        if (UAnimInstance* AnimInst = mesh->GetAnimInstance())
+        {
+            AnimInst->StopAllMontages(0.f);
+        }
+    }
 }

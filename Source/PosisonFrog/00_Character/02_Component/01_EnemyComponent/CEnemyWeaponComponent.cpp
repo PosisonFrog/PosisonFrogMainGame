@@ -36,6 +36,32 @@ void UCEnemyWeaponComponent::DoAttack()
 	}
 }
 
+
+void UCEnemyWeaponComponent::SetCurrentAttackIndex(int32 NewIndex)
+{
+	if (AttackMontage.IsValidIndex(NewIndex))
+	{
+		CurrentAttackIndex = NewIndex;
+		return;
+	}
+	
+	if (AttackMontage.Num() > 0)
+	{
+		const int32 ClampedIndex = FMath::Clamp(NewIndex, 0, AttackMontage.Num() - 1);
+		CLog::Log(FString::Printf(TEXT("[EnemyWeaponComp] Invalid attack index %d, clamped to %d"), NewIndex, ClampedIndex));
+		CurrentAttackIndex = ClampedIndex;
+	}
+	else
+	{
+		CurrentAttackIndex = 0;
+	}
+}
+
+bool UCEnemyWeaponComponent::IsAttackIndexValid(int32 Index) const
+{
+	return AttackMontage.IsValidIndex(Index) && AttackMontage[Index] != nullptr;
+}
+
 void UCEnemyWeaponComponent::SpawnWeapon()
 {
 	if (!WeaponClass)
