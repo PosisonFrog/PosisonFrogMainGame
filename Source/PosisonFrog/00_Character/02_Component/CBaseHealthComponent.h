@@ -57,6 +57,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Health")
 	void SetMaxHealth(float NewMax, bool bClampCurrent = true, bool bResetToMax = false);
 
+	UFUNCTION(BlueprintCallable, Category = "Health")
+	void ResetHealth();
+	
 	// --- 이벤트 ---
 	UPROPERTY(BlueprintAssignable, Category = "Health|Events")
 	FOnHealthChanged OnHealthChanged;

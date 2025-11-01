@@ -12,7 +12,6 @@ class ACEnemySpawnZone;
 class ACStageBarrier;
 class ACCheckPoint;
 class ACEnemyCharacterBase;
-class ACEnemySpawnPoint;
 
 struct FStageSpawnRequest
 {
@@ -42,8 +41,8 @@ public:
 	// ──────────── 스테이지 제어 ────────────
 	void StartStageSpawn(int32 StageID);
 	void CheckStageComplete(int32 StageID);
-
-	UFUNCTION() void RespawnStage(int32 StageID);
+	void PrepareForRespawn(int32 TargetStageID);
+	//UFUNCTION() void RespawnStage(int32 StageID);
 
 	// ──────────── 상태 조회 ────────────
 	int32 GetRemainingEnemies(int32 StageID) const;
@@ -54,7 +53,7 @@ public:
 	UPROPERTY() FOnStageCleared OnStageCleared;
 	UPROPERTY() FOnCheckPointActivated OnCheckPointActivated;
 	
-protected:
+private:
 	// ──────────── 초기화 ────────────
 	void CollectSpawnZones();
 	void CollectBarriers();
@@ -85,14 +84,17 @@ protected:
 
 	// 선제적 로딩 트리거 체크
 	void CheckPreloadTrigger();
+
+	void ResetEnemy(ACEnemyCharacterBase* Enemy);
 	
 	// ──────────── 메모리 정리 ────────────
-	void CleanupDelegates();
-
 	bool IsSpawnInProgress() const;
 	void QueueSpawnRequest(int32 StageID, bool bIsPreload);
 	void ResetSpawnState();
 	
+public:
+	void ClearAllEnemies();
+
 private:
 	// ──────────── 데이터 저장 ────────────
 	TMap<int32, TArray<TObjectPtr<ACEnemySpawnZone>>> StageSpawnZones;
@@ -107,11 +109,6 @@ private:
 	UPROPERTY(VisibleAnywhere, Category = "Stage|Info")
 	TSet<int32> ClearedStages;
 
-public:
-	UPROPERTY(VisibleInstanceOnly, Category = "Stage|Info")
-	TSet<int32> ClearedStaged;
-
-private:
 	UPROPERTY(VisibleAnywhere, Category = "Stage|Info")
 	int32 CurrentStage = 1;
 	
@@ -122,10 +119,8 @@ private:
 	int32 SpawnPerFrame = 0;
 	
 	TArray<FSpawnTransformInfo> CurrentSpawnQueue;
-	TSubclassOf<ACEnemyCharacterBase> CurrentSpawnClass;
 
 	TMap<int32, TArray<TObjectPtr<ACEnemyCharacterBase>>> PreloadedEnemies;
-
 	TSet<int32> PreloadedStages;
 
 	TArray<FStageSpawnRequest> SpawnRequestQueue;
@@ -134,6 +129,7 @@ private:
 	FTimerHandle SpawnTimer;
 
 public:
+	// ──────────── 설정 ────────────
 	// 선제적 로딩 트리거 (남은 적 수)
 	UPROPERTY(EditAnywhere, Category = "Stage|Settings")
 	int32 PreloadTriggerCount = 10;
@@ -151,6 +147,4 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = "Stage|Debug")
 	bool bEnableDebugLogs = false;
-
-	void ClearAllEnemies();
 };

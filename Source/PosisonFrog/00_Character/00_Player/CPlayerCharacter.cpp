@@ -1,8 +1,6 @@
 #include "CPlayerCharacter.h"
 
 #include "Camera/CameraComponent.h"
-#include "Camera/CameraShakeBase.h"
-#include "Camera/PlayerCameraManager.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
@@ -182,6 +180,22 @@ void ACPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
     EIC->BindActionByTag(InputConfig, CGameplayTags::InputTag_Command, ETriggerEvent::Started, this, &ACPlayerCharacter::OnCommandPressed);
 }
 
+void ACPlayerCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+    if (IsValid(WeaponComponent))
+    {
+        if (ACWeaponBase* Weapon = WeaponComponent->GetCurrentWeapon())
+        {
+            if (IsValid(Weapon))
+            {
+                Weapon->Destroy();
+            }
+        }
+    }
+    
+    Super::EndPlay(EndPlayReason);
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // 이동/시야
 // ────────────────────────────────────────────────────────────────────────────
@@ -242,25 +256,6 @@ void ACPlayerCharacter::OnAttackStarted()
 {
     ApplyAttackMovementOverride(true);
     bDashLocked = true;
-
-    APlayerController* PC = Cast<APlayerController>(GetController());
-    if (!PC && GetWorld())
-    {
-        PC = GetWorld()->GetFirstPlayerController();
-    }
- 
-    if (PC && AttackCameraShakeClass)
-    {
-        if (APlayerCameraManager* CamManager = PC->PlayerCameraManager)
-        {
-            CamManager->StartCameraShake(AttackCameraShakeClass, AttackCameraShakeScale);
-        }
-    }
-
-    if (!bAttackSlowActive)
-    {
-        SetAttackMovementSlowMultiplier(DefaultAttackMoveSpeedMultiplier);
-    }
 }
 
 // 무기/애님에서 공격 완전 종료 시 호출(정보용 – 실동작은 DashReady에서 처리)
@@ -268,7 +263,6 @@ void ACPlayerCharacter::OnAttackEnded()
 {
     ApplyAttackMovementOverride(false);
     bDashLocked = false;
-    ResetAttackMovementSlowMultiplier();
     ConsumeDashBufferIfValid(true);   // 노티 미스 대비 2차 소비 시도
 }
 
@@ -547,8 +541,6 @@ void ACPlayerCharacter::AddUltimateGain(float Gain)
     UpdateUltimateUI();
 }
 
-
-
 // ─ 궁극기 UI 업데이트
 void ACPlayerCharacter::UpdateUltimateUI()
 {
@@ -567,6 +559,13 @@ void ACPlayerCharacter::TickUltimateUI()
     
     CurUltGauge = FMath::Max(0.0f, CurUltGauge);
     
+    UpdateUltimateUI();
+}
+
+void ACPlayerCharacter::SetUltimateGauge(float UltGauge)
+{
+    CurUltGauge = FMath::Clamp(UltGauge, 0.0f, MaxUltGauge);
+
     UpdateUltimateUI();
 }
 
@@ -674,34 +673,6 @@ void ACPlayerCharacter::ApplyAttackMovementOverride(bool bEnable)
             Move->bUseControllerDesiredRotation = false;
         }
     }*/
-}
-
-
-void ACPlayerCharacter::SetAttackMovementSlowMultiplier(float Multiplier)
-{
-    const float ClampedMultiplier = FMath::Clamp(Multiplier, 0.f, 1.f);
-   
-    CurrentAttackSlowMultiplier = ClampedMultiplier;
-    bAttackSlowActive = ClampedMultiplier < 1.f - KINDA_SMALL_NUMBER;
-   
-    if (MovementBuffComponent)
-    {
-        MovementBuffComponent->SetAdditionalMultiplier(ClampedMultiplier);
-    }
-}
-
-void ACPlayerCharacter::ResetAttackMovementSlowMultiplier()
-{
-    if (!bAttackSlowActive && FMath::IsNearlyEqual(CurrentAttackSlowMultiplier, 1.f))
-        return;
-   
-    CurrentAttackSlowMultiplier = 1.f;
-    bAttackSlowActive = false;
- 
-    if (MovementBuffComponent)
-    {
-        MovementBuffComponent->SetAdditionalMultiplier(1.f);
-    }
 }
 
 // ────────────────────────────────────────────────────────────────────────────

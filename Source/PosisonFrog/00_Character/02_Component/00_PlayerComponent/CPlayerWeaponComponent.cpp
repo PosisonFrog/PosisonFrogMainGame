@@ -3,18 +3,14 @@
 #include "00_Character/00_Player/02_Weapon/CHammer.h"
 #include "00_Character/02_Component/00_PlayerComponent/Buffable.h"
 #include "GameFramework/Character.h"
-#include "00_Character/02_Component/01_EnemyComponent/CEnemyHealthComponent.h"
-#include "Animation/AnimInstance.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Animation/AnimInstance.h"
 #include "TimerManager.h"
 #include "Engine/World.h"
 #include "99_Util/CLog.h"
 #include "AnimNodes/AnimNode_RandomPlayer.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
-
-#include "TimerManager.h"
-#include "99_Util/CLog.h"
 
 class IBuffable;
 
@@ -28,8 +24,16 @@ void UCPlayerWeaponComponent::SpawnWeapon()
     UWorld* World = GetWorld();
     if (!IsValid(World) || !OwnerChar.IsValid())
         return;
-    
-    
+
+    UCharacterMovementComponent* OwnerMovement = OwnerChar.IsValid()
+      ? OwnerChar->GetCharacterMovement()
+      : nullptr;
+
+    if (!IsValid(OwnerMovement))
+        return;
+
+    CurrentMoveMaxSpeed_Snapshot = OwnerMovement->MaxWalkSpeed;
+
     FActorSpawnParameters Params;
     Params.Owner = OwnerChar.Get();
     Params.Instigator = OwnerChar.Get();
@@ -65,8 +69,6 @@ void UCPlayerWeaponComponent::HandleWeaponHit(AActor* InstigatorActor, AActor* H
         const float gain = PlayerChar->GetMaxUltimateGauge() * AddUltGaugeMul;
         PlayerChar->AddUltimateGain(gain);
     }
-
-
     
     // 콤보 배율 적용
     float ComboMultiplier = 1.0f;
@@ -91,46 +93,6 @@ void UCPlayerWeaponComponent::HandleWeaponHit(AActor* InstigatorActor, AActor* H
     }
 
     Super::HandleWeaponHit(InstigatorActor, HitActor, FinalDamage, Hit);
-    if (bEnableHitKnockback && HitKnockbackStrength > 0.f)
-    {
-        if (ACharacter* HitCharacter = Cast<ACharacter>(HitActor))
-        {
-            if (HitCharacter->FindComponentByClass<UCEnemyHealthComponent>())
-            {
-                FVector KnockDirection = FVector::ZeroVector;
-                            
-                if (Hit.bBlockingHit)
-                {
-                    KnockDirection = -Hit.ImpactNormal;
-                    KnockDirection.Z = 0.f;
-                }
-                            
-                if (KnockDirection.IsNearlyZero() && OwnerChar.IsValid())
-                {
-                    KnockDirection = HitCharacter->GetActorLocation() - OwnerChar->GetActorLocation();
-                    KnockDirection.Z = 0.f;
-                }
-                          
-                if (KnockDirection.IsNearlyZero())
-                {
-                    KnockDirection = HitCharacter->GetActorForwardVector();
-                    KnockDirection.Z = 0.f;
-                }
-                         
-                KnockDirection = KnockDirection.GetSafeNormal();
-                if (!KnockDirection.IsNearlyZero())
-                {
-                    FVector LaunchVelocity = KnockDirection * HitKnockbackStrength;
-                    if (HitKnockbackUpStrength > 0.f)
-                    {
-                        LaunchVelocity.Z += HitKnockbackUpStrength;
-                    }
-                                
-                    HitCharacter->LaunchCharacter(LaunchVelocity, true, HitKnockbackUpStrength > 0.f);
-                }
-            }
-        }
-    }
 }
 
 /* ============ 공격/콤보 ============ */
@@ -142,16 +104,23 @@ void UCPlayerWeaponComponent::DoAttack()
     if (!IsValid(CurrentWeapon) || HammerComboMontages.Num() == 0)
         return;
 
-    if (ACPlayerCharacter* PlayerOwner = Cast<ACPlayerCharacter>(OwnerChar.Get()))
-    {
-        PlayerOwner->SetAttackMovementSlowMultiplier(AttackMoveSpeedMul);
-    }
+    UCharacterMovementComponent* OwnerMovement = OwnerChar.IsValid()
+       ? OwnerChar->GetCharacterMovement()
+       : nullptr;
 
+    if (!IsValid(OwnerMovement))
+        return;
+    
+    // 첫 공격 시작 시에만 스냅샷 저장 및 속도 감소
     if (!bIsAttacking)
     {
-        bHasNotifiedAttackEnd = false;
+        CurrentMoveMaxSpeed_Snapshot = OwnerMovement->MaxWalkSpeed;
+        OwnerMovement->MaxWalkSpeed = CurrentMoveMaxSpeed_Snapshot * AttackMoveSpeedMul;
+        
+        UE_LOG(LogTemp, Log, TEXT("[WeaponComp] Attack speed: %.1f -> %.1f (x%.2f)"), 
+               CurrentMoveMaxSpeed_Snapshot, OwnerMovement->MaxWalkSpeed, AttackMoveSpeedMul);
     }
-    
+
     // 이미 공격 중: 창이 열려 있으면 즉시 다음 스텝, 아니면 큐잉
     if (bIsAttacking)
     {
@@ -257,30 +226,39 @@ void UCPlayerWeaponComponent::ResetCombo()
 
     GetWorld()->GetTimerManager().ClearTimer(ComboResetTimer);
 
-
-    if (ACharacter* Ch = OwnerChar.Get())
-    {
-        if (ACPlayerCharacter* PC = Cast<ACPlayerCharacter>(Ch))
-        {
-            if (!bHasNotifiedAttackEnd)
-            {
-                PC->OnAttackEnded();
-                bHasNotifiedAttackEnd = true;
-            }
-        }
-    }
-    
     bIsAttacking = false;
     bCanNextCombo = false;
     bQueuedNextInput = false;
     CurrentCombo = 0;
-    
+
+    RestoreMoveSpeed();
+
     // 안전: 히트창 닫기
     DisableAttackBoxCollider();
 }
 
+void UCPlayerWeaponComponent::RestoreMoveSpeed()
+{
+    UCharacterMovementComponent* OwnerMovement = OwnerChar.IsValid()
+          ? OwnerChar->GetCharacterMovement()
+          : nullptr;
+
+    if (!IsValid(OwnerMovement))
+        return;
+    
+    // 스냅샷 값으로 복구
+    if (CurrentMoveMaxSpeed_Snapshot > 0.f)
+    {
+        OwnerMovement->MaxWalkSpeed = CurrentMoveMaxSpeed_Snapshot;
+        
+        UE_LOG(LogTemp, Log, TEXT("[WeaponComp] Speed restored to %.1f"), CurrentMoveMaxSpeed_Snapshot);
+    }
+}
+
 void UCPlayerWeaponComponent::OnMontageEnded(UAnimMontage* Montage, bool bInterrupted)
 {
+    RestoreMoveSpeed();
+
     if (bInterrupted)
         return;
     
@@ -304,10 +282,7 @@ void UCPlayerWeaponComponent::EndAction()
     if (ACharacter* Ch = OwnerChar.Get())
     {
         if (ACPlayerCharacter* PC = Cast<ACPlayerCharacter>(Ch))
-        {
             PC->OnAttackEnded();
-            bHasNotifiedAttackEnd = true;
-        }
     }
 }
 

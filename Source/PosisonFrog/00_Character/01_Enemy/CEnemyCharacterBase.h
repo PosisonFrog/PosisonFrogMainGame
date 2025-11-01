@@ -168,7 +168,7 @@ public:
 
     UPROPERTY(EditAnywhere, Category="PF|AI|Avoidance", meta=(ClampMin="0", ClampMax="1"))
     float RVOAvoidanceWeight = 0.6f;
-
+    
     // ───────── 성능/디버그/드롭 ─────────
 
     // 가까운 생각 거리
@@ -258,6 +258,13 @@ private:
     void PerformAttackSweep();                              // 분할 스윕 핵심 함수 -> 짧은 간격으로 스윕 트레이스 수행.
     bool PassAngleFilter(const AActor* Other) const;        // 공격에 맞은 액터가 실제 공격 각도 안에 있는가?
     bool IsValidAttackTarget(AActor* Other) const;          // 공격 판정으로 피해를 줄 수 있는 대상인가?
+
+public:
+    // 스폰 시 초기 위치 저장
+    void SaveInitialTransform();
+
+    // 리스폰 시 초기 위치로 복귀
+    void ResetToInitialTransform();
     
 protected:
     // 런타임 상태
@@ -290,6 +297,10 @@ protected:
     // 포위 각도 시드
     float   MyChaseAngleDeg = 0.f;
 
+    // 리스폰을 위한 초기 위치 저장
+    FVector InitialSpawnLocation = FVector::ZeroVector;
+    FRotator InitialSpawnRotation = FRotator::ZeroRotator;
+    
     //체력 컴포넌트
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="PF|Components")
     UCEnemyHealthComponent* HealthComponent;

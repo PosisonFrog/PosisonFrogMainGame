@@ -18,7 +18,6 @@ class UCPlayerHealthComponent;
 class UCPlayerMovementBuffComponent;
 class UCInputConfig;
 class UCPlayerWidget;
-class UCameraShakeBase;
 struct FInputActionValue;
 
 
@@ -36,13 +35,15 @@ class POSISONFROG_API ACPlayerCharacter : public ACBaseCharacter, public IBuffab
 public:
     ACPlayerCharacter();
 
-    // ─────────── Getter ───────────
+    // ─────────── Getter/Setter ───────────
     // ─ 카메라
     FORCEINLINE USpringArmComponent* GetCameraBoom() const { return SpringArm; }
     FORCEINLINE UCameraComponent* GetFollowCamera() const  { return PlayerCamera; }
     
     // ─ 궁극기
     float GetMaxUltimateGauge() const { return MaxUltGauge; }
+    float GetUltimateGauge() const { return CurUltGauge; }
+    void SetUltimateGauge(float UltGauge);
 
     // ─────────── IBuffable ───────────
     // ─ 인터페이스 구현
@@ -54,8 +55,8 @@ protected:
     virtual void BeginPlay() override;
     virtual void PostInitializeComponents() override;
     virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
-    
-    
+    virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
 public:
     // ─────────── Input Handlers ───────────
     // ─ Enhanced Input 바인딩 대상
@@ -73,9 +74,6 @@ public:
     UFUNCTION() void OnAttackEnded();
     UFUNCTION() void OnAttackDashReady();
     UFUNCTION() void HandleCommandMovementLockChanged(bool bLocked);
-
-    void SetAttackMovementSlowMultiplier(float Multiplier);
-    void ResetAttackMovementSlowMultiplier();
 
 private:
     // ─────────── Dash ───────────
@@ -99,7 +97,6 @@ private:
     // ─────────── ULT ───────────
     void UpdateUltimateUI();
     UFUNCTION() void OnUltimateExpired(); // 궁극기 종료시 호출될 함수
-    
     UFUNCTION() void TickUltimateUI(); // 궁극기 UI 수정
 public:
     void AddUltimateGain(float Gain);
@@ -143,16 +140,6 @@ private:
     bool bAttackMovementOverrideActive = false;
     
     void ApplyAttackMovementOverride(bool bEnable);
-
-
-    UPROPERTY(EditDefaultsOnly, Category = "Movement|Attack", meta = (ClampMin = "0.0", ClampMax = "1.0"))
-    float DefaultAttackMoveSpeedMultiplier = 0.4f;
-    
-    UPROPERTY(VisibleInstanceOnly, Category = "Movement|Attack")
-    bool bAttackSlowActive = false;
-    
-    UPROPERTY(VisibleInstanceOnly, Category = "Movement|Attack")
-    float CurrentAttackSlowMultiplier = 1.f;
     
     // ─ Dash 쿨다운
     UPROPERTY(EditDefaultsOnly, Category = "Dash", meta = (ClampMin = "0"))
@@ -233,12 +220,6 @@ private:
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Camera", meta = (AllowPrivateAccess = "true"))
     TObjectPtr<UCameraComponent> PlayerCamera = nullptr;
-
-    UPROPERTY(EditDefaultsOnly, Category = "Camera")
-    TSubclassOf<UCameraShakeBase> AttackCameraShakeClass;
-   
-    UPROPERTY(EditDefaultsOnly, Category = "Camera", meta = (ClampMin = "0.0"))
-    float AttackCameraShakeScale = 1.f;
 
     //UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Camera", meta = (AllowPrivateAccess = "true"))
     //TObjectPtr<UTransparentCameraComponent> TransparentCameraComponent = nullptr;

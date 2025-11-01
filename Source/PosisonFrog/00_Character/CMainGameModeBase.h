@@ -90,8 +90,6 @@ private:
 	void SavePlayerState(ACPlayerCharacter* Player);
 	void RestorePlayerState(ACPlayerCharacter* Player);
 
-	void ResetPlayerForRespawn(ACPlayerCharacter* Player);
-
 	// Stage 상태 저장/복원
 	void RequestStageRespawn();
 	

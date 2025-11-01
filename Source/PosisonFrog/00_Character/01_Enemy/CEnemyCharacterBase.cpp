@@ -813,6 +813,24 @@ bool ACEnemyCharacterBase::IsValidAttackTarget(AActor* Other) const
 	return Other->CanBeDamaged();
 }
 
+void ACEnemyCharacterBase::SaveInitialTransform()
+{
+	InitialSpawnLocation = GetActorLocation();
+	InitialSpawnRotation = GetActorRotation();
+}
+
+void ACEnemyCharacterBase::ResetToInitialTransform()
+{
+	SetActorLocation(InitialSpawnLocation);
+	SetActorRotation(InitialSpawnRotation);
+
+	if (UCharacterMovementComponent* Movement = GetCharacterMovement())
+	{
+		Movement->StopMovementImmediately();
+		Movement->Velocity = FVector::ZeroVector;
+	}
+}
+
 // 단발 판정 (스윕 + Overlap 보조 + 거리 안전망)
 bool ACEnemyCharacterBase::ApplyAttackDamage(bool bCheckAngle /*=true*/)
 {

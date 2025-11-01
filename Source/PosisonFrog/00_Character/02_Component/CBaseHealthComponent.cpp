@@ -96,6 +96,11 @@ void UCBaseHealthComponent::SetMaxHealth(float NewMax, bool bClampCurrent, bool 
 	}
 }
 
+void UCBaseHealthComponent::ResetHealth()
+{
+	SetHealth(MaxHealth);
+}
+
 void UCBaseHealthComponent::InitializeHealth()
 {
 	// 1) 에셋 기반 최대 체력 반영

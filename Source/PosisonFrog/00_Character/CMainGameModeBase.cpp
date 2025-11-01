@@ -10,6 +10,7 @@
 #include "05_System/00_Stage/CCheckPoint.h"
 #include "05_System/00_Stage/CStageManager.h"
 #include "99_Util/CLog.h"
+#include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -61,7 +62,6 @@ void ACMainGameModeBase::OnCheckPointActivateEvent(ACCheckPoint* CheckPoint, ACP
 	CurrentCheckPoint = CheckPoint;
 
 	SavePlayerState(Player);
-
 	StageSnapshot.ActivateStage = CheckPoint->SectionID;
 
 	CLog::Log(FString::Printf(TEXT("[ACMainGameModeBase::OnCheckPointActivateEvent] 체크포인트 이벤트 받음 : %s (Section %d)"), *CheckPoint->GetName(), CheckPoint->SectionID));
@@ -92,7 +92,7 @@ void ACMainGameModeBase::OnPlayerDeath(ACPlayerController* PlayerController)
 		// 페이드아웃 효과
 		if (APlayerCameraManager* CameraManager = PlayerController->PlayerCameraManager)
 		{
-			CameraManager->StartCameraFade(0.0f, 1.0f, DeathReturnDelay, FLinearColor::Black);
+			CameraManager->StartCameraFade(0.0f, 1.0f, RespawnDelay, FLinearColor::Black);
 		}
 
 		GetWorldTimerManager().SetTimer(
@@ -101,7 +101,7 @@ void ACMainGameModeBase::OnPlayerDeath(ACPlayerController* PlayerController)
 		{
 			RespawnPlayerAtCheckPoint(PlayerController);
 		},
-		DeathReturnDelay,
+		RespawnDelay,
 		false);
 	}
 	else
@@ -140,47 +140,50 @@ void ACMainGameModeBase::RespawnPlayerAtCheckPoint(ACPlayerController* PlayerCon
 		return;
 	}
 
-	ACPlayerCharacter* Player = Cast<ACPlayerCharacter>(PlayerController->GetPawn());
-	if (!IsValid(Player))
-	{
-		CLog::Log(TEXT("[ACMainGameModeBase::RespawnPlayerAtCheckPoint] Invalid Player Pawn"));
-		return;
-	}
-
-	FVector SpawnLocation;
-	FRotator SpawnRotation;
+	FTransform SpawnTransform = FTransform::Identity;
 
 	if (IsValid(CurrentCheckPoint))
 	{
-		SpawnLocation = CurrentCheckPoint->GetRespawnLocation();
-		SpawnRotation = CurrentCheckPoint->GetRespawnRotation();
-		CLog::Log(FString::Printf(TEXT("[ACMainGameModeBase::RespawnPlayerAtCheckPoint] 체크포인트에서 리스폰 %s"), *CurrentCheckPoint->GetName()));
+		SpawnTransform.SetLocation(CurrentCheckPoint->GetRespawnLocation());
+		SpawnTransform.SetRotation(CurrentCheckPoint->GetRespawnRotation().Quaternion());
 	}
 	else
 	{
-		// 체크포인트 없으면 PlayerStart 사용
 		if (AActor* PlayerStart = FindPlayerStart(PlayerController))
-		{
-			SpawnLocation = PlayerStart->GetActorLocation();
-			SpawnRotation = PlayerStart->GetActorRotation();
-			CLog::Log(TEXT("[ACMainGameModeBase::RespawnPlayerAtCheckPoint] PlayerStart에서 리스폰"));
-		}
+			SpawnTransform = PlayerStart->GetActorTransform();
 	}
 
-	ResetPlayerForRespawn(Player);
-
-	Player->SetActorLocation(SpawnLocation);
-	Player->SetActorRotation(SpawnRotation);
-
-	RestorePlayerState(Player);
-
-	Player->EnableInput(PlayerController);
-
-	RequestStageRespawn();
-
-	if (APlayerCameraManager* CameraManager = PlayerController->PlayerCameraManager)
+	if (APawn* OldPawn = PlayerController->GetPawn())
 	{
-		CameraManager->StartCameraFade(1.0f, 0.0f, 1.0f, FLinearColor::Black);
+		OldPawn->Destroy();
+	}
+
+	RestartPlayerAtTransform(PlayerController, SpawnTransform);
+
+	if (ACPlayerCharacter* NewPlayer = Cast<ACPlayerCharacter>(PlayerController->GetPawn()))
+	{
+		NewPlayer->SetCanBeDamaged(true);
+
+		if (UCapsuleComponent* Cap = NewPlayer->FindComponentByClass<UCapsuleComponent>())
+		{
+			Cap->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+			Cap->SetCollisionProfileName(TEXT("Pawn"));
+		}
+
+		if (UCharacterMovementComponent* Move = NewPlayer->FindComponentByClass<UCharacterMovementComponent>())
+		{
+			Move->StopMovementImmediately();
+			Move->SetMovementMode(MOVE_Walking);
+		}
+
+		RestorePlayerState(NewPlayer);
+		NewPlayer->EnableInput(PlayerController);
+		RequestStageRespawn();
+
+		if (APlayerCameraManager* CameraManager = PlayerController->PlayerCameraManager)
+		{
+			CameraManager->StartCameraFade(1.0f, 0.0f, 1.0f, FLinearColor::Black);
+		}
 	}
 }
 
@@ -205,12 +208,12 @@ void ACMainGameModeBase::SavePlayerState(ACPlayerCharacter* Player)
 		PlayerStateSnapshot.MaxHealth = HealthComp->GetMaxHealth();
 	}
 
-	// 궁극기 게이지 저장 
-	//PlayerStateSnapshot.UltimateGauge = Player->CurUltGaugel;
-
 	// Fury 게이지 저장
-	//if (UCFuryGaugeComponent* FuryComp = Player->FindComponentByClass<UCFuryGaugeComponent>())
-	//	PlayerStateSnapshot.FuryGauge = FuryComp->GetCurrentFury();
+	if (UCFuryGaugeComponent* FuryComp = Player->FindComponentByClass<UCFuryGaugeComponent>())
+		PlayerStateSnapshot.FuryGauge = FuryComp->GetCurrentFury();
+	
+	// 궁극기 게이지 저장 
+	PlayerStateSnapshot.UltimateGauge = Player->GetUltimateGauge();
 
 	if (IsValid(CurrentCheckPoint))
 	{
@@ -228,46 +231,16 @@ void ACMainGameModeBase::RestorePlayerState(ACPlayerCharacter* Player)
 
 	if (UCPlayerHealthComponent* HealthComp = Player->FindComponentByClass<UCPlayerHealthComponent>())
 	{
+		HealthComp->SetMaxHealth(PlayerStateSnapshot.MaxHealth, true, false);
 		HealthComp->SetHealth(PlayerStateSnapshot.CurrentHealth);
 	}
-
-	//Player->SetUltimateGauge(PlayerStateSnapshot.UltimateGauge);
 
 	if (UCFuryGaugeComponent* FuryComp = Player->FindComponentByClass<UCFuryGaugeComponent>())
 	{
 		FuryComp->SetFury(PlayerStateSnapshot.FuryGauge);
 	}
-}
-
-void ACMainGameModeBase::ResetPlayerForRespawn(ACPlayerCharacter* Player)
-{
-	if (!IsValid(Player))
-		return;
-
-	// 애니메이션 상태 리셋
-	if (USkeletalMeshComponent* Mesh = Player->GetMesh())
-	{
-		if (UAnimInstance* AnimInstance = Mesh->GetAnimInstance())
-		{
-			AnimInstance->Montage_Stop(0.0f);
-		}
-
-		// 물리 리셋 (Ragdoll 해제)
-		Mesh->SetSimulatePhysics(false);
-		Mesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-		Mesh->AttachToComponent(Player->GetRootComponent(), FAttachmentTransformRules::SnapToTargetIncludingScale);
-	}
-
-	// 속도 리셋
-	if (UCharacterMovementComponent* Movement = Player->GetCharacterMovement())
-	{
-		Movement->StopMovementImmediately();
-		Movement->SetMovementMode(MOVE_Walking);
-	}
-
-	// 충돌 재활성화
-	Player->SetActorEnableCollision(true);
-	Player->SetActorTickEnabled(true);
+	
+	Player->SetUltimateGauge(PlayerStateSnapshot.UltimateGauge);
 }
 
 void ACMainGameModeBase::RequestStageRespawn()
@@ -279,7 +252,8 @@ void ACMainGameModeBase::RequestStageRespawn()
 	{
 		if (ACStageManager* StageManager = Cast<ACStageManager>(FoundActors[0]))
 		{
-			StageManager->RespawnStage(StageSnapshot.ActivateStage);
+			const int32 TargetStageID = StageManager->GetCurrentStage();
+			StageManager->PrepareForRespawn(TargetStageID);
 			CLog::Log(FString::Printf(TEXT("[ACMainGameModeBase::RequestStageRespawn] Stage %d 리스폰 요청"), StageSnapshot.ActivateStage));
 		}
 	}
