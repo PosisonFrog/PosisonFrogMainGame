@@ -367,7 +367,7 @@ void ACRiotRobot::SpawnAttackEffect() const
         UNiagaraFunctionLibrary::SpawnSystemAttached(
             AttackEffect,
             MeshComp,
-            AttackEffectSocketName,
+            RiotRobot::AttackEffectSocketName,
             FVector::ZeroVector,
             FRotator::ZeroRotator,
             EAttachLocation::SnapToTarget,

@@ -18,6 +18,7 @@ void UCPlayerMovementBuffComponent::BeginPlay()
         {
             BaseMaxWalkSpeed = MoveComp->MaxWalkSpeed;
             CurrentMaxMultiplier = 1.f;
+            AdditionalMultiplier = 1.f;
         }
     }
 }
@@ -61,6 +62,8 @@ void UCPlayerMovementBuffComponent::OnBuffExpired(int32 Index)
     RecomputeAndApply();
 }
 
+
+
 void UCPlayerMovementBuffComponent::RecomputeAndApply()
 {
     const float Now = GetWorld()->GetTimeSeconds();
@@ -82,5 +85,19 @@ void UCPlayerMovementBuffComponent::RecomputeAndApply()
     CurrentMaxMultiplier = NewMax;
 
     if (MoveComp && BaseMaxWalkSpeed > 0.f)
-        MoveComp->MaxWalkSpeed = BaseMaxWalkSpeed * CurrentMaxMultiplier;
+    {
+        const float EffectiveMultiplier = CurrentMaxMultiplier * AdditionalMultiplier;
+        MoveComp->MaxWalkSpeed = BaseMaxWalkSpeed * EffectiveMultiplier;
+    }
+}
+
+void UCPlayerMovementBuffComponent::SetAdditionalMultiplier(float Multiplier)
+{
+    AdditionalMultiplier = FMath::Max(0.f, Multiplier);
+    
+    if (MoveComp && BaseMaxWalkSpeed > 0.f)
+    {
+        const float EffectiveMultiplier = CurrentMaxMultiplier * AdditionalMultiplier;
+        MoveComp->MaxWalkSpeed = BaseMaxWalkSpeed * EffectiveMultiplier;
+    }
 }

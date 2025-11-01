@@ -18,6 +18,7 @@ class UCPlayerHealthComponent;
 class UCPlayerMovementBuffComponent;
 class UCInputConfig;
 class UCPlayerWidget;
+class UCameraShakeBase;
 struct FInputActionValue;
 
 
@@ -72,6 +73,9 @@ public:
     UFUNCTION() void OnAttackEnded();
     UFUNCTION() void OnAttackDashReady();
     UFUNCTION() void HandleCommandMovementLockChanged(bool bLocked);
+
+    void SetAttackMovementSlowMultiplier(float Multiplier);
+    void ResetAttackMovementSlowMultiplier();
 
 private:
     // ─────────── Dash ───────────
@@ -139,6 +143,16 @@ private:
     bool bAttackMovementOverrideActive = false;
     
     void ApplyAttackMovementOverride(bool bEnable);
+
+
+    UPROPERTY(EditDefaultsOnly, Category = "Movement|Attack", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+    float DefaultAttackMoveSpeedMultiplier = 0.4f;
+    
+    UPROPERTY(VisibleInstanceOnly, Category = "Movement|Attack")
+    bool bAttackSlowActive = false;
+    
+    UPROPERTY(VisibleInstanceOnly, Category = "Movement|Attack")
+    float CurrentAttackSlowMultiplier = 1.f;
     
     // ─ Dash 쿨다운
     UPROPERTY(EditDefaultsOnly, Category = "Dash", meta = (ClampMin = "0"))
@@ -219,6 +233,12 @@ private:
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Camera", meta = (AllowPrivateAccess = "true"))
     TObjectPtr<UCameraComponent> PlayerCamera = nullptr;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Camera")
+    TSubclassOf<UCameraShakeBase> AttackCameraShakeClass;
+   
+    UPROPERTY(EditDefaultsOnly, Category = "Camera", meta = (ClampMin = "0.0"))
+    float AttackCameraShakeScale = 1.f;
 
     //UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Camera", meta = (AllowPrivateAccess = "true"))
     //TObjectPtr<UTransparentCameraComponent> TransparentCameraComponent = nullptr;

@@ -309,7 +309,7 @@ void ACTankerBrute::SpawnAttackEffect() const
         UNiagaraFunctionLibrary::SpawnSystemAttached(
             AttackEffect,
             MeshComp,
-            AttackEffectSocketName,
+            TankerBrute::AttackEffectSocketName,
             FVector::ZeroVector,
             FRotator::ZeroRotator,
             EAttachLocation::SnapToTarget,
