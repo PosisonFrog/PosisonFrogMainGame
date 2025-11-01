@@ -23,6 +23,9 @@ void ACEnemyBossCharacter::BeginPlay()
 
 float ACEnemyBossCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
 {
+    UE_LOG(LogTemp, Warning, TEXT("[%s] TakeDamage 호출됨! 데미지: %.1f, 공격자: %s"), 
+           *GetName(), DamageAmount, *GetNameSafe(DamageCauser));
+    
     const float AppliedDamage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
     if (AppliedDamage <= 0.f)
     {
@@ -31,7 +34,16 @@ float ACEnemyBossCharacter::TakeDamage(float DamageAmount, FDamageEvent const& D
 
     if (HealthComponent)
     {
+        float OldHealth = HealthComponent->GetHealth();
         HealthComponent->Damage(AppliedDamage);
+        float NewHealth = HealthComponent->GetHealth();
+        
+        UE_LOG(LogTemp, Warning, TEXT("[%s] 체력 변화: %.1f -> %.1f"), 
+               *GetName(), OldHealth, NewHealth);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("[%s] HealthComponent를 찾을 수 없음!"), *GetName());
     }
 
     if (BossPhaseComponent)
