@@ -38,11 +38,13 @@ void ACTankerBrute::PostInitProperties()
     SyncAttackTuning();
 }
 
+#if WITH_EDITOR
 void ACTankerBrute::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
     Super::PostEditChangeProperty(PropertyChangedEvent);
     SyncAttackTuning();
 }
+#endif
 
 void ACTankerBrute::BeginPlay()
 {
@@ -221,7 +223,7 @@ void ACTankerBrute::BeginAttackWindow()
     const FTimerDelegate EndWindowDelegate = FTimerDelegate::CreateUObject(this, &ACTankerBrute::EndAttackWindow, false);
     TimerManager.SetTimer(Timer_EndWindow, EndWindowDelegate, AttackActiveWindow, false);
 
-    const float FinishDelay = AttackActiveWindow + AttackRecoveryTime;
+    const float FinishDelay = AttackWindUpTime + AttackActiveWindow + AttackRecoveryTime;
     TimerManager.SetTimer(Timer_Finish, this, &ACTankerBrute::FinishAttack, FinishDelay, false);
  
     if (bDebugAttackLog)

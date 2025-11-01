@@ -87,19 +87,19 @@ protected:
 
 	/** 공격 유효 거리(안전망) */
 	UPROPERTY(EditAnywhere, Category="PF|Attack")
-	float AttackRangeTanker = 200.f;
+	float AttackRangeTanker = 300.f;
 
 	/** 1. 윈드업(예비동작) 시간 */
 	UPROPERTY(EditAnywhere, Category="PF|Attack")
-	float AttackWindUpTime = 0.25f;
+	float AttackWindUpTime = 0.35f;
 	
 	/** 2. 스윙 창 지속 시간(분할 스윕 반복) */
 	UPROPERTY(EditAnywhere, Category="PF|Attack")
-	float AttackActiveWindow = 0.44f;
+	float AttackActiveWindow = 0.94f;
 
 	/** 3. 리커버리(후딜) 시간 */
 	UPROPERTY(EditAnywhere, Category="PF|Attack")
-	float AttackRecoveryTime = 0.55f;
+	float AttackRecoveryTime = 0.95f;
 
 	/** 일격 데미지 (BaseDamage와 동기화) */
 	UPROPERTY(EditAnywhere, Category="PF|Attack")

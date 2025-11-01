@@ -80,15 +80,15 @@ protected:
 
     /** 윈드업(예비동작) 시간 */
     UPROPERTY(EditAnywhere, Category="PF|Attack")
-    float AttackWindUpTime = 0.25f;
+    float AttackWindUpTime = 0.53f;
 
     /** 스윙 창 지속 시간(분할 스윕 반복) */
     UPROPERTY(EditAnywhere, Category="PF|Attack")
-    float AttackActiveWindow = 0.22f;
+    float AttackActiveWindow = 0.65f;
 
     /** 리커버리(후딜) 시간 */
     UPROPERTY(EditAnywhere, Category="PF|Attack")
-    float AttackRecoveryTime = 0.35f;
+    float AttackRecoveryTime = 1.05f;
 
     /** 일격 데미지 (BaseDamage와 동기화) */
     UPROPERTY(EditAnywhere, Category="PF|Attack")

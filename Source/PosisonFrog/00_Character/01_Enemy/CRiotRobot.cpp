@@ -38,10 +38,10 @@ ACRiotRobot::ACRiotRobot()
     // 기본 공격/물리 튜닝
     AttackIntervalRiot = 1.0f;
     AttackRangeRiot    = 200.f;
-    AttackWindUpTime   = 0.25f;
-    AttackActiveWindow = 0.22f;
-    AttackRecoveryTime = 0.35f;
-    AttackDamage       = 15.f;
+    AttackWindUpTime   = 0.53f;
+    AttackActiveWindow = 0.65f;
+    AttackRecoveryTime = 1.35f;
+    AttackDamage       = 5.5f;
 
     CapsuleLinearDamping  = 0.5f;
     CapsuleAngularDamping = 0.5f;
@@ -144,6 +144,11 @@ void ACRiotRobot::DoAttack()
         return;
     }
     
+    if (bIsAttacking)
+    {
+        StopMovement();  // 매 프레임 정지 명령
+        return;  // 공격 중에는 다른 행동 하지 않음
+    }
 
     // 공격 중이 아니고, 쿨타임이 끝났다면 공격 시작
     if (!bIsAttacking && IsAttackReady())
@@ -194,7 +199,7 @@ void ACRiotRobot::BeginAttackWindow()
     const FTimerDelegate EndWindowDelegate = FTimerDelegate::CreateUObject(this, &ACRiotRobot::EndAttackWindow, false);
     TimerManager.SetTimer(Timer_EndWindow, EndWindowDelegate, AttackActiveWindow, false);
 
-    const float FinishDelay = AttackActiveWindow + AttackRecoveryTime;
+    const float FinishDelay = AttackWindUpTime + AttackActiveWindow + AttackRecoveryTime;
     TimerManager.SetTimer(Timer_Finish, this, &ACRiotRobot::FinishAttack, FinishDelay, false);
  
     if (bDebugAttackLog)
@@ -276,7 +281,13 @@ ACTacticalEnemyAIController* ACRiotRobot::GetTacticalController() const
 
 void ACRiotRobot::StopMovement() const
 {
-    if (AAIController* AI = GetEnemyAIController())
+    if (ACTacticalEnemyAIController* Tactical = GetTacticalController())
+    {
+        Tactical->StopMovement();
+        // 만약 Tactical Controller에 별도의 정지 함수가 있다면
+        // Tactical->CancelTacticalMovement(); // 예시
+    }
+    else if (AAIController* AI = GetEnemyAIController())
     {
         AI->StopMovement();
     }
@@ -288,6 +299,7 @@ void ACRiotRobot::StopMovementAndFaceTarget()
 
     if (!Target)
         return;
+    
 
     const FRotator LookAt = UKismetMathLibrary::FindLookAtRotation(GetActorLocation(), Target->GetActorLocation());
     SetActorRotation(FRotator(0.f, LookAt.Yaw, 0.f));
@@ -296,6 +308,9 @@ void ACRiotRobot::StopMovementAndFaceTarget()
 void ACRiotRobot::RequestTacticalChase()
 {
     if (!Target)
+        return;
+
+    if (bIsAttacking)
         return;
 
     if (ACTacticalEnemyAIController* Tactical = GetTacticalController())
