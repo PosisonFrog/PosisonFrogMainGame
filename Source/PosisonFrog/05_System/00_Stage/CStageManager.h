@@ -147,4 +147,9 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = "Stage|Debug")
 	bool bEnableDebugLogs = false;
+
+private:
+	// 핫픽스 변수
+	UPROPERTY(EditAnywhere, Category = "Stage|Hotfix")
+	float DeathHideDelay = 1.2f;
 };

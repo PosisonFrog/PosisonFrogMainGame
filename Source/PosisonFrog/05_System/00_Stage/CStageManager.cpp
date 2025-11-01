@@ -587,11 +587,6 @@ void ACStageManager::OnEnemyDied(AActor* DeadActor)
 		if (Pair.Value.Contains(DeadEnemy))
 		{
 			FoundStage = Pair.Key;
-
-			DeadEnemy->SetActorHiddenInGame(true);
-			DeadEnemy->SetActorEnableCollision(false);
-			DeadEnemy->SetActorTickEnabled(false);
-			
 			break;
 		}
 	}
@@ -600,18 +595,32 @@ void ACStageManager::OnEnemyDied(AActor* DeadActor)
 		return;
 
 	int32 Remaining = GetRemainingEnemies(FoundStage);
-
 	if (bEnableDebugLogs)
 	{
 		CLog::Log(FString::Printf(TEXT("[ACStageManager::OnEnemyDied] 스테이지 %d 적 사망. 남은 적: %d"),
 			FoundStage, Remaining));
 	}
 
-	// 스테이지 클리어 확인
-	CheckStageComplete(FoundStage);
+	FTimerHandle HideTimer;
+	GetWorldTimerManager().SetTimer(
+		HideTimer,
+		FTimerDelegate::CreateWeakLambda(this, [this, DeadEnemy, FoundStage]()
+		{
+			if (!IsValid(DeadEnemy))
+				return;
 
-	// 선제적 로딩 체크 (여기서만 해야함)
-	CheckPreloadTrigger();
+			DeadEnemy->SetActorHiddenInGame(true);
+			DeadEnemy->SetActorEnableCollision(false);
+			DeadEnemy->SetActorTickEnabled(false);
+
+			// 스테이지 클리어 확인
+			CheckStageComplete(FoundStage);
+
+			// 선제적 로딩 체크 (여기서만 해야함)
+			CheckPreloadTrigger();
+		}),
+		DeathHideDelay,
+		false);
 }
 
 void ACStageManager::CheckPreloadTrigger()
