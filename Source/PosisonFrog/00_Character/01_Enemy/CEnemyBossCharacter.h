@@ -33,6 +33,8 @@ public:
     UFUNCTION(BlueprintPure, Category="Boss")
     UCEnemyBossPhaseComponent* GetBossPhaseComponent() const { return BossPhaseComponent; }
 
+    void SetIsBossRushing(bool bRushing) { bIsBossRushing = bRushing; }
+    
 protected:
     void InitializeBossBindings();
 
@@ -79,6 +81,9 @@ protected:
     /** 매핑되지 않은 패턴이 사용할 기본 공격 인덱스. */
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Boss|Pattern")
     int32 DefaultAttackIndex = 0;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Boss|Rushing")
+    bool bIsBossRushing = false;
 
     /** 보스의 사망 여부를 추적합니다. */
     bool bIsBossDead = false;

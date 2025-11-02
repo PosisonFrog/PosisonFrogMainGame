@@ -23,6 +23,7 @@ public:
 	/** 기본 추적 활성화/비활성화 (패턴 실행 시 사용) */
 	UFUNCTION(BlueprintCallable, Category="AI")
 	void SetChaseEnabled(bool bEnabled);
+	
 
 protected:
 
@@ -44,7 +45,7 @@ private:
 
 	/** 추적을 멈출 거리 (공격 사거리) */
 	UPROPERTY(EditAnywhere, Category="AI|Chase")
-	float StopDistance = 300.f;
+	float StopDistance = 100.f;
 
 	/** MoveTo 업데이트 주기 (초) */
 	UPROPERTY(EditAnywhere, Category="AI|Chase")

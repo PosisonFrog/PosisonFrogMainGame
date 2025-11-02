@@ -140,7 +140,7 @@ void UCBossPatternManager::HandlePatternStarted(int32 PhaseIndex, FName PatternI
 	bIsRushing = false;
 	
 	// ===== 특수 이동이 있는 패턴만 Chase 비활성화 =====
-	if (PatternId == FName("Rush") || PatternId == FName("Barrage"))
+	if (PatternId == FName("Barrage"))
 	{
 		if (ABossAIController* BossAI = Cast<ABossAIController>(GetBossAI()))
 		{
@@ -148,7 +148,7 @@ void UCBossPatternManager::HandlePatternStarted(int32 PhaseIndex, FName PatternI
 			UE_LOG(LogTemp, Warning, TEXT("[PatternManager] Disabled chase for %s"), *PatternId.ToString());
 		}
 	}
-	// BasicAttack, Slam은 Chase 유지 → 계속 플레이어 추적 ✅
+	// RUsh, BasicAttack, Slam은 Chase 유지 → 계속 플레이어 추적
 	else
 	{
 		UE_LOG(LogTemp, Log, TEXT("[PatternManager] Chase maintained for %s"), *PatternId.ToString());
@@ -346,6 +346,14 @@ void UCBossPatternManager::HandleRushMovementStart()
 	}
 
 	bIsRushing = true;
+	if (OwnerBoss)
+	{
+		OwnerBoss->SetIsBossRushing(true);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("[PatternManager] OwnerBoss is null in HandleRushMovementStart"));
+	}
     
 	UE_LOG(LogTemp, Warning, TEXT("[PatternManager] Starting MoveTo: %s"), *RushTargetLocation.ToString());
 	
@@ -363,6 +371,7 @@ void UCBossPatternManager::HandleRushMovementStart()
 		case EPathFollowingRequestResult::Failed:
 			UE_LOG(LogTemp, Error, TEXT("[PatternManager] MoveTo FAILED!"));
 			bIsRushing = false;
+			if (OwnerBoss) {OwnerBoss->SetIsBossRushing(false);}
 			break;
 		case EPathFollowingRequestResult::AlreadyAtGoal:
 			UE_LOG(LogTemp, Warning, TEXT("[PatternManager] Already at goal"));
@@ -377,6 +386,10 @@ void UCBossPatternManager::HandleRushMovementStop()
 {
 	UE_LOG(LogTemp, Log, TEXT("[PatternManager] AnimNotify: StopRushMovement received!"));
 	bIsRushing = false;
+	if (OwnerBoss)
+	{
+		OwnerBoss->SetIsBossRushing(false);
+	}
 
 	// 관성을 제거하고 원래 속도로 복귀
 	if (OwnerBoss && OwnerBoss->GetCharacterMovement())
@@ -714,6 +727,10 @@ void UCBossPatternManager::NotifyCurrentPatternEnd(bool bSuccess)
 	
 	bIsPatternActive = false;
 	bIsRushing = false;
+	if (OwnerBoss)
+	{
+		OwnerBoss->SetIsBossRushing(false);
+	}
 	
 	// 타이머 정리
 	if (UWorld* World = GetWorld())
