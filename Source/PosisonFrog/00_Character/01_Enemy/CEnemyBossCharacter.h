@@ -9,6 +9,7 @@ class UCEnemyHealthComponent;
 class UCEnemyWeaponComponent;
 struct FBossPhaseDefinition;
 struct FBossPatternDefinition;
+class UCBossPatternManager;
 
 /** 보스 공통 캐릭터 베이스 */
 UCLASS()
@@ -64,9 +65,13 @@ protected:
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Boss|Components")
     TObjectPtr<UCEnemyBossPhaseComponent> BossPhaseComponent;
-
+    
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Boss|Components")
+    TObjectPtr<UCBossPatternManager> PatternManager;
+    
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Boss|Components")
     TObjectPtr<UCEnemyWeaponComponent> WeaponComponent;
+    
     /** 패턴과 공격 몽타주 인덱스를 매핑합니다. */
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Boss|Pattern")
     TMap<FName, int32> PatternAttackIndexMap;

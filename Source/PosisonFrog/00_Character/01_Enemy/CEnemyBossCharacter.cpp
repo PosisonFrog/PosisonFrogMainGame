@@ -1,5 +1,6 @@
 ﻿#include "00_Character/01_Enemy/CEnemyBossCharacter.h"
 
+#include "00_Character/02_Component/01_EnemyComponent/CBossPatternManager.h"
 #include "00_Character/02_Component/01_EnemyComponent/CEnemyBossPhaseComponent.h"
 #include "00_Character/02_Component/01_EnemyComponent/CEnemyHealthComponent.h"
 #include "00_Character/02_Component/01_EnemyComponent/CEnemyWeaponComponent.h"
@@ -13,6 +14,7 @@ ACEnemyBossCharacter::ACEnemyBossCharacter()
     HealthComponent = CreateDefaultSubobject<UCEnemyHealthComponent>(TEXT("HealthComponent"));
     BossPhaseComponent = CreateDefaultSubobject<UCEnemyBossPhaseComponent>(TEXT("BossPhaseComponent"));
     WeaponComponent = CreateDefaultSubobject<UCEnemyWeaponComponent>(TEXT("WeaponComponent"));
+    PatternManager = CreateDefaultSubobject<UCBossPatternManager>(TEXT("PatternManager"));
 }
 
 void ACEnemyBossCharacter::BeginPlay()
@@ -31,7 +33,7 @@ void ACEnemyBossCharacter::BeginPlay()
     }
     
     bIsBossDead = false;
-    InitializeBossBindings();
+    //InitializeBossBindings();
 
     if (IsValid(HealthComponent))
     {
@@ -164,7 +166,8 @@ void ACEnemyBossCharacter::HandlePatternStarted(int32 PhaseIndex, FName PatternI
         UE_LOG(LogTemp, Verbose, TEXT("[Boss] Pattern %s ignored due to dead health state"), *PatternId.ToString());
         return;
     }
-    
+
+    /*
     if (!IsValid(WeaponComponent))
     {
         UE_LOG(LogTemp, Warning, TEXT("[Boss] WeaponComponent is missing - cannot play attack montage"));
@@ -185,7 +188,7 @@ void ACEnemyBossCharacter::HandlePatternStarted(int32 PhaseIndex, FName PatternI
         return;
     }
     
-    WeaponComponent->DoAttack();
+    WeaponComponent->DoAttack();*/
 }
 
 void ACEnemyBossCharacter::HandlePatternFinished(int32 PhaseIndex, FName PatternId, const FBossPatternDefinition& PatternData, float RemainingPower)
