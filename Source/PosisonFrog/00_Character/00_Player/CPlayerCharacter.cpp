@@ -13,6 +13,8 @@
 
 // ─ 프로젝트 컴포넌트/유틸
 #include "CPlayerController.h"
+#include "NiagaraComponent.h"
+#include "NiagaraFunctionLibrary.h"
 #include "00_Character/CMainGameModeBase.h"
 #include "00_Character/02_Component/00_PlayerComponent/CPlayerDashComponent.h"
 #include "00_Character/02_Component/00_PlayerComponent/CPlayerWeaponComponent.h"
@@ -194,6 +196,8 @@ void ACPlayerCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
             }
         }
     }
+
+    CleanupUltVFX();
     
     Super::EndPlay(EndPlayReason);
 }
@@ -452,6 +456,8 @@ void ACPlayerCharacter::HandleDeath(AActor* DeadActor)
 
     // 타이머 정리
     GetWorldTimerManager().ClearAllTimersForObject(this);
+
+    CleanupUltVFX();
     
     // 죽을 때 사용할 애니메이션 재생
     if (DeathPlayerMontage && DeathHammerMontage)
@@ -532,6 +538,8 @@ void ACPlayerCharacter::UseUltimate()
         this, &ACPlayerCharacter::TickUltimateUI,
         0.05f, true);
 
+    SpawnUltVFXOnHammer();
+    
     TickUltimateUI();
     UpdateHpUI();
 }
@@ -546,6 +554,8 @@ void ACPlayerCharacter::OnUltimateExpired()
     if (UltimateBuffComponent)
         UltimateBuffComponent->DeactivateUltimate();
 
+    CleanupUltVFX();
+    
     CLog::Log(TEXT("[ULT] UseUltimate OFF"));
 
     UpdateUltimateUI();
@@ -582,6 +592,42 @@ void ACPlayerCharacter::TickUltimateUI()
     CurUltGauge = FMath::Max(0.0f, CurUltGauge);
     
     UpdateUltimateUI();
+}
+
+void ACPlayerCharacter::CleanupUltVFX()
+{
+    if (IsValid(HammerUltFXComp))
+    {
+        HammerUltFXComp->Deactivate();
+        HammerUltFXComp->DestroyComponent();
+    }
+    HammerUltFXComp = nullptr;
+}
+
+void ACPlayerCharacter::SpawnUltVFXOnHammer()
+{
+    if (!HammerUltFX || !WeaponComponent)
+        return;
+
+    CleanupUltVFX();
+    
+    if (ACHammer* Hammer = WeaponComponent->GetHammer())
+    {
+        if (USkeletalMeshComponent* WeaponMesh = Hammer->GetWeaponMesh())
+        {
+            HammerUltFXComp = UNiagaraFunctionLibrary::SpawnSystemAttached(
+                HammerUltFX,
+                WeaponMesh,
+                HammerUltSocketName,
+                FVector::ZeroVector,
+                FRotator::ZeroRotator,
+                EAttachLocation::SnapToTargetIncludingScale,
+                false);
+
+            if (HammerUltFXComp)
+                HammerUltFXComp->Activate(true);
+        }
+    }
 }
 
 void ACPlayerCharacter::SetUltimateGauge(float UltGauge)

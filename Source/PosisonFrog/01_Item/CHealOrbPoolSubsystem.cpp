@@ -62,15 +62,26 @@ void UCHealOrbPoolSubsystem::Release(ACHealOrb* Orb)
 	BroadcastCounters();
 }
 
+void UCHealOrbPoolSubsystem::OnPreLoadMap(const FString& MapName)
+{
+	ClearPool();
+}
+
+void UCHealOrbPoolSubsystem::OnWorldTearDown(UWorld* World)
+{
+	ClearPool();
+}
+
 void UCHealOrbPoolSubsystem::ClearPool()
 {
+	bIsShuttingDown = true;
+	
 	// 모든 활성 오브 파괴
 	for (ACHealOrb* Orb : ActivePool)
 	{
 		if (IsValid(Orb))
 			Orb->Destroy();
 	}
-	ActivePool.Empty();
 
 	// 모든 비활성 오브 파괴
 	for (ACHealOrb* Orb : InactivePool)
@@ -78,9 +89,13 @@ void UCHealOrbPoolSubsystem::ClearPool()
 		if (IsValid(Orb))
 			Orb->Destroy();
 	}
+	
+	ActivePool.Empty();
 	InactivePool.Empty();
 
 	TotalPicked = 0;
+	bIsShuttingDown = false;
+	
 	BroadcastCounters();
 }
 
@@ -91,7 +106,25 @@ void UCHealOrbPoolSubsystem::NotifyPicked(ACHealOrb* Orb)
 	Release(Orb);
 }
 
+void UCHealOrbPoolSubsystem::Initialize(FSubsystemCollectionBase& Collection)
+{
+	Super::Initialize(Collection);
+
+	FCoreUObjectDelegates::PreLoadMap.AddUObject(this, &UCHealOrbPoolSubsystem::OnPreLoadMap);
+	FWorldDelegates::OnWorldBeginTearDown.AddUObject(this, &UCHealOrbPoolSubsystem::OnWorldTearDown);
+}
+
+void UCHealOrbPoolSubsystem::Deinitialize()
+{
+	FCoreUObjectDelegates::PreLoadMap.RemoveAll(this);
+	FWorldDelegates::OnWorldBeginTearDown.RemoveAll(this);
+
+	ClearPool();
+	Super::Deinitialize();
+}
+
 void UCHealOrbPoolSubsystem::BroadcastCounters()
 {
-	OnCountersChanged.Broadcast(ActivePool.Num(), TotalPicked);
+	if (!bIsShuttingDown)
+		OnCountersChanged.Broadcast(ActivePool.Num(), TotalPicked);
 }

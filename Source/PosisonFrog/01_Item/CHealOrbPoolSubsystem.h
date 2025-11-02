@@ -38,6 +38,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category="HealOrb|Pool")
 	void Release(ACHealOrb* Orb);
 
+	UFUNCTION()
+	void OnPreLoadMap(const FString& MapName);
+
+	UFUNCTION()
+	void OnWorldTearDown(UWorld* World);
+	
 	// 레벨 전환 시 풀 정리
 	UFUNCTION(Blueprintable, Category = "HealOrb|Pool")
 	void ClearPool();
@@ -53,6 +59,9 @@ public:
 	int32 GetTotalPicked() const { return TotalPicked; }
 
 protected:
+	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+	virtual void Deinitialize() override;
+	
 	void BroadcastCounters();
 
 private:
@@ -66,4 +75,6 @@ private:
 	TArray<TObjectPtr<ACHealOrb>> ActivePool;
 
 	int32 TotalPicked = 0;
+
+	bool bIsShuttingDown = false;
 };

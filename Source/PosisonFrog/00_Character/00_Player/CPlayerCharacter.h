@@ -5,6 +5,8 @@
 #include "00_Character/02_Component/00_PlayerComponent/Buffable.h"
 #include "CPlayerCharacter.generated.h"
 
+class UNiagaraComponent;
+class UNiagaraSystem;
 class UCSkill_CommandLaunchSlam;
 class UCSkill_SpinAttack;
 class UCFuryGaugeComponent;
@@ -102,6 +104,10 @@ private:
     void UpdateUltimateUI();
     UFUNCTION() void OnUltimateExpired(); // 궁극기 종료시 호출될 함수
     UFUNCTION() void TickUltimateUI(); // 궁극기 UI 수정
+
+    UFUNCTION() void CleanupUltVFX();
+    UFUNCTION() void SpawnUltVFXOnHammer();
+    
 public:
     void AddUltimateGain(float Gain);
     
@@ -193,6 +199,15 @@ private:
 
     UPROPERTY(EditDefaultsOnly, Category = "Ultimate|State")
     bool bUltActive = false;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Ultimate|VFX")
+    TObjectPtr<UNiagaraSystem> HammerUltFX = nullptr;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Ultimate|VFX")
+    FName HammerUltSocketName = TEXT("VFX_Ult");
+
+    UPROPERTY(Transient)
+    TObjectPtr<UNiagaraComponent> HammerUltFXComp = nullptr;
     
     UPROPERTY(EditDefaultsOnly, Category = "Ultimate|State")
     float UltDuration = 5.0f; // 궁극기 전체 지속 시간 (초)

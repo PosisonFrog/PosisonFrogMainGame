@@ -757,5 +757,7 @@ void ACStageManager::ClearAllEnemies()
 
 		Pair.Value.Empty();
 	}
+	
+	StageEnemies.Empty();
 	PreloadedEnemies.Empty();
 }
