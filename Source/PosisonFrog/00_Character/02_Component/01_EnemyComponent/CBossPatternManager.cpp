@@ -5,6 +5,7 @@
 #include "00_Character/02_Component/01_EnemyComponent/CEnemyWeaponComponent.h"
 #include "AIController.h"
 #include "NavigationSystem.h"
+#include "00_Character/01_Enemy/01_AIController/BossAIController.h"
 #include "Navigation/PathFollowingComponent.h"
 #include "Camera/CameraShakeBase.h"
 #include "GameFramework/Character.h"
@@ -15,9 +16,10 @@
 
 UCBossPatternManager::UCBossPatternManager()
 {
-	PrimaryComponentTick.bCanEverTick = false;
+	PrimaryComponentTick.bCanEverTick = true;  // Tick 활성화 (Rush 이동에 필요)
 	bIsPatternActive = false;
 	bShouldNotifyOnMontageEnd = false;
+	bIsRushing = false;
 }
 
 void UCBossPatternManager::BeginPlay()
@@ -64,7 +66,6 @@ void UCBossPatternManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
 		TimerManager.ClearTimer(BarrageLoopTimer);
 		TimerManager.ClearTimer(BarrageStopTimer);
 		TimerManager.ClearTimer(GroundCheckTimer);
-		TimerManager.ClearTimer(TeleportTimer);
 		TimerManager.ClearTimer(PhaseTransitionTimer);
 	}
 
@@ -137,6 +138,14 @@ void UCBossPatternManager::HandlePatternStarted(int32 PhaseIndex, FName PatternI
 	CurrentPatternId = PatternId;
 	bIsPatternActive = true;
 	bIsRushing = false; // 러쉬 플래그 초기화
+	
+	// ===== 패턴 실행 중에는 기본 AI 추적 비활성화 =====
+	if (ABossAIController* BossAI = Cast<ABossAIController>(GetBossAI()))
+	{
+		BossAI->SetChaseEnabled(false);
+		UE_LOG(LogTemp, Log, TEXT("[PatternManager] Disabled AI chase for pattern execution"));
+	}
+	
 	// 패턴별 분기
 	if (PatternId == FName("BasicAttack"))
 	{
@@ -154,14 +163,7 @@ void UCBossPatternManager::HandlePatternStarted(int32 PhaseIndex, FName PatternI
 	{
 		ExecuteBarragePattern();
 	}
-	else if (PatternId == FName("GroundPound"))
-	{
-		ExecuteGroundPoundPattern();
-	}
-	else if (PatternId == FName("Teleport"))
-	{
-		ExecuteTeleportPattern();
-	}
+	
 	else
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[PatternManager] Unknown pattern: %s, using basic attack"), 
@@ -271,41 +273,77 @@ void UCBossPatternManager::ExecuteBasicAttack()
 
 void UCBossPatternManager::ExecuteRushPattern()
 {
-	UE_LOG(LogTemp, Warning, TEXT("[PatternManager] RUSH ATTACK (In-Place AnimNotify)!"));
+	UE_LOG(LogTemp, Warning, TEXT("[PatternManager] ===== RUSH PATTERN START ====="));
 
-	if (!WeaponComponent)
+	if (!OwnerBoss)
 	{
-		PhaseComponent->NotifyPatternFinished(false);
+		NotifyCurrentPatternEnd(false);
 		return;
 	}
 
-	// 1. WeaponComponent에 돌진 공격 인덱스 설정 및 몽타주 재생 요청
-	if (const int32* AttackIndex = PatternAttackIndexMap.Find(FName("Rush")))
+	// 1. 타겟 위치 설정
+	AActor* Target = GetPlayerTarget();
+	if (!Target)
 	{
-		// 이동 속도를 RushSpeed로 설정
-		if (OwnerBoss && OwnerBoss->GetCharacterMovement())
-		{
-			OwnerBoss->GetCharacterMovement()->MaxWalkSpeed = RushSpeed;
-		}
-		
-		WeaponComponent->SetCurrentAttackIndex(*AttackIndex);
-		WeaponComponent->DoAttack(); // 몽타주 재생 시작
-	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("[PatternManager] Rush pattern index not found in map!"));
-		PhaseComponent->NotifyPatternFinished(false);
+		UE_LOG(LogTemp, Error, TEXT("[PatternManager] No target found for Rush!"));
+		NotifyCurrentPatternEnd(false);
 		return;
 	}
+	
+	RushTargetLocation = Target->GetActorLocation();
+	UE_LOG(LogTemp, Warning, TEXT("[PatternManager] Rush target: %s"), *RushTargetLocation.ToString());
 
-	// 2. 재생된 몽타주가 끝나면 자동으로 패턴 완료를 알리도록 설정
-	PlayMontageAndNotify(nullptr, true);
+	// 2. 이동 속도 설정
+	if (OwnerBoss->GetCharacterMovement())
+	{
+		OwnerBoss->GetCharacterMovement()->MaxWalkSpeed = RushSpeed;
+		UE_LOG(LogTemp, Log, TEXT("[PatternManager] Rush speed set to: %.1f"), RushSpeed);
+	}
+	
+	UE_LOG(LogTemp, Log, TEXT("[PatternManager] Waiting for AnimNotify_StartRush..."));
 }
 
 void UCBossPatternManager::HandleRushMovementStart()
 {
-	UE_LOG(LogTemp, Log, TEXT("[PatternManager] AnimNotify: StartRushMovement received!"));
+	if (!OwnerBoss || RushTargetLocation.IsZero())  // 수정: 타겟 위치가 0이면 return
+	{
+		UE_LOG(LogTemp, Error, TEXT("[PatternManager] Cannot start rush - invalid owner or target location"));
+		return;
+	}
+
+	AAIController* AIController = GetBossAI();
+	if (!AIController)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[PatternManager] Cannot start rush - no AI controller"));
+		return;
+	}
+
 	bIsRushing = true;
+    
+	UE_LOG(LogTemp, Warning, TEXT("[PatternManager] Starting MoveTo: %s"), *RushTargetLocation.ToString());
+	
+	// AI MoveTo 실행
+	FAIMoveRequest MoveRequest(RushTargetLocation);
+	MoveRequest.SetAcceptanceRadius(RushAcceptanceRadius);
+	MoveRequest.SetUsePathfinding(false); // 직선 돌진
+    
+	FNavPathSharedPtr NavPath;
+	EPathFollowingRequestResult::Type Result = AIController->MoveTo(MoveRequest, &NavPath);
+	
+	// 결과 로그
+	switch(Result)
+	{
+		case EPathFollowingRequestResult::Failed:
+			UE_LOG(LogTemp, Error, TEXT("[PatternManager] MoveTo FAILED!"));
+			bIsRushing = false;
+			break;
+		case EPathFollowingRequestResult::AlreadyAtGoal:
+			UE_LOG(LogTemp, Warning, TEXT("[PatternManager] Already at goal"));
+			break;
+		case EPathFollowingRequestResult::RequestSuccessful:
+			UE_LOG(LogTemp, Log, TEXT("[PatternManager] MoveTo started successfully"));
+			break;
+	}
 }
 
 void UCBossPatternManager::HandleRushMovementStop()
@@ -522,178 +560,6 @@ void UCBossPatternManager::StopBarrage()
 	}
 }
 
-// ========================================
-// 패턴 실행: Ground Pound
-// ========================================
-
-void UCBossPatternManager::ExecuteGroundPoundPattern()
-{
-	UE_LOG(LogTemp, Warning, TEXT("[PatternManager]  GROUND POUND!"));
-
-	// 캐릭터를 공중으로 발사
-	if (ACharacter* BossChar = Cast<ACharacter>(OwnerBoss))
-	{
-		FVector LaunchVelocity(0.f, 0.f, GroundPoundLaunchPower);
-		BossChar->LaunchCharacter(LaunchVelocity, false, true);
-
-		// 착지 확인 타이머
-		GetWorld()->GetTimerManager().SetTimer(
-			GroundCheckTimer,
-			this,
-			&UCBossPatternManager::CheckGroundPoundLanding,
-			0.1f,
-			true
-		);
-	}
-	else
-	{
-		PhaseComponent->NotifyPatternFinished(false);
-	}
-}
-
-void UCBossPatternManager::CheckGroundPoundLanding()
-{
-	ACharacter* BossChar = Cast<ACharacter>(OwnerBoss);
-	if (!BossChar)
-	{
-		return;
-	}
-
-	// 착지 확인
-	if (!BossChar->GetCharacterMovement()->IsFalling())
-	{
-		GetWorld()->GetTimerManager().ClearTimer(GroundCheckTimer);
-		OnGroundPoundLanded();
-	}
-}
-
-void UCBossPatternManager::OnGroundPoundLanded()
-{
-	UE_LOG(LogTemp, Warning, TEXT("[PatternManager] Ground Pound IMPACT!"));
-
-	FVector ImpactLocation = OwnerBoss->GetActorLocation();
-
-	// 이펙트
-	if (GroundImpactEffect)
-	{
-		UGameplayStatics::SpawnEmitterAtLocation(
-			GetWorld(),
-			GroundImpactEffect,
-			ImpactLocation,
-			FRotator::ZeroRotator,
-			FVector(3.f)
-		);
-	}
-
-	// 사운드
-	if (GroundImpactSound)
-	{
-		UGameplayStatics::PlaySoundAtLocation(GetWorld(), GroundImpactSound, ImpactLocation);
-	}
-
-	// 카메라 흔들림
-	if (GroundImpactShake)
-	{
-		UGameplayStatics::PlayWorldCameraShake(
-			GetWorld(),
-			GroundImpactShake,
-			ImpactLocation,
-			0.f,
-			2000.f
-		);
-	}
-
-	// AOE 데미지
-	UGameplayStatics::ApplyRadialDamage(
-		GetWorld(),
-		GroundPoundDamage,
-		ImpactLocation,
-		GroundPoundDamageRadius,
-		UDamageType::StaticClass(),
-		TArray<AActor*>(),
-		OwnerBoss,
-		GetBossAI(),
-		true
-	);
-
-	// 패턴 완료
-	if (PhaseComponent)
-	{
-		PhaseComponent->NotifyPatternFinished(true);
-	}
-}
-
-// ========================================
-// 패턴 실행: Teleport
-// ========================================
-
-void UCBossPatternManager::ExecuteTeleportPattern()
-{
-	UE_LOG(LogTemp, Warning, TEXT("[PatternManager]  TELEPORT!"));
-
-	// 사라지기 이펙트
-	if (TeleportOutEffect)
-	{
-		UGameplayStatics::SpawnEmitterAtLocation(
-			GetWorld(),
-			TeleportOutEffect,
-			OwnerBoss->GetActorLocation()
-		);
-	}
-
-	if (TeleportSound)
-	{
-		UGameplayStatics::PlaySoundAtLocation(GetWorld(), TeleportSound, OwnerBoss->GetActorLocation());
-	}
-
-	// 보스 숨기기
-	OwnerBoss->SetActorHiddenInGame(true);
-	OwnerBoss->SetActorEnableCollision(false);
-
-	// 0.5초 후 텔레포트
-	GetWorld()->GetTimerManager().SetTimer(
-		TeleportTimer,
-		[this]()
-		{
-			// 새 위치 계산
-			FVector NewLocation = GetRandomNavigablePoint(TeleportMaxDistance);
-
-			// 이동
-			OwnerBoss->SetActorLocation(NewLocation);
-
-			// 플레이어 바라보기
-			if (AActor* Target = GetPlayerTarget())
-			{
-				FRotator LookRotation = (Target->GetActorLocation() - NewLocation).Rotation();
-				OwnerBoss->SetActorRotation(FRotator(0, LookRotation.Yaw, 0));
-			}
-
-			// 0.3초 후 나타나기
-			GetWorld()->GetTimerManager().SetTimerForNextTick([this]()
-			{
-				OwnerBoss->SetActorHiddenInGame(false);
-				OwnerBoss->SetActorEnableCollision(true);
-
-				// 나타나기 이펙트
-				if (TeleportInEffect)
-				{
-					UGameplayStatics::SpawnEmitterAtLocation(
-						GetWorld(),
-						TeleportInEffect,
-						OwnerBoss->GetActorLocation()
-					);
-				}
-
-				if (PhaseComponent)
-				{
-					PhaseComponent->NotifyPatternFinished(true);
-				}
-			});
-		},
-		0.5f,
-		false
-	);
-}
 
 // ========================================
 // 페이즈 처리
@@ -741,8 +607,7 @@ void UCBossPatternManager::UpdatePhaseStats(int32 PhaseIndex)
 	{
 		return;
 	}
-
-	// 페이즈별 속도 조정
+	
 	if (PhaseWalkSpeeds.IsValidIndex(PhaseIndex))
 	{
 		float NewSpeed = PhaseWalkSpeeds[PhaseIndex];
@@ -763,7 +628,6 @@ void UCBossPatternManager::PlayMontageAndNotify(UAnimMontage* Montage, bool bAut
 
 	if (!OwnerBoss || !Montage)
 	{
-		// 몽타주가 없으면 1.5초 딜레이 후 자동 완료
 		if (bAutoNotifyFinish && PhaseComponent)
 		{
 			GetWorld()->GetTimerManager().SetTimerForNextTick([this]()
@@ -782,8 +646,7 @@ void UCBossPatternManager::PlayMontageAndNotify(UAnimMontage* Montage, bool bAut
 		}
 		return;
 	}
-
-	// 몽타주 재생
+	
 	if (UAnimInstance* AnimInst = OwnerBoss->GetMesh()->GetAnimInstance())
 	{
 		AnimInst->Montage_Play(Montage);
@@ -813,39 +676,40 @@ AAIController* UCBossPatternManager::GetBossAI() const
 	return Cast<AAIController>(OwnerBoss->GetController());
 }
 
-FVector UCBossPatternManager::GetRandomNavigablePoint(float Radius) const
+// ========================================
+// 패턴 종료 알림 (AnimNotify에서 호출)
+// ========================================
+
+void UCBossPatternManager::NotifyCurrentPatternEnd(bool bSuccess)
 {
-	if (!OwnerBoss)
+	UE_LOG(LogTemp, Warning, TEXT("[PatternManager] ===== PATTERN END: %s ====="), 
+	       bSuccess ? TEXT("SUCCESS") : TEXT("FAILED"));
+	
+	bIsPatternActive = false;
+	bIsRushing = false;
+	
+	if (UWorld* World = GetWorld())
 	{
-		return FVector::ZeroVector;
+		FTimerManager& TimerManager = World->GetTimerManager();
+		TimerManager.ClearTimer(RushDelayTimer);
+		TimerManager.ClearTimer(RushMoveTimer);
 	}
-
-	AActor* Target = GetPlayerTarget();
-	FVector CenterPoint = Target ? Target->GetActorLocation() : OwnerBoss->GetActorLocation();
-
-	UNavigationSystemV1* NavSys = UNavigationSystemV1::GetCurrent(GetWorld());
-	if (!NavSys)
+	
+	// ===== 패턴 종료 후 기본 AI 추적 재활성화 =====
+	if (ABossAIController* BossAI = Cast<ABossAIController>(GetBossAI()))
 	{
-		return CenterPoint;
+		BossAI->SetChaseEnabled(true);
+		UE_LOG(LogTemp, Log, TEXT("[PatternManager] Re-enabled AI chase after pattern"));
 	}
+	
 
-	FNavLocation NavLocation;
-	float MinDistance = FMath::Max(TeleportMinDistance, Radius * 0.5f);
-	float MaxDistance = Radius;
-
-	// 랜덤 방향
-	FVector RandomDirection = FMath::VRand();
-	RandomDirection.Z = 0.f;
-	RandomDirection.Normalize();
-
-	float RandomDistance = FMath::RandRange(MinDistance, MaxDistance);
-	FVector TestPoint = CenterPoint + (RandomDirection * RandomDistance);
-
-	// 네비메시에서 가장 가까운 점 찾기
-	if (NavSys->ProjectPointToNavigation(TestPoint, NavLocation, FVector(500.f, 500.f, 500.f)))
+	if (PhaseComponent)
 	{
-		return NavLocation.Location;
+		PhaseComponent->NotifyPatternFinished(bSuccess);
 	}
-
-	return OwnerBoss->GetActorLocation();
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("[PatternManager] PhaseComponent is null!"));
+	}
+	
 }

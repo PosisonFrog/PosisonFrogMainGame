@@ -34,6 +34,11 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Pattern|Rush")
 	void HandleRushMovementStop();
+
+	/** AnimNotify에서 호출 - 현재 패턴 종료 알림 */
+	UFUNCTION(BlueprintCallable, Category = "Pattern")
+	void NotifyCurrentPatternEnd(bool bSuccess = true);
+	
 protected:
 	/**============ 델리게이트 ============**/
 	
@@ -71,14 +76,7 @@ protected:
 	void ExecuteBarragePattern();
 	void FireBarrageShot();
 	void StopBarrage();
-
-	/** 점프 후 착지 */
-	void ExecuteGroundPoundPattern();
-	void CheckGroundPoundLanding();
-	void OnGroundPoundLanded();
-
-	/** 순간이동 */
-	void ExecuteTeleportPattern();
+	
 
 
 	/**============ 페이즈별 처리 ============**/
@@ -105,9 +103,7 @@ protected:
 
 	/** AI 컨트롤러 가져오기 */
 	AAIController* GetBossAI() const;
-
-	/** 랜덤 네비게이션 위치 */
-	FVector GetRandomNavigablePoint(float Radius = 1000.f) const;
+	
 
 
 	
@@ -155,23 +151,7 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Category="Pattern|Barrage")
 	float BarrageTotalDuration = 3.0f;
-
-	// Ground Pound 설정
-	UPROPERTY(EditDefaultsOnly, Category="Pattern|GroundPound")
-	float GroundPoundLaunchPower = 1000.f;
-
-	UPROPERTY(EditDefaultsOnly, Category="Pattern|GroundPound")
-	float GroundPoundDamageRadius = 800.f;
-
-	UPROPERTY(EditDefaultsOnly, Category="Pattern|GroundPound")
-	float GroundPoundDamage = 80.f;
-
-	// Teleport 설정
-	UPROPERTY(EditDefaultsOnly, Category="Pattern|Teleport")
-	float TeleportMinDistance = 500.f;
-
-	UPROPERTY(EditDefaultsOnly, Category="Pattern|Teleport")
-	float TeleportMaxDistance = 1000.f;
+	
 
 	// Phase 설정
 	UPROPERTY(EditDefaultsOnly, Category="Phase")
@@ -191,19 +171,7 @@ protected:
 	TObjectPtr<USoundBase> PhaseChangeSound;
 
 	UPROPERTY(EditDefaultsOnly, Category="Effects")
-	TObjectPtr<UParticleSystem> TeleportOutEffect;
-
-	UPROPERTY(EditDefaultsOnly, Category="Effects")
-	TObjectPtr<UParticleSystem> TeleportInEffect;
-
-	UPROPERTY(EditDefaultsOnly, Category="Effects")
-	TObjectPtr<USoundBase> TeleportSound;
-
-	UPROPERTY(EditDefaultsOnly, Category="Effects")
 	TObjectPtr<UParticleSystem> GroundImpactEffect;
-
-	UPROPERTY(EditDefaultsOnly, Category="Effects")
-	TObjectPtr<USoundBase> GroundImpactSound;
 
 	UPROPERTY(EditDefaultsOnly, Category="Effects")
 	TSubclassOf<UCameraShakeBase> GroundImpactShake;
@@ -222,11 +190,9 @@ protected:
 	FTimerHandle BarrageLoopTimer;
 	FTimerHandle BarrageStopTimer;
 	FTimerHandle GroundCheckTimer;
-	FTimerHandle TeleportTimer;
 	FTimerHandle PhaseTransitionTimer;
 
 	// 몽타주 종료 델리게이트
 	FOnMontageEnded MontageEndDelegate;
 	bool bShouldNotifyOnMontageEnd;
 };
-

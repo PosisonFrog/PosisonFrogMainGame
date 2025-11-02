@@ -16,8 +16,13 @@ class POSISONFROG_API ABossAIController : public AAIController
 
 public:
 	ABossAIController();
+	
 	UFUNCTION(BlueprintCallable, Category="AI")
 	void SetTargetPlayer(AActor* NewTarget);
+
+	/** 기본 추적 활성화/비활성화 (패턴 실행 시 사용) */
+	UFUNCTION(BlueprintCallable, Category="AI")
+	void SetChaseEnabled(bool bEnabled);
 
 protected:
 
@@ -29,10 +34,27 @@ private:
 	UPROPERTY()
 	AActor* TargetPlayer;
 
-	/** 업데이트 간격 */
-	float UpdateInterval = 0.5f;
-	float TimeSinceLastUpdate = 0.f;
+	/** 회전 속도 (degree per second) */
+	UPROPERTY(EditAnywhere, Category="AI")
+	float RotationSpeed = 360.f;
 
+	/** 추적을 시작할 거리 */
+	UPROPERTY(EditAnywhere, Category="AI|Chase")
+	float ChaseDistance = 3000.f;
+
+	/** 추적을 멈출 거리 (공격 사거리) */
+	UPROPERTY(EditAnywhere, Category="AI|Chase")
+	float StopDistance = 300.f;
+
+	/** MoveTo 업데이트 주기 (초) */
+	UPROPERTY(EditAnywhere, Category="AI|Chase")
+	float MoveUpdateInterval = 0.5f;
+
+	float TimeSinceMoveUpdate = 0.f;
+	bool bIsMovingToTarget = false;
+	
+	/** 기본 추적 활성화 여부 (패턴 실행 중에는 false) */
+	bool bChaseEnabled = true;
 	
 	
 };
