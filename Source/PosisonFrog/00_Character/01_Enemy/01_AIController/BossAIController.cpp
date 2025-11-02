@@ -59,19 +59,19 @@ void ABossAIController::Tick(float DeltaTime)
 	APawn* ControlledPawn = GetPawn();
 	if (!ControlledPawn)
 	{
+		UE_LOG(LogTemp, Error, TEXT("[BossAI] No controlled pawn!"));
 		return;
 	}
 
 	// ===== 1. 회전 처리 (매 프레임) =====
 	FVector Direction = TargetPlayer->GetActorLocation() - ControlledPawn->GetActorLocation();
-	Direction.Z = 0.f;  // 수평 회전만
+	Direction.Z = 0.f;
 	
 	if (!Direction.IsNearlyZero())
 	{
 		FRotator TargetRotation = Direction.Rotation();
 		FRotator CurrentRotation = GetControlRotation();
 		
-		// 부드러운 회전 보간
 		FRotator NewRotation = FMath::RInterpTo(
 			CurrentRotation, 
 			TargetRotation, 
@@ -83,7 +83,19 @@ void ABossAIController::Tick(float DeltaTime)
 	}
 
 	// ===== 2. 이동 처리 (주기적) =====
-	// 추적이 비활성화되어 있으면 이동 안 함 (패턴 실행 중)
+	
+	// 디버깅: Chase 상태 로그
+	static float DebugLogTimer = 0.f;
+	DebugLogTimer += DeltaTime;
+	if (DebugLogTimer >= 1.0f)  // 1초마다 상태 로그
+	{
+		DebugLogTimer = 0.f;
+		UE_LOG(LogTemp, Warning, TEXT("[BossAI] Chase Status - Enabled: %s, IsMoving: %s"), 
+		       bChaseEnabled ? TEXT("TRUE") : TEXT("FALSE"),
+		       bIsMovingToTarget ? TEXT("TRUE") : TEXT("FALSE"));
+	}
+	
+	// 추적이 비활성화되어 있으면 이동 안 함
 	if (!bChaseEnabled)
 	{
 		return;
@@ -98,6 +110,10 @@ void ABossAIController::Tick(float DeltaTime)
 		// 플레이어와의 거리 계산
 		float DistanceToTarget = FVector::Dist(ControlledPawn->GetActorLocation(), TargetPlayer->GetActorLocation());
 		
+		// 디버깅: 거리 로그
+		UE_LOG(LogTemp, Warning, TEXT("[BossAI] Distance to player: %.1f (Stop: %.1f, Chase: %.1f)"), 
+		       DistanceToTarget, StopDistance, ChaseDistance);
+		
 		// 너무 가까우면 이동 중지
 		if (DistanceToTarget <= StopDistance)
 		{
@@ -105,7 +121,7 @@ void ABossAIController::Tick(float DeltaTime)
 			{
 				StopMovement();
 				bIsMovingToTarget = false;
-				UE_LOG(LogTemp, Verbose, TEXT("[BossAI] Stopped - Close enough (%.1f)"), DistanceToTarget);
+				UE_LOG(LogTemp, Warning, TEXT("[BossAI] Stopped - Close enough (%.1f)"), DistanceToTarget);
 			}
 		}
 		// 멀리 있으면 추적
@@ -125,18 +141,22 @@ void ABossAIController::Tick(float DeltaTime)
 			if (MoveResult == EPathFollowingRequestResult::RequestSuccessful)
 			{
 				bIsMovingToTarget = true;
-				UE_LOG(LogTemp, Verbose, TEXT("[BossAI] Chasing player (Distance: %.1f)"), DistanceToTarget);
+				UE_LOG(LogTemp, Warning, TEXT("[BossAI] CHASING player! (Distance: %.1f)"), DistanceToTarget);
 			}
 			else if (MoveResult == EPathFollowingRequestResult::Failed)
 			{
-				UE_LOG(LogTemp, Warning, TEXT("[BossAI] MoveTo failed! Distance: %.1f"), DistanceToTarget);
+				UE_LOG(LogTemp, Error, TEXT("[BossAI] MoveTo FAILED! Distance: %.1f (Check NavMesh!)"), DistanceToTarget);
+			}
+			else if (MoveResult == EPathFollowingRequestResult::AlreadyAtGoal)
+			{
+				UE_LOG(LogTemp, Log, TEXT("[BossAI] Already at goal"));
 			}
 		}
-		// 적당한 거리 (StopDistance ~ ChaseDistance 사이)
-		else if (bIsMovingToTarget)
+		// 적당한 거리 (유지)
+		else
 		{
-			// 이미 이동 중이면 계속 진행 (MoveTo가 알아서 처리)
-			UE_LOG(LogTemp, Verbose, TEXT("[BossAI] Moving... (Distance: %.1f)"), DistanceToTarget);
+			UE_LOG(LogTemp, Log, TEXT("[BossAI] In range (%.1f), maintaining..."), DistanceToTarget);
 		}
 	}
 }
+

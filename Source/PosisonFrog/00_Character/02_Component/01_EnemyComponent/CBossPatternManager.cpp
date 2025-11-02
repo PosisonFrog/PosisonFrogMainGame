@@ -130,20 +130,28 @@ void UCBossPatternManager::HandlePhaseChanged(int32 PhaseIndex, const FBossPhase
 }
 
 void UCBossPatternManager::HandlePatternStarted(int32 PhaseIndex, FName PatternId, 
-                                                const FBossPatternDefinition& PatternData, float RemainingPower)
+												const FBossPatternDefinition& PatternData, float RemainingPower)
 {
 	UE_LOG(LogTemp, Warning, TEXT("[PatternManager] Pattern Started: %s (Phase %d, Power: %.1f)"), 
-	       *PatternId.ToString(), PhaseIndex, RemainingPower);
+		   *PatternId.ToString(), PhaseIndex, RemainingPower);
 
 	CurrentPatternId = PatternId;
 	bIsPatternActive = true;
-	bIsRushing = false; // 러쉬 플래그 초기화
+	bIsRushing = false;
 	
-	// ===== 패턴 실행 중에는 기본 AI 추적 비활성화 =====
-	if (ABossAIController* BossAI = Cast<ABossAIController>(GetBossAI()))
+	// ===== 특수 이동이 있는 패턴만 Chase 비활성화 =====
+	if (PatternId == FName("Rush") || PatternId == FName("Barrage"))
 	{
-		BossAI->SetChaseEnabled(false);
-		UE_LOG(LogTemp, Log, TEXT("[PatternManager] Disabled AI chase for pattern execution"));
+		if (ABossAIController* BossAI = Cast<ABossAIController>(GetBossAI()))
+		{
+			BossAI->SetChaseEnabled(false);
+			UE_LOG(LogTemp, Warning, TEXT("[PatternManager] Disabled chase for %s"), *PatternId.ToString());
+		}
+	}
+	// BasicAttack, Slam은 Chase 유지 → 계속 플레이어 추적 ✅
+	else
+	{
+		UE_LOG(LogTemp, Log, TEXT("[PatternManager] Chase maintained for %s"), *PatternId.ToString());
 	}
 	
 	// 패턴별 분기
@@ -163,15 +171,13 @@ void UCBossPatternManager::HandlePatternStarted(int32 PhaseIndex, FName PatternI
 	{
 		ExecuteBarragePattern();
 	}
-	
 	else
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[PatternManager] Unknown pattern: %s, using basic attack"), 
-		       *PatternId.ToString());
+			   *PatternId.ToString());
 		ExecuteBasicAttack();
 	}
 }
-
 void UCBossPatternManager::HandlePatternFinished(int32 PhaseIndex, FName PatternId, 
                                                  const FBossPatternDefinition& PatternData, float RemainingPower)
 {
@@ -179,10 +185,31 @@ void UCBossPatternManager::HandlePatternFinished(int32 PhaseIndex, FName Pattern
 
 	bIsPatternActive = false;
 
+	if (PatternId == FName("Rush") || PatternId == FName("Barrage"))
+	{
+		if (ABossAIController* BossAI = Cast<ABossAIController>(GetBossAI()))
+		{
+			BossAI->SetChaseEnabled(true);
+			UE_LOG(LogTemp, Warning, TEXT("[PatternManager] Re-enabled chase after %s"), 
+				   *PatternId.ToString());
+		}
+	}
+
 	// 패턴별 정리 작업
 	if (PatternId == FName("Rush"))
 	{
+		bIsRushing = false;
 		GetWorld()->GetTimerManager().ClearTimer(RushMoveTimer);
+		
+		// 속도 원복
+		if (OwnerBoss && OwnerBoss->GetCharacterMovement() && PhaseComponent)
+		{
+			int32 CurrentPhase = PhaseComponent->GetCurrentPhaseIndex();
+			if (PhaseWalkSpeeds.IsValidIndex(CurrentPhase))
+			{
+				OwnerBoss->GetCharacterMovement()->MaxWalkSpeed = PhaseWalkSpeeds[CurrentPhase];
+			}
+		}
 	}
 	else if (PatternId == FName("Barrage"))
 	{
@@ -683,11 +710,12 @@ AAIController* UCBossPatternManager::GetBossAI() const
 void UCBossPatternManager::NotifyCurrentPatternEnd(bool bSuccess)
 {
 	UE_LOG(LogTemp, Warning, TEXT("[PatternManager] ===== PATTERN END: %s ====="), 
-	       bSuccess ? TEXT("SUCCESS") : TEXT("FAILED"));
+		   bSuccess ? TEXT("SUCCESS") : TEXT("FAILED"));
 	
 	bIsPatternActive = false;
 	bIsRushing = false;
 	
+	// 타이머 정리
 	if (UWorld* World = GetWorld())
 	{
 		FTimerManager& TimerManager = World->GetTimerManager();
@@ -695,14 +723,17 @@ void UCBossPatternManager::NotifyCurrentPatternEnd(bool bSuccess)
 		TimerManager.ClearTimer(RushMoveTimer);
 	}
 	
-	// ===== 패턴 종료 후 기본 AI 추적 재활성화 =====
-	if (ABossAIController* BossAI = Cast<ABossAIController>(GetBossAI()))
+	// ===== Rush/Barrage만 Chase 재활성화 =====
+	if (CurrentPatternId == FName("Rush") || CurrentPatternId == FName("Barrage"))
 	{
-		BossAI->SetChaseEnabled(true);
-		UE_LOG(LogTemp, Log, TEXT("[PatternManager] Re-enabled AI chase after pattern"));
+		if (ABossAIController* BossAI = Cast<ABossAIController>(GetBossAI()))
+		{
+			BossAI->SetChaseEnabled(true);
+			UE_LOG(LogTemp, Warning, TEXT("[PatternManager]  Re-enabled chase after %s in NotifyCurrentPatternEnd"), 
+				   *CurrentPatternId.ToString());
+		}
 	}
 	
-
 	if (PhaseComponent)
 	{
 		PhaseComponent->NotifyPatternFinished(bSuccess);
@@ -711,5 +742,4 @@ void UCBossPatternManager::NotifyCurrentPatternEnd(bool bSuccess)
 	{
 		UE_LOG(LogTemp, Error, TEXT("[PatternManager] PhaseComponent is null!"));
 	}
-	
 }

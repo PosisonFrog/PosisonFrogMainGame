@@ -40,7 +40,7 @@ private:
 
 	/** 추적을 시작할 거리 */
 	UPROPERTY(EditAnywhere, Category="AI|Chase")
-	float ChaseDistance = 3000.f;
+	float ChaseDistance = 500.f;
 
 	/** 추적을 멈출 거리 (공격 사거리) */
 	UPROPERTY(EditAnywhere, Category="AI|Chase")

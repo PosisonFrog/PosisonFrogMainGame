@@ -22,7 +22,12 @@ class POSISONFROG_API UCBossPatternManager : public UActorComponent
 {
 	GENERATED_BODY()
 
+
 public:
+
+	UFUNCTION(BlueprintCallable, Category="AI|Chase")
+	FORCEINLINE bool GetIsRushing() const { return bIsRushing; }
+	
 	UCBossPatternManager();
 
 	virtual void BeginPlay() override;
@@ -139,6 +144,8 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category="Pattern|Rush")
 	float RushAcceptanceRadius = 150.f;
 
+
+	
 	// Barrage 설정
 	UPROPERTY(EditDefaultsOnly, Category="Pattern|Barrage")
 	TSubclassOf<AActor> ProjectileClass;
@@ -160,7 +167,7 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category="Phase")
 	float PhaseTransitionInvulnerabilityDuration = 2.0f;
 
-
+	
 
 	/**============ 이펙트 사운드 ============**/
 
@@ -182,7 +189,7 @@ protected:
 	FVector RushTargetLocation;
 	int32 BarrageShotCount;
 	bool bIsPatternActive;
-	bool bIsRushing; 
+	bool bIsRushing;
 
 	// 타이머 핸들
 	FTimerHandle RushDelayTimer;
