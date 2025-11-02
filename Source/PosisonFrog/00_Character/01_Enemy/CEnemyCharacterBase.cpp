@@ -317,7 +317,7 @@ void ACEnemyCharacterBase::DoAttack()
 		SetState(EEnemyState::ReturnHome);
 		return;
 	}
-
+	
 	if (UCharacterMovementComponent* Move = GetCharacterMovement())
 	{
 		if (Move->IsFalling())

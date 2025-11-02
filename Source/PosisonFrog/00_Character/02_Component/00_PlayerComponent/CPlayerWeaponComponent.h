@@ -11,6 +11,7 @@ class ACharacter;
 class ACHammer;
 class UAnimMontage;
 
+
 /**
  * 무기/콤보 컴포넌트
  * - DoAttack: 공격 입력 진입점
@@ -49,7 +50,6 @@ private:
     void PlayComboAttack();
     void StepToNextCombo();      // 다음 콤보 스텝으로 전진(인덱스 증가 + Play)
     void ResetCombo();
-    void RestoreMoveSpeed();
 
     UFUNCTION() void OnMontageEnded(UAnimMontage* Montage, bool bInterrupted);
  
@@ -89,9 +89,17 @@ protected:
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Attack", meta = (ClampMin = "0.1"))
     float AttackMoveSpeedMul = 0.4f;
 
-private:
-    float CurrentMoveMaxSpeed_Snapshot = 0.f;
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Attack|Knockback")
+    bool bEnableHitKnockback = true;
+   
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Attack|Knockback", meta = (ClampMin = "0.0"))
+    float HitKnockbackStrength = 650.f;
+   
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Attack|Knockback", meta = (ClampMin = "0.0"))
+    float HitKnockbackUpStrength = 120.f;
     
+private:
+    bool bHasNotifiedAttackEnd = false;
     
     FTimerHandle ComboResetTimer;
 };

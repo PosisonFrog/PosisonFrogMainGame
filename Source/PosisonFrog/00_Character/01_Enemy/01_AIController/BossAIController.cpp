@@ -7,9 +7,14 @@ ABossAIController::ABossAIController()
 	PrimaryActorTick.bCanEverTick = true;
 }
 
+void ABossAIController::SetTargetPlayer(AActor* NewTarget)
+{
+	TargetPlayer = NewTarget;
+	UE_LOG(LogTemp, Warning, TEXT("[BossAI] Target set to: %s"), *GetNameSafe(NewTarget));
+}
+
 void ABossAIController::OnPossess(APawn* InPawn)
 {
-	Super::OnPossess(InPawn);
 	Super::OnPossess(InPawn);
     
 	// 플레이어 찾기
@@ -22,7 +27,17 @@ void ABossAIController::OnPossess(APawn* InPawn)
 void ABossAIController::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-    
+	
+	if (!TargetPlayer)
+	{
+		TargetPlayer = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+		if (TargetPlayer)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[BossAI] Target found: %s"), *GetNameSafe(TargetPlayer));
+		}
+		return; // 아직 못 찾았으면 회전 스킵
+	}
+	
 	TimeSinceLastUpdate += DeltaTime;
     
 	// 주기적으로 플레이어를 바라보기

@@ -16,7 +16,8 @@ class POSISONFROG_API ABossAIController : public AAIController
 
 public:
 	ABossAIController();
-
+	UFUNCTION(BlueprintCallable, Category="AI")
+	void SetTargetPlayer(AActor* NewTarget);
 
 protected:
 
@@ -31,5 +32,7 @@ private:
 	/** 업데이트 간격 */
 	float UpdateInterval = 0.5f;
 	float TimeSinceLastUpdate = 0.f;
+
+	
 	
 };
