@@ -276,11 +276,15 @@ void UCPlayerWeaponComponent::ResetCombo()
 
 void UCPlayerWeaponComponent::OnMontageEnded(UAnimMontage* Montage, bool bInterrupted)
 {
-
     if (bInterrupted)
         return;
     
     ResetCombo();
+
+    if (bInterrupted)
+    {
+        DisableAttackBoxCollider();
+    }
 }
 
 /* ============ 상태기/노티에서 호출 ============ */

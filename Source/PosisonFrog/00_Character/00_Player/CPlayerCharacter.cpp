@@ -88,6 +88,8 @@ ACPlayerCharacter::ACPlayerCharacter()
         Move->BrakingDecelerationWalking = 2000.f;
         Move->BrakingDecelerationFalling = 1500.f;
         Move->MaxWalkSpeed = WalkingSpeed; // 에디터에서 덮어씀
+        Move->MaxStepHeight = FMath::Max(60.f, Move->MaxStepHeight);
+        Move->bCanWalkOffLedges = true;
     }
 }
 
@@ -696,8 +698,8 @@ void ACPlayerCharacter::SetUltimateGauge(float UltGauge)
 // ────────────────────────────────────────────────────────────────────────────
 void ACPlayerCharacter::OnSpinPressed()
 {
-    //if (CommandLaunchSlamComponent && CommandLaunchSlamComponent->ShouldBlockOtherActions())
-       // return;
+    if (CommandLaunchSlamComponent && CommandLaunchSlamComponent->ShouldBlockOtherActions())
+        return;
     
     if (SpinAttackComponent)
         SpinAttackComponent->TryStartSpin();

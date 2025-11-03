@@ -29,6 +29,9 @@ public:
 
     void TryStartSpin();
     void StopSpin();
+
+protected:
+    virtual void BeginPlay() override;
     
 protected:
     // 홀드 시작/종료

@@ -16,20 +16,19 @@ namespace TankerBrute
 
 using namespace TankerBrute;
 
+
 ACTankerBrute::ACTankerBrute()
 {
     ChargeComp = CreateDefaultSubobject<UCTankerChargeComponent>(TEXT("ChargeComp"));
-
-    Tags.AddUnique(TEXT("Enemy.Type.Tank"));
-    SightDistance = FMath::Max(SightDistance, ChargeStopDistanceOverride);
-    ChaseStartDistance = FMath::Max(ChaseStartDistance, SightDistance);
-
  
-  if (UCapsuleComponent* Capsule = GetCapsuleComponent())
-  {
-      const float DesiredSeparation = Capsule->GetScaledCapsuleRadius() * 2.f + 5.f;
-      SeparationRadius = FMath::Max(SeparationRadius, DesiredSeparation);
-  }   
+    Tags.AddUnique(TEXT("Enemy.Type.Tank"));
+    ApplyPerceptionTuning();
+ 
+    if (UCapsuleComponent* Capsule = GetCapsuleComponent())
+    {
+        const float DesiredSeparation = Capsule->GetScaledCapsuleRadius() * 2.f + 5.f;
+        SeparationRadius = FMath::Max(SeparationRadius, DesiredSeparation);
+    }
 }
 
 void ACTankerBrute::PostInitProperties()
@@ -38,11 +37,24 @@ void ACTankerBrute::PostInitProperties()
     SyncAttackTuning();
 }
 
+void ACTankerBrute::OnConstruction(const FTransform& Transform)
+{
+    Super::OnConstruction(Transform);
+    ApplyPerceptionTuning();
+}
+
+void ACTankerBrute::PostLoad()
+{
+    Super::PostLoad();
+    ApplyPerceptionTuning();
+}
+
 #if WITH_EDITOR
 void ACTankerBrute::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
     Super::PostEditChangeProperty(PropertyChangedEvent);
     SyncAttackTuning();
+    ApplyPerceptionTuning();
 }
 #endif
 
@@ -55,7 +67,8 @@ void ACTankerBrute::BeginPlay()
     {
         HitReactionMontage = HitMontage;
     }
-
+    
+    ApplyPerceptionTuning();
     InitialiseChargeComponent();
 }
 
@@ -293,8 +306,6 @@ void ACTankerBrute::PlayMontageIfValid(UAnimMontage* Montage, float PlayRate) co
     }
 }
 
-
-
 void ACTankerBrute::PlaySoundIfValid(USoundBase* Sound) const
 {
     if (Sound)
@@ -381,6 +392,15 @@ void ACTankerBrute::InitialiseChargeComponent()
     ChargeComp->OnChargeStateChanged.AddDynamic(this, &ACTankerBrute::HandleChargeStateChanged);
     ChargeComp->OnChargeFinished.AddDynamic(this, &ACTankerBrute::HandleChargeFinished);
 }
+
+
+void ACTankerBrute::ApplyPerceptionTuning()
+{
+    const float DesiredSight = FMath::Max(SightDistance, ChargeStopDistanceOverride);
+    SightDistance = DesiredSight;
+    ChaseStartDistance = FMath::Max(ChaseStartDistance, SightDistance);
+    ChaseStopDistance = FMath::Max(ChaseStopDistance, ChaseStartDistance);
+}    
 
 bool ACTankerBrute::ShouldAttemptCharge() const
 {

@@ -30,14 +30,14 @@ public:
 protected:
 
 	virtual void PostInitProperties() override;
+	virtual void PostLoad() override;
+	virtual void OnConstruction(const FTransform& Transform) override;
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
-
 	
 	virtual void BeginPlay() override;
-
-
+	
 private:
 
 	// 상위 FSM 훅
@@ -67,6 +67,7 @@ private:
 	void SyncAttackTuning();
 	
 	void InitialiseChargeComponent();
+	void ApplyPerceptionTuning();
 	bool ShouldAttemptCharge() const;
 	bool TryStartCharge();
 	void UpdateChargeStopOverride(float CurrentTime);
