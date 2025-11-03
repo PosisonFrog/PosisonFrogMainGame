@@ -23,23 +23,18 @@
 UCSkill_SpinAttack::UCSkill_SpinAttack()
 {
     PrimaryComponentTick.bCanEverTick = false;
-    
-    if (!DamageTypeClass)
-        DamageTypeClass = UDamageType::StaticClass();
-    if (!FinisherDamageTypeClass)
-        FinisherDamageTypeClass = UDamageType::StaticClass();
-}
 
-void UCSkill_SpinAttack::BeginPlay()
-{
-    Super::BeginPlay();
-    
     OwnerChar = Cast<ACharacter>(GetOwner());
     if (!OwnerChar.IsValid())
     {
         CLog::Log(TEXT("[UCSkill_SpinAttack] OwnerCharacter invalid"));
         return;
     }
+    
+    if (!DamageTypeClass)
+        DamageTypeClass = UDamageType::StaticClass();
+    if (!FinisherDamageTypeClass)
+        FinisherDamageTypeClass = UDamageType::StaticClass();
 }
 
 void UCSkill_SpinAttack::TryStartSpin()
@@ -75,7 +70,7 @@ bool UCSkill_SpinAttack::DoActivate()
     // 발동 시점 Fury 스냅샷(원하시면 OnFuryStarted/Ended에서 동적 갱신)
     bFuryActiveSnapshot = (FuryRef && FuryRef->IsEffectActive());
 
-    if (ACPlayerCharacter* PlayerChar = Cast<ACPlayerCharacter>(OwnerChar.Get()))
+    if (ACPlayerCharacter* PlayerChar = Cast<ACPlayerCharacter>(OwnerChar))
     {
         if (CharSpinMontage)
             PlayerChar->PlayAnimMontage(CharSpinMontage);
@@ -116,44 +111,34 @@ bool UCSkill_SpinAttack::DoActivate()
 
 bool UCSkill_SpinAttack::DoCancel()
 {
-    if (UWorld* World = GetWorld())
-    {
-        if (TimerHandle_SpinTick.IsValid())
-        {
-            World->GetTimerManager().ClearTimer(TimerHandle_SpinTick);
-        }
-        else
-        {
-            // 타이머가 이미 해제된 경우에도 상태를 정상화하기 위해 한 번 더 클리어 시도
-            World->GetTimerManager().ClearTimer(TimerHandle_SpinTick);
-        }
-    }
- 
+    if (!TimerHandle_SpinTick.IsValid())
+        return false;
+
+    GetWorld()->GetTimerManager().ClearTimer(TimerHandle_SpinTick);
+
     // 애니메이션 중지 코드
     if (OwnerChar.IsValid())
     {
-        if (ACPlayerCharacter* PlayerChar = Cast<ACPlayerCharacter>(OwnerChar.Get()))
+        if (ACPlayerCharacter* PlayerChar = Cast<ACPlayerCharacter>(OwnerChar))
         {
             if (UAnimInstance* CharAnimInst = PlayerChar->GetMesh()->GetAnimInstance())
             {
                 if (CharAnimInst->Montage_IsPlaying(CharSpinMontage))
                     CharAnimInst->Montage_Stop(0.2f, CharSpinMontage);
             }
- 
+
             ACHammer* Hammer = nullptr;
             if (UCPlayerWeaponComponent* WeaponComp = PlayerChar->FindComponentByClass<UCPlayerWeaponComponent>())
                 Hammer = WeaponComp->GetHammer();
- 
+
             if (Hammer && HammerSpinMontage)
             {
                 if (UAnimInstance* HammerAnim = Hammer->GetHammerMesh()->GetAnimInstance())
                     HammerAnim->Montage_Stop(0.2f, HammerSpinMontage);
             }
-                     
-            PlayerChar->ResetAttackMovementSlowMultiplier();
         }
     }
- 
+
     if (IsValid(ActiveSpinVFXComponent))
     {
         ActiveSpinVFXComponent->DestroyComponent();
@@ -290,12 +275,12 @@ void UCSkill_SpinAttack::PlayFinisherMontageAndScheduleImpact(float FinisherDama
 {
     float ImpactDelay = FinisherImpactDelay;
 
-    if (ACPlayerCharacter* PlayerChar = Cast<ACPlayerCharacter>(OwnerChar.Get()))
+    if (ACPlayerCharacter* PlayerChar = Cast<ACPlayerCharacter>(OwnerChar))
     {
         // ※ 애님 노티파이로 정확 타이밍을 주면 더 좋지만(완전 C++라면),
         //   여기서는 간단히 FinisherImpactDelay 초 후에 충격 판정.
         
-        if (CharFinisherMontage && OwnerChar.IsValid())
+        if (CharFinisherMontage)
         {
             if (UAnimInstance* Anim = OwnerChar->GetMesh()->GetAnimInstance())
                 Anim->Montage_Play(CharFinisherMontage);
