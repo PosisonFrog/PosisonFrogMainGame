@@ -9,6 +9,7 @@ class UCapsuleComponent;
 class UCharacterMovementComponent;
 class UCEnemyHealthComponent;
 class UCEnemyWeaponComponent;
+class USoundBase;
 
 UENUM(BlueprintType)
 enum class EEnemyState : uint8
@@ -206,6 +207,8 @@ protected:
     virtual void ExitState(EEnemyState OldState);       // 현 상태에서 벗어날 시 호출. 정리 작업.
     void         SetState(EEnemyState NewState);        // 상태 변경 함수. 위 두 함수 순서대로 호출.
 
+    void PlaySoundIfValid(USoundBase* Sound) const;
+    
     // 상태 처리
     virtual void DoPatrol();     //순찰
     virtual void DoAlert();      //경계
@@ -234,8 +237,11 @@ protected:
                              AController* EventInstigator, AActor* DamageCauser) override;
     UFUNCTION() void OnHealthChanged(float Cur, float Max);
     virtual void OnDead();
+    virtual void PlayHitReaction();  // 피격 반응 재생
     virtual void TryDropHealPack();
     void DisableAllCollisions();
+    void EndHitStun();  // 피격 경직 종료
+
 
     // 전투(스윙 창(애님 노티파이) + 분할 스윕)
     UFUNCTION(BlueprintCallable, Category="PF|Combat")
@@ -281,6 +287,9 @@ protected:
     float   LastAttackTime = -1000.f;
     float   StateEnterTime = -1000.f;
 
+    UPROPERTY(EditAnywhere, Category="PF|Sound")
+    USoundBase* HitSound = nullptr;
+
     // 직진 스티어링
     bool    bDirectMoveActive = false;
     FVector DirectMoveGoal = FVector::ZeroVector;
@@ -300,6 +309,19 @@ protected:
     // 리스폰을 위한 초기 위치 저장
     FVector InitialSpawnLocation = FVector::ZeroVector;
     FRotator InitialSpawnRotation = FRotator::ZeroRotator;
+    FTimerHandle HitStunTimer;  // 피격 경직 타이머
+
+
+    // 피격 경직
+    UPROPERTY(EditAnywhere, Category="PF|HitReaction", meta=(ClampMin="0", ClampMax="5"))
+    float HitStunDuration = 0.4f;  // 피격 경직 지속 시간 (초)
+
+    UPROPERTY(VisibleInstanceOnly, Category="PF|HitReaction")
+    bool bIsHitStunned = false;  // 피격 경직 상태
+    
+    // 애니메이션
+    UPROPERTY(EditAnywhere, Category="PF|Animation")
+    UAnimMontage* HitReactionMontage = nullptr;
     
     //체력 컴포넌트
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="PF|Components")
@@ -308,4 +330,3 @@ protected:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="PF|Components")
     UCEnemyWeaponComponent* WeaponComponent;
 };
-

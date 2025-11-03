@@ -10,6 +10,7 @@
 #include "Blueprint/UserWidget.h"
 #include "TimerManager.h"
 #include "InputActionValue.h"
+#include "Kismet/GameplayStatics.h"
 
 // ─ 프로젝트 컴포넌트/유틸
 #include "CPlayerController.h"
@@ -28,6 +29,8 @@
 #include "01_Widget/CPlayerWidget.h"
 #include "04_Skill/CSkill_CommandLaunchSlam.h"
 #include "04_Skill/CSkill_SpinAttack.h"
+#include "00_Character/01_Enemy/CTankerBrute.h"
+#include "00_Character/02_Component/01_EnemyComponent/CTankerChargeComponent.h"
 
 #include "99_Util/CLog.h"
 
@@ -106,6 +109,24 @@ void ACPlayerCharacter::BeginPlay()
     {
         HealthComponent->OnHealthChanged.AddDynamic(this, &ACPlayerCharacter::HandleHealthChanged);
         HealthComponent->OnDeath.AddDynamic(this, &ACPlayerCharacter::HandleDeath);
+    }
+    
+    // 탱커 돌진 델리게이트 바인딩
+    if (UWorld* World = GetWorld())
+    {
+        TArray<AActor*> FoundTankers;
+        UGameplayStatics::GetAllActorsOfClass(World, ACTankerBrute::StaticClass(), FoundTankers);
+        
+        for (AActor* Actor : FoundTankers)
+        {
+            if (ACTankerBrute* Tanker = Cast<ACTankerBrute>(Actor))
+            {
+                if (UCTankerChargeComponent* ChargeComp = Tanker->FindComponentByClass<UCTankerChargeComponent>())
+                {
+                    ChargeComp->OnPlayerHitByCharge.AddDynamic(this, &ACPlayerCharacter::OnHitByTankerCharge);
+                }
+            }
+        }
     }
     
     // UI 생성
@@ -490,6 +511,38 @@ void ACPlayerCharacter::HandleDeath(AActor* DeadActor)
     }
 }
 
+void ACPlayerCharacter::KnockBackTankerDash()
+{
+    if (KnockbackMontage)
+    {
+        if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
+        {
+            AnimInstance->Montage_Play(DeathPlayerMontage);
+        }
+    }
+}
+
+void ACPlayerCharacter::OnHitByTankerCharge(AActor* HitPlayer, FVector KnockbackDirection, float KnockbackStrength)
+{
+    // 자기 자신이 맞은 경우만 처리
+    if (HitPlayer != this)
+    {
+        return;
+    }
+    
+    // 넉백 몽타주 재생
+    if (KnockbackMontage)
+    {
+        if (USkeletalMeshComponent* MeshComp = GetMesh())
+        {
+            if (UAnimInstance* AnimInstance = MeshComp->GetAnimInstance())
+            {
+                AnimInstance->Montage_Play(KnockbackMontage, 1.0f);
+            }
+        }
+    }
+}
+
 void ACPlayerCharacter::UpdateHpUI() const
 {
     if (PlayerWidget && HealthComponent)
@@ -500,6 +553,7 @@ float ACPlayerCharacter::TakeDamage(float DamageAmount, struct FDamageEvent cons
     class AController* EventInstigator, AActor* DamageCauser)
 {
     const float AppliedDamage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+    
 
     if (AppliedDamage > 0.0f && HealthComponent)
     {

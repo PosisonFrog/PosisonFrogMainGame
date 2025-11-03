@@ -47,6 +47,9 @@ public:
     float GetMaxUltimateGauge() const { return MaxUltGauge; }
     float GetUltimateGauge() const { return CurUltGauge; }
     void SetUltimateGauge(float UltGauge);
+    
+    // ─ 애니메이션
+    FORCEINLINE UAnimMontage* GetKnockbackMontage() const { return KnockbackMontage; }
 
     // ─────────── IBuffable ───────────
     // ─ 인터페이스 구현
@@ -95,7 +98,12 @@ private:
     // ─────────── HP ───────────
     UFUNCTION() void HandleHealthChanged(float CurrentHealth, float MaxHealth);
     UFUNCTION() void HandleDeath(AActor* DeadActor);
+
+    void KnockBackTankerDash();
     void UpdateHpUI() const;
+    
+    // 탱커 돌진에 맞았을 때 처리
+    UFUNCTION() void OnHitByTankerCharge(AActor* HitPlayer, FVector KnockbackDirection, float KnockbackStrength);
 
     virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser) override;
     
@@ -111,7 +119,7 @@ private:
 public:
     void AddUltimateGain(float Gain);
     
-private:
+protected:
     // ─────────── Input ───────────
     // ─ 입력 설정(태그 -> 액션, Enhanced Input용 DataAsset)
     UPROPERTY(EditDefaultsOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
@@ -186,6 +194,9 @@ private:
 
     UPROPERTY(EditDefaultsOnly, Category = "Death|Anim")
     UAnimMontage* DeathHammerMontage = nullptr;
+
+    UPROPERTY(EditDefaultsOnly, Category = "|Anim")
+    UAnimMontage* KnockbackMontage = nullptr;
     
     UPROPERTY(VisibleInstanceOnly, Category = "State")
     bool bIsDead = false;
@@ -214,10 +225,12 @@ private:
     
     float UltDrainTickInterval = 0.05f;
 
+private:
     FTimerHandle TimerHandle_UltDuration;
     FTimerHandle TimerHandle_UltUITick;
 
     // ─────────── 구성 컴포넌트 ───────────
+
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
     TObjectPtr<UCPlayerDashComponent> DashComponent = nullptr;
     
@@ -254,7 +267,6 @@ private:
   
     UPROPERTY(EditDefaultsOnly, Category = "Camera", meta = (ClampMin = "0.0"))
     float AttackCameraShakeScale = 1.f;
-
     //UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Camera", meta = (AllowPrivateAccess = "true"))
     //TObjectPtr<UTransparentCameraComponent> TransparentCameraComponent = nullptr;
 };

@@ -38,6 +38,7 @@ enum class EChargeEndReason : uint8
 // 상태 변경/종료 브로드캐스트
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnChargeStateChanged, EChargeState, NewState, EChargeState, PreviousState);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnChargeFinished, EChargeEndReason, Reason, AActor*, HitActor);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnPlayerHitByCharge, AActor*, HitPlayer, FVector, KnockbackDirection, float, KnockbackStrength);
 
 
 /*
@@ -80,6 +81,9 @@ public:
     
     UPROPERTY(BlueprintAssignable)
     FOnChargeFinished    OnChargeFinished;
+    
+    UPROPERTY(BlueprintAssignable)
+    FOnPlayerHitByCharge OnPlayerHitByCharge;
 
 protected:
     virtual void BeginPlay() override;

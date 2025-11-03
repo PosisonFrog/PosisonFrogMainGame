@@ -627,6 +627,9 @@ void UCTankerChargeComponent::PerformChargeTrace()
                 FVector LaunchVelocity = KnockDirection * PlayerKnockbackStrength;
                 LaunchVelocity.Z += PlayerKnockbackUp;
                 HitCharacter->LaunchCharacter(LaunchVelocity, /*bXYOverride=*/true, /*bZOverride=*/true);
+                
+                // 플레이어 히트 델리게이트 브로드캐스트
+                OnPlayerHitByCharge.Broadcast(HitCharacter, KnockDirection, PlayerKnockbackStrength);
             }
         }
     }
@@ -713,4 +716,3 @@ void UCTankerChargeComponent::FaceTowards(const FVector& Direction, float DeltaS
     Current.Yaw = FMath::FixedTurn(Current.Yaw, TargetYaw.Yaw, TurnRateDegPerSec * DeltaSeconds);
     OwnerChar->SetActorRotation(Current);
 }
-

@@ -50,6 +50,12 @@ void ACTankerBrute::BeginPlay()
 {
     Super::BeginPlay();
 
+    // 피격 몽타주 설정
+    if (HitMontage)
+    {
+        HitReactionMontage = HitMontage;
+    }
+
     InitialiseChargeComponent();
 }
 
@@ -181,11 +187,7 @@ void ACTankerBrute::OnDead()
     {
         UNiagaraFunctionLibrary::SpawnSystemAtLocation(this,HitEffect,GetActorLocation(), GetActorRotation());
     }
-        
-    if (HitSound)
-    {
-        UGameplayStatics::PlaySoundAtLocation(this, HitSound, GetActorLocation());
-    }
+    
 }
 
 

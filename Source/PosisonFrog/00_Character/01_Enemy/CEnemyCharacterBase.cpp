@@ -8,6 +8,8 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/DamageType.h"
 #include "Navigation/PathFollowingComponent.h"
+#include "Animation/AnimInstance.h"
+#include "Components/SkeletalMeshComponent.h"
 
 #include "Global.h"
 #include "00_Character/00_Player/CPlayerCharacter.h"
@@ -129,6 +131,11 @@ void ACEnemyCharacterBase::Tick(float DeltaSeconds)
 // ─────────────────────────────────────────────────────────────────────────────
 void ACEnemyCharacterBase::Think(float /*DeltaTime*/)
 {
+	if (bIsHitStunned)
+	{
+		return;
+	}
+	
 	AcquireTarget();
 
 	switch (State)
@@ -603,12 +610,24 @@ void ACEnemyCharacterBase::DirectMoveTick(float /*DeltaSeconds*/)
 }
 */
 
+void ACEnemyCharacterBase::PlaySoundIfValid(USoundBase* Sound) const
+{
+	if (Sound)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, Sound, GetActorLocation());
+	}
+}
+
 float ACEnemyCharacterBase::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent,
 	AController* EventInstigator, AActor* DamageCauser)
 {
+
+	
 	UE_LOG(LogTemp, Warning, TEXT("[%s] TakeDamage 호출됨! 데미지: %.1f, 공격자: %s"), 
 		   *GetName(), DamageAmount, *GetNameSafe(DamageCauser));
-    
+	
+	PlaySoundIfValid(HitSound);
+	
 	float Applied = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
 	if (Applied <= 0.0f) return Applied;
 
@@ -663,6 +682,12 @@ float ACEnemyCharacterBase::TakeDamage(float DamageAmount, FDamageEvent const& D
         
 		UE_LOG(LogTemp, Warning, TEXT("[%s] 체력 변화: %.1f -> %.1f"), 
 			   *GetName(), OldHealth, NewHealth);
+		
+		// 피격 반응 재생 (사망하지 않았을 경우)
+		if (NewHealth > 0.f)
+		{
+			PlayHitReaction();
+		}
 	}
 	else
 	{
@@ -681,8 +706,62 @@ void ACEnemyCharacterBase::OnHealthChanged(float Cur, float Max)
 	}
 }
 
+void ACEnemyCharacterBase::PlayHitReaction()
+{
+	// 사망 상태가 아니고, 피격 몽타주가 있으면 재생
+	if (State == EEnemyState::Dead)
+	{
+		return;
+	}
+	
+	if (!HitReactionMontage)
+	{
+		return;
+	}
+	StopMove();
+
+	// 피격 경직 상태 설정
+	bIsHitStunned = true;
+	
+	
+	if (USkeletalMeshComponent* MeshComp = GetMesh())
+	{
+		if (UAnimInstance* AnimInstance = MeshComp->GetAnimInstance())
+		{
+			// 이미 재생 중인 몽타주가 있으면 중단하고 새로 재생
+			if (AnimInstance->Montage_IsPlaying(HitReactionMontage))
+			{
+				AnimInstance->Montage_Stop(0.2f, HitReactionMontage);
+			}
+			
+			AnimInstance->Montage_Play(HitReactionMontage, 1.0f);
+		}
+	}
+
+	// 기존 타이머가 있다면 클리어
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(HitStunTimer);
+        
+		// 경직 지속 시간 후 상태 해제
+		World->GetTimerManager().SetTimer(
+			HitStunTimer,
+			this,
+			&ACEnemyCharacterBase::EndHitStun,
+			HitStunDuration,
+			false
+		);
+	}
+}
+
 void ACEnemyCharacterBase::OnDead()
 {
+	bIsHitStunned = false;
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(HitStunTimer);
+	}
+
 	if (UCharacterMovementComponent* Movement = GetCharacterMovement())
 	{
 		Movement->DisableMovement();
@@ -739,6 +818,17 @@ void ACEnemyCharacterBase::DisableAllCollisions()
 	        	
 	}
 	SetActorEnableCollision(false);
+}
+
+void ACEnemyCharacterBase::EndHitStun()
+{
+	bIsHitStunned = false;
+    
+	// 타이머 클리어
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(HitStunTimer);
+	}
 }
 
 void ACEnemyCharacterBase::TryDropHealPack()
@@ -1066,6 +1156,3 @@ bool ACEnemyCharacterBase::PassAngleFilter(const AActor* Other) const
 void ACEnemyCharacterBase::DebugDrawState()
 {
 }
-
-
-

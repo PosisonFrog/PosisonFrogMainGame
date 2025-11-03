@@ -116,15 +116,15 @@ protected:
 	
 	UPROPERTY(EditAnywhere, Category="PF|Animation")
 	TObjectPtr<UAnimMontage> DeadMontage = nullptr;
+	
+	UPROPERTY(EditAnywhere, Category="PF|Animation")
+	TObjectPtr<UAnimMontage> HitMontage = nullptr;
 
 	UPROPERTY(EditAnywhere, Category="PF|Sound")
 	USoundBase* AttackSound = nullptr;
 
 	UPROPERTY(EditAnywhere, Category="PF|Effects")
 	UNiagaraSystem* AttackEffect = nullptr;
-	
-	UPROPERTY(EditAnywhere, Category="PF|Sound")
-	TObjectPtr<USoundBase> HitSound = nullptr;
 
 	UPROPERTY(EditAnywhere, Category="PF|Effects")
 	TObjectPtr<UNiagaraSystem> HitEffect = nullptr;
@@ -168,5 +168,3 @@ private:
 	
 
 };
-
-

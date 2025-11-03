@@ -72,6 +72,12 @@ void ACRiotRobot::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedE
 void ACRiotRobot::BeginPlay()
 {
     Super::BeginPlay();
+    
+    // 피격 몽타주 설정
+    if (HitMontage)
+    {
+        HitReactionMontage = HitMontage;
+    }
 
     SyncAttackTuning();
     SetupCapsulePhysics();
@@ -364,13 +370,7 @@ void ACRiotRobot::TryPlayIdleMontage() const
     PlayMontageIfValid(IdleMontage);
 }
 
-void ACRiotRobot::PlaySoundIfValid(USoundBase* Sound) const
-{
-    if (Sound)
-    {
-        UGameplayStatics::PlaySoundAtLocation(this, Sound, GetActorLocation());
-    }
-}
+
 
 void ACRiotRobot::SpawnAttackEffect() const
 {

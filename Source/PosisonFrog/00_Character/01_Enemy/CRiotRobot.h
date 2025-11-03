@@ -60,13 +60,13 @@ protected:
     void HandleCooldownStrafe();
     void PlayMontageIfValid(UAnimMontage* Montage, float PlayRate = 1.f) const;
     void TryPlayIdleMontage() const;
-    void PlaySoundIfValid(USoundBase* Sound) const;
     void SpawnAttackEffect() const;
     void SpawnHitEffectAtForward() const;
     void SpawnHitEffectAtLocation() const;
     void ClearAttackTimers();
     void SyncAttackTuning();
     bool IsGroundedForAttack() const;
+    
     
 protected:
     // ───────── 공격 설정(튜닝) ─────────
@@ -108,20 +108,22 @@ protected:
     UPROPERTY(EditAnywhere, Category="PF|Animation")
     UAnimMontage* IdleMontage = nullptr;
 
+    
     UPROPERTY(EditAnywhere, Category="PF|Animation")
     UAnimMontage* DeadMontage = nullptr;
     
+    UPROPERTY(EditAnywhere, Category="PF|Animation")
+    UAnimMontage* HitMontage = nullptr;
+    
     UPROPERTY(EditAnywhere, Category="PF|Sound")
     USoundBase* AttackSound = nullptr;
-
-    UPROPERTY(EditAnywhere, Category="PF|Sound")
-    USoundBase* HitSound = nullptr;
 
     UPROPERTY(EditAnywhere, Category="PF|Effects")
     UNiagaraSystem* AttackEffect = nullptr;
 
     UPROPERTY(EditAnywhere, Category="PF|Effects")
     UNiagaraSystem* HitEffect = nullptr;
+    
 
     // ───────── 상태 ─────────
     bool bIsAttacking = false;
