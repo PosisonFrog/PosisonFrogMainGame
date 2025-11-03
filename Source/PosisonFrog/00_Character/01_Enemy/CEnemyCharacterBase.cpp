@@ -42,15 +42,17 @@ ACEnemyCharacterBase::ACEnemyCharacterBase()
 		M->bUseControllerDesiredRotation = false;
 		M->bOrientRotationToMovement = true;
 		M->RotationRate = FRotator(0.f, 420.f, 0.f);
-
+		M->MaxStepHeight = FMath::Max(60.f, M->MaxStepHeight);
+		M->bCanWalkOffLedges = true;
+			
 		// RVO 회피 보조
 		if (bUseRVOAvoidance)
 		{
 			M->bUseRVOAvoidance = true;
 			M->AvoidanceConsiderationRadius = RVOConsiderationRadius;
 			M->AvoidanceWeight = RVOAvoidanceWeight;
-
-
+ 
+ 
 			//UCharacterMovementComponent에 RVOAvoidanceRadius가 없더라...
 			//M->RVOAvoidanceRadius = RVOAvoidanceRadius;
 		}
@@ -389,6 +391,27 @@ void ACEnemyCharacterBase::DoAttack()
 
 void ACEnemyCharacterBase::DoReturnHome()
 {
+	if (Target)
+	{
+		const float DistToPlayer = DistToTarget();
+		if (DistToPlayer <= ChaseStartDistance)
+		{
+			if (HasVisualOnTarget())
+			{
+				if (const UWorld* World = GetWorld())
+				{
+					LastSeenTime = World->GetTimeSeconds();
+				}
+				SetState(EEnemyState::Chase);
+			}
+			else
+			{
+				SetState(EEnemyState::Alert);
+			}
+			return;
+		}
+	}
+	
 	if (Reached(HomeLocation, PatrolPointReachRadius))
 	{
 		SetState(EEnemyState::Patrol);

@@ -117,6 +117,7 @@ void UCFuryGaugeComponent::EndEffectInternal(bool bCanceled, float /*CanceledRem
     if (!bEffectActive) return;
 
     const bool bShouldFinisher =
+        !bCanceled &&
         (InitialStacksAtActivation >= MaxStacks) && !bFinisherTriggered;
 
     if (bShouldFinisher)

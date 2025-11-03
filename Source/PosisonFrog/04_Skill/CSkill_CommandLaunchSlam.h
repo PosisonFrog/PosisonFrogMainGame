@@ -97,6 +97,7 @@ private:
     void PlayCharMontageSafe(UAnimMontage* Montage, FName Section = NAME_None, float PlayRate = 1.f);
     // 해머 전용
     void PlayHammerMontageSafe(UAnimMontage* Montage, FName Section = NAME_None, float PlayRate = 1.0f);
+    void AbortCommand(bool bResetCooldown);
     
 private:
     // ─ Launch/Range ─
@@ -120,6 +121,9 @@ private:
     UPROPERTY(EditDefaultsOnly, Category="CommandSkill|Timing", meta=(ClampMin="0.0", ClampMax="3.0"))
     float SlamConfirmDelay = 0.7f;
 
+    UPROPERTY(EditDefaultsOnly, Category="CommandSkill|Timing", meta=(ClampMin="0.05", ClampMax="1.0"))
+    float LaunchStallTolerance = 0.3f;
+    
     UPROPERTY(EditDefaultsOnly, Category="CommandSkill|Cooldown", meta=(ClampMin="0.0"))
     float CooldownTime = 2.0f;
     
@@ -190,7 +194,8 @@ private:
 
     bool  bAwaitingSlamConfirm = false;
     float EarliestSlamConfirmTime = 0.f;
-    float LastUsedTime = -999999.f; 
+    float LastUsedTime = -999999.f;
+    float LaunchStateEnterTime = 0.f;
     
     TWeakObjectPtr<ACharacter> OwnerChar;
     TWeakObjectPtr<ACHammer> Hammer;

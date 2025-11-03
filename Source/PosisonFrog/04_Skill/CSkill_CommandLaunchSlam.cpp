@@ -37,26 +37,81 @@ void UCSkill_CommandLaunchSlam::BeginPlay()
 
 void UCSkill_CommandLaunchSlam::TickComponent(float DeltaTime, ELevelTick, FActorComponentTickFunction*)
 {
-    if (State != ECommandAirState::Descending || !OwnerChar.IsValid() || !MoveComp.IsValid())
+    if (!OwnerChar.IsValid() || !MoveComp.IsValid())
+    {
+        if (State != ECommandAirState::Inactive)
+        {
+            AbortCommand(false);
+        }
         return;
+    }
 
+    if (State == ECommandAirState::Launching)
+    {
+        const bool bHasLaunchMontage = LaunchCharMontage != nullptr;
+
+        if (bHasLaunchMontage)
+        {
+            bool bMontagePlaying = false;
+            if (USkeletalMeshComponent* Mesh = OwnerChar->GetMesh())
+            {
+                if (UAnimInstance* Anim = Mesh->GetAnimInstance())
+                {
+                    bMontagePlaying = Anim->Montage_IsPlaying(LaunchCharMontage);
+                }
+            }
+
+            if (!bMontagePlaying)
+            {
+                AbortCommand(false);
+                return;
+            }
+
+            if (bLaunchByNotify && LaunchStallTolerance > 0.f)
+            {
+                if (UWorld* World = GetWorld())
+                {
+                    if (LaunchStateEnterTime > 0.f && World->GetTimeSeconds() - LaunchStateEnterTime >= LaunchStallTolerance)
+                    {
+                        AbortCommand(false);
+                        return;
+                    }
+                }
+            }
+        }
+        else if (LaunchStallTolerance > 0.f)
+        {
+            if (UWorld* World = GetWorld())
+            {
+                if (LaunchStateEnterTime > 0.f && World->GetTimeSeconds() - LaunchStateEnterTime >= LaunchStallTolerance)
+                {
+                    AbortCommand(false);
+                    return;
+                }
+            }
+        }
+    }
+
+    if (State != ECommandAirState::Descending)
+        return;
+ 
     // 착지 감지 (노티 미사용/보조)
     if (IsOnGroundNow())
     {
         if (!bImpactDone)
         {
             bImpactDone = true;
-            
-
+             
             if (bPendingSlam && !bImpactByNotify)
             {
                 DoShockwaveImpact(); // 노티 대신 착지 순간에 임팩트
             }
             State = ECommandAirState::Inactive;
             bPendingSlam = false;
-            
+            LaunchStateEnterTime = 0.f;
+
             StartCooldown();
-            
+
             if (bBlockOtherActionsWhileAir)
                 OnAirCommandLockChanged.Broadcast(false);
         }
@@ -86,6 +141,13 @@ bool UCSkill_CommandLaunchSlam::TryStartCommand()
         return false;
 
     State = ECommandAirState::Launching;
+
+    
+    if (UWorld* World = GetWorld())
+        LaunchStateEnterTime = World->GetTimeSeconds();
+    else
+        LaunchStateEnterTime = 0.f;
+
     
     PlayCharMontageSafe(LaunchCharMontage, LaunchSection);
     PlayHammerMontageSafe(LaunchHammerMontage, LaunchSection);
@@ -196,7 +258,8 @@ void UCSkill_CommandLaunchSlam::Anim_SlamImpact()
 
     State = ECommandAirState::Inactive;
     bPendingSlam = false;
-
+    LaunchStateEnterTime = 0.0f;
+    
     StartCooldown();
     
     if (bBlockOtherActionsWhileAir)
@@ -209,6 +272,7 @@ void UCSkill_CommandLaunchSlam::EnterAirborneWaiting()
     State        = ECommandAirState::AirborneWaiting;
     bPendingSlam = false;
     bImpactDone  = false;
+    LaunchStateEnterTime = 0.0f;
 
     StartSlamConfirmDelay();
     
@@ -249,6 +313,7 @@ void UCSkill_CommandLaunchSlam::ForceDescend(bool bAsSlam)
             MoveComp->SetMovementMode(MOVE_Falling);
 
         State = ECommandAirState::Descending;
+        LaunchStateEnterTime = 0.0f;
         return;
     }
    
@@ -275,7 +340,6 @@ void UCSkill_CommandLaunchSlam::ForceDescend(bool bAsSlam)
             EnemyDropDelay,
             false);
     }
-        
     else
     {
         ForceDropEnemiesInRange();
@@ -283,6 +347,27 @@ void UCSkill_CommandLaunchSlam::ForceDescend(bool bAsSlam)
 
 
     State = ECommandAirState::Descending;
+}
+
+void UCSkill_CommandLaunchSlam::AbortCommand(bool bResetCooldown)
+{
+    if (UWorld* World = GetWorld())
+    {
+        World->GetTimerManager().ClearTimer(TimerHandle_AirWindow);
+        World->GetTimerManager().ClearTimer(TimerHandle_EnemyDrop);
+    }
+    
+    bPendingSlam = false;
+    bImpactDone = false;
+    bAwaitingSlamConfirm = false;
+    LaunchStateEnterTime = 0.f;
+    State = ECommandAirState::Inactive;
+    
+    if (bBlockOtherActionsWhileAir)
+        OnAirCommandLockChanged.Broadcast(false);
+    
+    if (bResetCooldown)
+        StartCooldown();
 }
 
 void UCSkill_CommandLaunchSlam::StartSlamConfirmDelay()
