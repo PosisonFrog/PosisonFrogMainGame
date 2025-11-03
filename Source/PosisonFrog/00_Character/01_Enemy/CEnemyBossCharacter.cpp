@@ -21,6 +21,10 @@ void ACEnemyBossCharacter::BeginPlay()
 {
     Super::BeginPlay();
 
+    UE_LOG(LogTemp, Error, TEXT("========================================"));
+    UE_LOG(LogTemp, Error, TEXT("[Boss] BeginPlay - bAutoStartBattle = %s"), bAutoStartBattle ? TEXT("TRUE") : TEXT("FALSE"));
+    UE_LOG(LogTemp, Error, TEXT("========================================"));
+
     if (bAutoStartBattle)
     {
         APawn* Player = GetWorld()->GetFirstPlayerController()
@@ -28,6 +32,7 @@ void ACEnemyBossCharacter::BeginPlay()
                       : nullptr;
         if (Player)
         {
+            UE_LOG(LogTemp, Error, TEXT("[Boss] AUTO START BATTLE TRIGGERED IN BEGINPLAY!"));
             StartBossBattle(false); // bSkipIntro
         }
     }
@@ -93,6 +98,7 @@ float ACEnemyBossCharacter::TakeDamage(float DamageAmount, FDamageEvent const& D
 
         if (!BossPhaseComponent->IsBattleStarted())
         {
+            UE_LOG(LogTemp, Error, TEXT("[Boss] AUTO START BATTLE TRIGGERED BY TAKEDAMAGE!"));
             BossPhaseComponent->StartBattle();
         }
 
@@ -107,6 +113,11 @@ float ACEnemyBossCharacter::TakeDamage(float DamageAmount, FDamageEvent const& D
 
 void ACEnemyBossCharacter::StartBossBattle(bool bSkipIntro)
 {
+    UE_LOG(LogTemp, Error, TEXT("========================================"));
+    UE_LOG(LogTemp, Error, TEXT("[Boss] ⚠️ StartBossBattle CALLED! SkipIntro=%s"), bSkipIntro ? TEXT("true") : TEXT("false"));
+    UE_LOG(LogTemp, Error, TEXT("[Boss] Call Location: %s"), ANSI_TO_TCHAR(__FUNCTION__));
+    UE_LOG(LogTemp, Error, TEXT("========================================"));
+    
     if (bIsBossDead)
     {
         UE_LOG(LogTemp, Verbose, TEXT("[Boss] StartBossBattle ignored because boss is dead"));

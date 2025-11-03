@@ -2,6 +2,7 @@
 
 #include "00_Character/02_Component/01_EnemyComponent/CEnemyHealthComponent.h"
 #include "GameFramework/Actor.h"
+#include "00_Character/01_Enemy/01_AIController/BossAIController.h"
 
 namespace
 {
@@ -23,6 +24,10 @@ UCEnemyBossPhaseComponent::UCEnemyBossPhaseComponent()
 void UCEnemyBossPhaseComponent::BeginPlay()
 {
     Super::BeginPlay();
+
+    UE_LOG(LogTemp, Error, TEXT("[BossPhaseComponent] ========================================"));
+    UE_LOG(LogTemp, Error, TEXT("[BossPhaseComponent] BeginPlay - bBattleStarted = %s"), bBattleStarted ? TEXT("TRUE") : TEXT("FALSE"));
+    UE_LOG(LogTemp, Error, TEXT("[BossPhaseComponent] ========================================"));
 
     InitializePhases();
     InitialiseFromData();
@@ -188,6 +193,16 @@ void UCEnemyBossPhaseComponent::StartBattle(bool bSkipIntro)
     }
 
     bBattleStarted = true;
+
+    // AI 추적 활성화
+    if (AActor* Owner = GetOwner())
+    {
+        if (ABossAIController* BossAI = Cast<ABossAIController>(Cast<APawn>(Owner)->GetController()))
+        {
+            BossAI->SetChaseEnabled(true);
+            UE_LOG(LogTemp, Warning, TEXT("[BossPhaseComponent] Chase enabled on battle start"));
+        }
+    }
     if (!PhaseData)
     {
         EnterState(EBossBattleState::Intro, 0.f);
@@ -438,6 +453,8 @@ void UCEnemyBossPhaseComponent::InitializePhases()
 
 void UCEnemyBossPhaseComponent::HandlePhaseTransition(int32 NewPhaseIndex)
 {
+    UE_LOG(LogTemp, Warning, TEXT("[BossPhaseComponent] HandlePhaseTransition(%d) - bBattleStarted=%s"), NewPhaseIndex, bBattleStarted ? TEXT("TRUE") : TEXT("FALSE"));
+    
     if (!PhaseData || !PhaseData->Phases.IsValidIndex(NewPhaseIndex))
     {
         return;
@@ -453,7 +470,11 @@ void UCEnemyBossPhaseComponent::HandlePhaseTransition(int32 NewPhaseIndex)
     StateTimeRemaining = PhaseDefinition.IntroDuration;
     SetCombatState(EBossCombatState::Intro);
     
-    OnBossPhaseChanged.Broadcast(CurrentPhaseIndex, PhaseDefinition.PhaseName);
+    // 전투가 시작된 경우에만 브로드캐스트
+    if (bBattleStarted)
+    {
+        OnBossPhaseChanged.Broadcast(CurrentPhaseIndex, PhaseDefinition.PhaseName);
+    }
 }
 
 void UCEnemyBossPhaseComponent::SetCombatState(EBossCombatState NewState, FName InPatternId)

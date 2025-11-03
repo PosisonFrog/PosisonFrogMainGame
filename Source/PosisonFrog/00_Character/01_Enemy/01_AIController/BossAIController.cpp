@@ -16,6 +16,7 @@ void ABossAIController::SetTargetPlayer(AActor* NewTarget)
 
 void ABossAIController::SetChaseEnabled(bool bEnabled)
 {
+	UE_LOG(LogTemp, Error, TEXT("[BossAI] ⚠️ SetChaseEnabled(%s)"), bEnabled ? TEXT("TRUE") : TEXT("FALSE"));
 	bChaseEnabled = bEnabled;
 	
 	// 추적을 비활성화하면 현재 이동 중지
@@ -38,8 +39,11 @@ void ABossAIController::OnPossess(APawn* InPawn)
 	// 플레이어 찾기
 	TargetPlayer = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
     
-	UE_LOG(LogTemp, Log, TEXT("[BossAI] Possessed %s, Target: %s"), 
+	UE_LOG(LogTemp, Error, TEXT("[BossAI] ========================================"));
+	UE_LOG(LogTemp, Error, TEXT("[BossAI] Possessed %s, Target: %s"), 
 		   *GetNameSafe(InPawn), *GetNameSafe(TargetPlayer));
+	UE_LOG(LogTemp, Error, TEXT("[BossAI] Initial bChaseEnabled = %s"), bChaseEnabled ? TEXT("TRUE") : TEXT("FALSE"));
+	UE_LOG(LogTemp, Error, TEXT("[BossAI] ========================================"));
 }
 
 void ABossAIController::Tick(float DeltaTime)
@@ -159,4 +163,3 @@ void ABossAIController::Tick(float DeltaTime)
 		}
 	}
 }
-

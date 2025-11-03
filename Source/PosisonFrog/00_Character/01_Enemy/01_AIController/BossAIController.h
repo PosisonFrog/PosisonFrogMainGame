@@ -55,7 +55,7 @@ private:
 	bool bIsMovingToTarget = false;
 	
 	/** 기본 추적 활성화 여부 (패턴 실행 중에는 false) */
-	bool bChaseEnabled = true;
+	bool bChaseEnabled = false;  // 전투 시작 전에는 비활성화
 	
 	
 };

@@ -135,6 +135,14 @@ void UCBossPatternManager::HandlePatternStarted(int32 PhaseIndex, FName PatternI
 	UE_LOG(LogTemp, Warning, TEXT("[PatternManager] Pattern Started: %s (Phase %d, Power: %.1f)"), 
 		   *PatternId.ToString(), PhaseIndex, RemainingPower);
 
+	// ===== 전투 시작 여부 체크 =====
+	if (!PhaseComponent || !PhaseComponent->IsBattleStarted())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[PatternManager] Pattern %s ignored - Battle not started"), 
+		       *PatternId.ToString());
+		return;
+	}
+
 	CurrentPatternId = PatternId;
 	bIsPatternActive = true;
 	bIsRushing = false;
