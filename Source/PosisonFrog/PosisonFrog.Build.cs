@@ -36,7 +36,7 @@ public class PosisonFrog : ModuleRules
 			"Slate", 
 			"SlateCore",   
 			"UMG",
-			"ToolMenus"
+			"ToolMenus", "GameplayCameras"
 		});
 	}
 }
