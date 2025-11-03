@@ -99,6 +99,7 @@ private:
 	// ──────────── 데이터 저장 ────────────
 	TMap<int32, TArray<TObjectPtr<ACEnemySpawnZone>>> StageSpawnZones;
 	TMap<int32, TArray<TObjectPtr<ACEnemyCharacterBase>>> StageEnemies;
+	TMap<int32, TSet<TWeakObjectPtr<ACEnemyCharacterBase>>> StageDeadEnemies;
 
 	UPROPERTY(VisibleAnywhere, Category = "Stage|Info")
 	TMap<int32, TObjectPtr<ACStageBarrier>> StageBarriers;

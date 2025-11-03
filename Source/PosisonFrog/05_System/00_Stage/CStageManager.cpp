@@ -89,6 +89,12 @@ void ACStageManager::CheckStageComplete(int32 StageID)
 {
 	int32 Remaining = GetRemainingEnemies(StageID);
 
+	if (bEnableDebugLogs)
+	{
+		CLog::Log(FString::Printf(TEXT("[CheckStageComplete] Stage %d - 남은 적: %d"), 
+			StageID, Remaining));
+	}
+
 	if (Remaining == 0)
 	{
 		OnStageComplete(StageID);
@@ -97,6 +103,9 @@ void ACStageManager::CheckStageComplete(int32 StageID)
 
 void ACStageManager::PrepareForRespawn(int32 TargetStageID)
 {
+	CLog::Log(FString::Printf(TEXT("[PrepareForRespawn] Stage %d로 리스폰 준비 시작"), TargetStageID));
+	
+	GetWorldTimerManager().ClearAllTimersForObject(this);
 	ResetSpawnState();
 
 	for (auto StageIterator = StageEnemies.CreateIterator(); StageIterator; ++StageIterator)
@@ -108,7 +117,14 @@ void ACStageManager::PrepareForRespawn(int32 TargetStageID)
 		for (ACEnemyCharacterBase* Enemy : StageIterator.Value())
 		{
 			if (IsValid(Enemy))
+			{
+				// 헬스 컴포넌트 이벤트 정리
+				if (UCBaseHealthComponent* HealthComp = Enemy->FindComponentByClass<UCBaseHealthComponent>())
+				{
+					HealthComp->OnDeath.RemoveAll(this);
+				}
 				Enemy->Destroy();
+			}
 		}
 
 		StageIterator.RemoveCurrent();
@@ -123,7 +139,13 @@ void ACStageManager::PrepareForRespawn(int32 TargetStageID)
 		for (ACEnemyCharacterBase* Enemy : PreloadIterator.Value())
 		{
 			if (IsValid(Enemy))
+			{
+				if (UCBaseHealthComponent* HealthComp = Enemy->FindComponentByClass<UCBaseHealthComponent>())
+				{
+					HealthComp->OnDeath.RemoveAll(this);
+				}
 				Enemy->Destroy();
+			}
 		}
 
 		PreloadIterator.RemoveCurrent();
@@ -135,18 +157,31 @@ void ACStageManager::PrepareForRespawn(int32 TargetStageID)
 			FlagIterator.RemoveCurrent();
 	}
 
+	for (auto DeadIterator = StageDeadEnemies.CreateIterator(); DeadIterator; ++DeadIterator)
+	{
+		if (DeadIterator.Key() < TargetStageID)
+			DeadIterator.RemoveCurrent();
+	}
+
 	bool bReactivated = false;
 
 	if (TArray<TObjectPtr<ACEnemyCharacterBase>>* ActiveArray = StageEnemies.Find(TargetStageID))
 	{
 		if (ActiveArray->Num() > 0)
 		{
+			// 모든 적(죽은 적 포함) 리셋
 			for (ACEnemyCharacterBase* Enemy : *ActiveArray)
 			{
 				if (IsValid(Enemy))
 					ResetEnemy(Enemy);
 			}
+			
+			// 죽은 적 기록 초기화
+			StageDeadEnemies.FindOrAdd(TargetStageID).Empty();
+			
 			bReactivated = true;
+			CLog::Log(FString::Printf(TEXT("[PrepareForRespawn] Stage %d 적들 리셋 완료 (%d마리)"), 
+				TargetStageID, ActiveArray->Num()));
 		}
 	}
 
@@ -158,6 +193,7 @@ void ACStageManager::PrepareForRespawn(int32 TargetStageID)
 
 	if (!bReactivated)
 	{
+		CLog::Log(FString::Printf(TEXT("[PrepareForRespawn] Stage %d 새로 스폰"), TargetStageID));
 		StartStageSpawn(TargetStageID);
 	}
 	
@@ -168,6 +204,8 @@ void ACStageManager::PrepareForRespawn(int32 TargetStageID)
 		if (*ClearIterator >= TargetStageID)
 			ClearIterator.RemoveCurrent();
 	}
+	
+	CLog::Log(FString::Printf(TEXT("[PrepareForRespawn] Stage %d 리스폰 준비 완료!"), TargetStageID));
 }
 
 /*void ACStageManager::RespawnStage(int32 StageID)
@@ -211,20 +249,53 @@ void ACStageManager::PrepareForRespawn(int32 TargetStageID)
 
 int32 ACStageManager::GetRemainingEnemies(int32 StageID) const
 {
-	if (auto* Enemies = StageEnemies.Find(StageID))
+	const TArray<TObjectPtr<ACEnemyCharacterBase>>* All = StageEnemies.Find(StageID);
+	if (!All)
+		return 0;
+
+	const TSet<TWeakObjectPtr<ACEnemyCharacterBase>>* Dead = StageDeadEnemies.Find(StageID);
+
+	int32 Count = 0;
+	int32 TotalEnemies = 0;
+	int32 InvalidEnemies = 0;
+	int32 DeadEnemies = 0;
+	
+	for (const TObjectPtr<ACEnemyCharacterBase>& Ptr : *All)
 	{
-		int32 ValidCount = 0;
-
-		for (const TObjectPtr<ACEnemyCharacterBase>& Enemy : *Enemies)
+		TotalEnemies++;
+		ACEnemyCharacterBase* Enemy = Ptr.Get();
+		if (!IsValid(Enemy))
 		{
-			if (IsValid(Enemy.Get()))
-				ValidCount++;
+			InvalidEnemies++;
+			continue;
 		}
-
-		return ValidCount;
+			
+		// TWeakObjectPtr와 직접 비교
+		bool bIsDead = false;
+		if (Dead)
+		{
+			for (const TWeakObjectPtr<ACEnemyCharacterBase>& WeakPtr : *Dead)
+			{
+				if (WeakPtr.Get() == Enemy)
+				{
+					bIsDead = true;
+					DeadEnemies++;
+					break;
+				}
+			}
+		}
+		
+		if (!bIsDead)
+			++Count;
 	}
 
-	return 0;
+	if (bEnableDebugLogs && DeadEnemies > 0)
+	{
+		CLog::Log(FString::Printf(TEXT("[GetRemainingEnemies] Stage %d - Total: %d, Invalid: %d, Dead: %d, Remaining: %d"),
+			StageID, TotalEnemies, InvalidEnemies, DeadEnemies, Count));
+	}
+
+	return Count;
 }
 
 bool ACStageManager::IsStageCleared(int32 StageID) const
@@ -506,6 +577,7 @@ void ACStageManager::ActivatePreloadedStage(int32 StageID)
 
 	PreloadedEnemies.Remove(StageID);
 	PreloadedStages.Remove(StageID);
+	StageDeadEnemies.FindOrAdd(StageID).Empty();
 	CurrentStage = StageID;
 }
 
@@ -516,6 +588,8 @@ void ACStageManager::OnStageComplete(int32 StageID)
 		return;
 
 	ClearedStages.Add(StageID);
+
+	CLog::Log(FString::Printf(TEXT("[OnStageComplete] ===== 스테이지 %d 클리어 ====="), StageID));
 
 	ActivateStageCheckPoint(StageID);
 	OpenStageBarrier(StageID);
@@ -530,7 +604,12 @@ void ACStageManager::OnStageComplete(int32 StageID)
 	}
 	else if (StageSpawnZones.Contains(NextStage))
 	{
+		CLog::Log(FString::Printf(TEXT("[OnStageComplete] 다음 스테이지 (%d) 스폰 시작"), NextStage));
 		StartStageSpawn(NextStage);
+	}
+	else
+	{
+		CLog::Log(FString::Printf(TEXT("[OnStageComplete] 다음 스테이지 (%d) 없음 - 게임 완료"), NextStage));
 	}
 }
 
@@ -595,7 +674,15 @@ void ACStageManager::OnEnemyDied(AActor* DeadActor)
 		if (Pair.Value.Contains(DeadEnemy))
 		{
 			FoundStage = Pair.Key;
-			Pair.Value.RemoveSingleSwap(DeadEnemy);
+			// TWeakObjectPtr로 명시적 변환하여 추가
+			StageDeadEnemies.FindOrAdd(FoundStage).Add(TWeakObjectPtr<ACEnemyCharacterBase>(DeadEnemy));
+			
+			if (bEnableDebugLogs)
+			{
+				int32 DeadCount = StageDeadEnemies.FindOrAdd(FoundStage).Num();
+				CLog::Log(FString::Printf(TEXT("[OnEnemyDied] Stage %d - 죽은 적 추가됨. 총 죽은 적: %d"), 
+					FoundStage, DeadCount));
+			}
 			break;
 		}
 	}
@@ -608,17 +695,21 @@ void ACStageManager::OnEnemyDied(AActor* DeadActor)
 	// 선제적 로딩 체크 (여기서만 해야함)
 	CheckPreloadTrigger();
 	
+	// TWeakObjectPtr로 안전하게 캡처
+	TWeakObjectPtr<ACEnemyCharacterBase> WeakEnemy(DeadEnemy);
+	
 	FTimerHandle HideTimer;
 	GetWorldTimerManager().SetTimer(
 		HideTimer,
-		FTimerDelegate::CreateWeakLambda(this, [this, DeadEnemy, FoundStage]()
+		FTimerDelegate::CreateWeakLambda(this, [this, WeakEnemy, FoundStage]()
 		{
-			if (!IsValid(DeadEnemy))
+			ACEnemyCharacterBase* Enemy = WeakEnemy.Get();
+			if (!IsValid(Enemy))
 				return;
 
-			DeadEnemy->SetActorHiddenInGame(true);
-			DeadEnemy->SetActorEnableCollision(false);
-			DeadEnemy->SetActorTickEnabled(false);
+			Enemy->SetActorHiddenInGame(true);
+			Enemy->SetActorEnableCollision(false);
+			Enemy->SetActorTickEnabled(false);
 		}),
 		DeathHideDelay,
 		false);
@@ -738,6 +829,16 @@ void ACStageManager::ClearAllEnemies()
 {
 	TGuardValue<bool> GuardClearing(bIsClearingEnemies, true);
 	
+	// 월드가 정리되는 중이면 안전하게 종료
+	UWorld* World = GetWorld();
+	if (!World || World->bIsTearingDown)
+	{
+		StageEnemies.Empty();
+		PreloadedEnemies.Empty();
+		StageDeadEnemies.Empty();
+		return;
+	}
+	
 	int32 TotalCleared = 0;
 	
 	auto ClearEnemyMap = [this, &TotalCleared](auto& EnemyMap)
@@ -768,4 +869,5 @@ void ACStageManager::ClearAllEnemies()
 	
 	StageEnemies.Empty();
 	PreloadedEnemies.Empty();
+	StageDeadEnemies.Empty();
 }
