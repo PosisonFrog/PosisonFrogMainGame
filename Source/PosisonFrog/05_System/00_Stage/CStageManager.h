@@ -152,4 +152,6 @@ private:
 	// 핫픽스 변수
 	UPROPERTY(EditAnywhere, Category = "Stage|Hotfix")
 	float DeathHideDelay = 1.2f;
+
+	bool bIsClearingEnemies = false;
 };

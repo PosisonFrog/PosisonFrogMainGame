@@ -37,8 +37,7 @@ void ACStageManager::BeginPlay()
 
 void ACStageManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	if (SpawnTimer.IsValid())
-		GetWorldTimerManager().ClearTimer(SpawnTimer);
+	GetWorldTimerManager().ClearAllTimersForObject(this);
 
 	SpawnRequestQueue.Empty();
 	ClearAllEnemies();
@@ -212,13 +211,13 @@ void ACStageManager::PrepareForRespawn(int32 TargetStageID)
 
 int32 ACStageManager::GetRemainingEnemies(int32 StageID) const
 {
-	if (const TArray<TObjectPtr<ACEnemyCharacterBase>> * Enemies = StageEnemies.Find(StageID))
+	if (auto* Enemies = StageEnemies.Find(StageID))
 	{
 		int32 ValidCount = 0;
 
 		for (const TObjectPtr<ACEnemyCharacterBase>& Enemy : *Enemies)
 		{
-			if (IsValid(Enemy.Get()) && !Enemy->IsHidden())
+			if (IsValid(Enemy.Get()))
 				ValidCount++;
 		}
 
@@ -576,17 +575,27 @@ void ACStageManager::ActivateStageCheckPoint(int32 StageID)
 
 void ACStageManager::OnEnemyDied(AActor* DeadActor)
 {
-	ACEnemyCharacterBase* DeadEnemy = Cast<ACEnemyCharacterBase>(DeadActor);
-	if (!IsValid(DeadActor))
+	if (!IsValid(DeadActor) || bIsClearingEnemies)
 		return;
-
-	// 어느 스테이지의 적인지 찾기
-	int32 FoundStage = -1;
+	if (UWorld* World = GetWorld())
+	{
+		if (World->bIsTearingDown)
+			return;
+	}
+	else
+	{
+		return;
+	}
+	
+	ACEnemyCharacterBase* DeadEnemy = Cast<ACEnemyCharacterBase>(DeadActor);
+	int32 FoundStage = -1; // 어느 스테이지의 적인지 찾기
+	
 	for (auto& Pair : StageEnemies)
 	{
 		if (Pair.Value.Contains(DeadEnemy))
 		{
 			FoundStage = Pair.Key;
+			Pair.Value.RemoveSingleSwap(DeadEnemy);
 			break;
 		}
 	}
@@ -594,13 +603,11 @@ void ACStageManager::OnEnemyDied(AActor* DeadActor)
 	if (FoundStage == -1)
 		return;
 
-	int32 Remaining = GetRemainingEnemies(FoundStage);
-	if (bEnableDebugLogs)
-	{
-		CLog::Log(FString::Printf(TEXT("[ACStageManager::OnEnemyDied] 스테이지 %d 적 사망. 남은 적: %d"),
-			FoundStage, Remaining));
-	}
-
+	// 스테이지 클리어 확인
+	CheckStageComplete(FoundStage);
+	// 선제적 로딩 체크 (여기서만 해야함)
+	CheckPreloadTrigger();
+	
 	FTimerHandle HideTimer;
 	GetWorldTimerManager().SetTimer(
 		HideTimer,
@@ -612,15 +619,16 @@ void ACStageManager::OnEnemyDied(AActor* DeadActor)
 			DeadEnemy->SetActorHiddenInGame(true);
 			DeadEnemy->SetActorEnableCollision(false);
 			DeadEnemy->SetActorTickEnabled(false);
-
-			// 스테이지 클리어 확인
-			CheckStageComplete(FoundStage);
-
-			// 선제적 로딩 체크 (여기서만 해야함)
-			CheckPreloadTrigger();
 		}),
 		DeathHideDelay,
 		false);
+
+	int32 Remaining = GetRemainingEnemies(FoundStage);
+	if (bEnableDebugLogs)
+	{
+		CLog::Log(FString::Printf(TEXT("[ACStageManager::OnEnemyDied] 스테이지 %d 적 사망. 남은 적: %d"),
+			FoundStage, Remaining));
+	}
 }
 
 void ACStageManager::CheckPreloadTrigger()
@@ -728,35 +736,35 @@ void ACStageManager::ResetSpawnState()
 
 void ACStageManager::ClearAllEnemies()
 {
+	TGuardValue<bool> GuardClearing(bIsClearingEnemies, true);
+	
 	int32 TotalCleared = 0;
-
-	for (auto& Pair : StageEnemies)
+	
+	auto ClearEnemyMap = [this, &TotalCleared](auto& EnemyMap)
 	{
-		for (ACEnemyCharacterBase* Enemy : Pair.Value)
+		for (auto& Pair : EnemyMap)
 		{
-			if (IsValid(Enemy))
+			for (TObjectPtr<ACEnemyCharacterBase>& EnemyPtr : Pair.Value)
 			{
+				ACEnemyCharacterBase* Enemy = EnemyPtr.Get();
+				if (!IsValid(Enemy))
+					continue;
+						
+				if (UCBaseHealthComponent* HealthComp = Enemy->FindComponentByClass<UCBaseHealthComponent>())
+				{
+					HealthComp->OnDeath.RemoveDynamic(this, &ACStageManager::OnEnemyDied);
+				}
+						
 				Enemy->Destroy();
 				TotalCleared++;
 			}
+				
+			Pair.Value.Empty();
 		}
-
-		Pair.Value.Empty();
-	}
-
-	for (auto& Pair : PreloadedEnemies)
-	{
-		for (ACEnemyCharacterBase* Enemy : Pair.Value)
-		{
-			if (IsValid(Enemy))
-			{
-				Enemy->Destroy();
-				TotalCleared++;
-			}
-		}
-
-		Pair.Value.Empty();
-	}
+	};
+	
+	ClearEnemyMap(StageEnemies);
+	ClearEnemyMap(PreloadedEnemies);
 	
 	StageEnemies.Empty();
 	PreloadedEnemies.Empty();
