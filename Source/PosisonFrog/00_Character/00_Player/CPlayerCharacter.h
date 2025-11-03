@@ -120,7 +120,7 @@ private:
     // ─────────── Move ───────────
     // ─ 이동 튜닝
     UPROPERTY(EditDefaultsOnly, Category = "Movement", meta = (ClampMin = "0", ForceUnits = "cm/s"))
-    float WalkingSpeed = 400.f;
+    float WalkingSpeed = 700.f;
 
     // ─────────── UI ───────────
     UPROPERTY(EditDefaultsOnly, Category = "UI", meta = (AllowPrivateAccess = "true"))
