@@ -792,7 +792,6 @@ void ACEnemyCharacterBase::OnDead()
 		Movement->StopMovementImmediately();
 	}
 	
-
 	if (AAIController* AIC = Cast<AAIController>(GetController()))
 	{
 		if (ACTacticalEnemyAIController* TacAI = Cast<ACTacticalEnemyAIController>(AIC))
@@ -800,14 +799,7 @@ void ACEnemyCharacterBase::OnDead()
 			TacAI->TacticalStop();
 		}
 	}
-
-	if (AAIController* AIC = Cast<AAIController>(GetController()))
-	{
-		if (ACTacticalEnemyAIController* TacAI = Cast<ACTacticalEnemyAIController>(AIC))
-		{
-			TacAI->TacticalStop();}
-	}
-
+	
 	DisableAllCollisions();
 	
 	bAttackWindowActive = false;
@@ -832,8 +824,8 @@ void ACEnemyCharacterBase::DisableAllCollisions()
 		Component->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		Component->SetCollisionResponseToAllChannels(ECR_Ignore);
 		Component->SetGenerateOverlapEvents(false);
-	        	
 	}
+	
 	SetActorEnableCollision(false);
 }
 
@@ -985,6 +977,31 @@ void ACEnemyCharacterBase::ForceRestartAI()
 				Brain->StartLogic();
 		}
 	}
+}
+
+void ACEnemyCharacterBase::EnableAllCollisions()
+{
+	if (UCapsuleComponent* CapsuleComp = GetCapsuleComponent())
+	{
+		CapsuleComp->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+		CapsuleComp->SetCollisionResponseToAllChannels(ECR_Block);
+		CapsuleComp->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
+		CapsuleComp->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
+		CapsuleComp->SetGenerateOverlapEvents(true);
+	}
+
+	if (USkeletalMeshComponent* MeshComp = GetMesh())
+	{
+		MeshComp->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+		MeshComp->SetCollisionObjectType(ECC_Pawn);
+		MeshComp->SetCollisionResponseToAllChannels(ECR_Block);
+		MeshComp->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
+		MeshComp->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
+		MeshComp->SetGenerateOverlapEvents(true);
+	}
+
+	SetActorEnableCollision(true);
+	SetCanBeDamaged(true);
 }
 
 // 단발 판정 (스윕 + Overlap 보조 + 거리 안전망)

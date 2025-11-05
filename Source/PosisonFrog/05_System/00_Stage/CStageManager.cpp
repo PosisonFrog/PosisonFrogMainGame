@@ -702,31 +702,7 @@ void ACStageManager::ResetEnemy(ACEnemyCharacterBase* Enemy)
 		HealthComp->OnDeath.AddDynamic(this, &ACStageManager::OnEnemyDied);
 	}
 
-	if (AAIController* AI = Cast<AAIController>(Enemy->GetController()))
-	{
-		AI->StopMovement();
-		AI->ClearFocus(EAIFocusPriority::Gameplay);
-
-		if (UPathFollowingComponent* PathComp = AI->FindComponentByClass<UPathFollowingComponent>())
-		{
-			PathComp->AbortMove(*AI, FPathFollowingResultFlags::OwnerFinished);
-			PathComp->OnRequestFinished.Clear();
-		}
-		
-		if (UBrainComponent* BrainComp = AI->FindComponentByClass<UBrainComponent>())
-		{
-			BrainComp->StopLogic(TEXT("Respawn"));
-			BrainComp->RestartLogic();
-		}
-
-		AI->UnPossess();
-		AI->Possess(Enemy);
-	}
-	else
-	{
-		if (UWorld* World = Enemy->GetWorld())
-			Enemy->SpawnDefaultController();
-	}
+	Enemy->ForceRestartAI();
 	
 	if (USkeletalMeshComponent* Mesh = Enemy->GetMesh())
 	{
@@ -736,8 +712,8 @@ void ACStageManager::ResetEnemy(ACEnemyCharacterBase* Enemy)
 		}
 	}
 
-	Enemy->SetActorEnableCollision(true);
-	Enemy->SetCanBeDamaged(true);
+	Enemy->EnableAllCollisions();
+	
 	Enemy->SetActorHiddenInGame(false);
 	Enemy->SetActorTickEnabled(true);
 }

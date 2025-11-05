@@ -274,6 +274,8 @@ public:
     void ResetForRespawn();
 
     void ForceRestartAI();
+
+    void EnableAllCollisions();
     
 protected:
     // 런타임 상태
