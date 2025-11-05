@@ -10,6 +10,23 @@ ABossAIController::ABossAIController()
 
 void ABossAIController::SetTargetPlayer(AActor* NewTarget)
 {
+	if (!IsValid(NewTarget))
+	{
+		if (bIsMovingToTarget)
+		{
+			StopMovement();
+			bIsMovingToTarget = false;
+		}
+			
+		if (TargetPlayer)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[BossAI] Target cleared"));
+		}
+			
+		TargetPlayer = nullptr;
+		return;
+	}
+	
 	TargetPlayer = NewTarget;
 	UE_LOG(LogTemp, Warning, TEXT("[BossAI] Target set to: %s"), *GetNameSafe(NewTarget));
 }
@@ -38,10 +55,14 @@ void ABossAIController::OnPossess(APawn* InPawn)
     
 	// 플레이어 찾기
 	TargetPlayer = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
-    
+	if (!IsValid(TargetPlayer))
+	{
+		TargetPlayer = nullptr;
+	}
+	
 	UE_LOG(LogTemp, Error, TEXT("[BossAI] ========================================"));
-	UE_LOG(LogTemp, Error, TEXT("[BossAI] Possessed %s, Target: %s"), 
-		   *GetNameSafe(InPawn), *GetNameSafe(TargetPlayer));
+	UE_LOG(LogTemp, Error, TEXT("[BossAI] Possessed %s, Target: %s"),
+		*GetNameSafe(InPawn), *GetNameSafe(TargetPlayer));
 	UE_LOG(LogTemp, Error, TEXT("[BossAI] Initial bChaseEnabled = %s"), bChaseEnabled ? TEXT("TRUE") : TEXT("FALSE"));
 	UE_LOG(LogTemp, Error, TEXT("[BossAI] ========================================"));
 }
@@ -50,13 +71,8 @@ void ABossAIController::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 	
-	if (!TargetPlayer)
+	if (!EnsureValidTarget())
 	{
-		TargetPlayer = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
-		if (TargetPlayer)
-		{
-			UE_LOG(LogTemp, Warning, TEXT("[BossAI] Target found: %s"), *GetNameSafe(TargetPlayer));
-		}
 		return;
 	}
 	
@@ -95,8 +111,8 @@ void ABossAIController::Tick(float DeltaTime)
 	{
 		DebugLogTimer = 0.f;
 		UE_LOG(LogTemp, Warning, TEXT("[BossAI] Chase Status - Enabled: %s, IsMoving: %s"), 
-		       bChaseEnabled ? TEXT("TRUE") : TEXT("FALSE"),
-		       bIsMovingToTarget ? TEXT("TRUE") : TEXT("FALSE"));
+			   bChaseEnabled ? TEXT("TRUE") : TEXT("FALSE"),
+			   bIsMovingToTarget ? TEXT("TRUE") : TEXT("FALSE"));
 	}
 	
 	// 추적이 비활성화되어 있으면 이동 안 함
@@ -116,7 +132,7 @@ void ABossAIController::Tick(float DeltaTime)
 		
 		// 디버깅: 거리 로그
 		UE_LOG(LogTemp, Warning, TEXT("[BossAI] Distance to player: %.1f (Stop: %.1f, Chase: %.1f)"), 
-		       DistanceToTarget, StopDistance, ChaseDistance);
+			   DistanceToTarget, StopDistance, ChaseDistance);
 		
 		// 너무 가까우면 이동 중지
 		if (DistanceToTarget <= StopDistance)
@@ -162,4 +178,33 @@ void ABossAIController::Tick(float DeltaTime)
 			UE_LOG(LogTemp, Log, TEXT("[BossAI] In range (%.1f), maintaining..."), DistanceToTarget);
 		}
 	}
+}
+
+bool ABossAIController::EnsureValidTarget()
+{
+	if (IsValid(TargetPlayer))
+	{
+		return true;
+	}
+	
+	if (bIsMovingToTarget)
+	{
+		StopMovement();
+		bIsMovingToTarget = false;
+	}
+	
+	TargetPlayer = nullptr;
+	
+	if (UWorld* World = GetWorld())
+	{
+		APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(World, 0);
+		if (IsValid(PlayerPawn))
+		{
+			TargetPlayer = PlayerPawn;
+			UE_LOG(LogTemp, Warning, TEXT("[BossAI] Target reacquired: %s"), *GetNameSafe(TargetPlayer));
+			return true;
+		}
+	}
+	
+	return false;
 }

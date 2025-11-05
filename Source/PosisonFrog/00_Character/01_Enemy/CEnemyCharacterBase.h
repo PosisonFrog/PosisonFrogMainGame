@@ -271,6 +271,9 @@ public:
 
     // 리스폰 시 초기 위치로 복귀
     void ResetToInitialTransform();
+    void ResetForRespawn();
+
+    void ForceRestartAI();
     
 protected:
     // 런타임 상태

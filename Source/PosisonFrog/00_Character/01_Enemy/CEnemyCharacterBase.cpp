@@ -1,6 +1,7 @@
 #include "CEnemyCharacterBase.h"
 
 #include "AIController.h"
+#include "BrainComponent.h"
 #include "NavigationSystem.h"
 #include "Kismet/GameplayStatics.h"
 #include "DrawDebugHelpers.h"
@@ -806,12 +807,6 @@ void ACEnemyCharacterBase::OnDead()
 		{
 			TacAI->TacticalStop();}
 	}
-	
-	//if (UCapsuleComponent* Cap = GetCapsuleComponent())
-	//Cap->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	
-	//if (USkeletalMeshComponent* MeshComp = GetMesh())
-	//MeshComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
 	DisableAllCollisions();
 	
@@ -820,7 +815,6 @@ void ACEnemyCharacterBase::OnDead()
 	AttackWindowEndTime = -1.f;
 
 	TryDropHealPack();
-	SetLifeSpan(3.0f);
 }
 
 void ACEnemyCharacterBase::DisableAllCollisions()
@@ -941,6 +935,55 @@ void ACEnemyCharacterBase::ResetToInitialTransform()
 	{
 		Movement->StopMovementImmediately();
 		Movement->Velocity = FVector::ZeroVector;
+	}
+}
+
+void ACEnemyCharacterBase::ResetForRespawn()
+{
+	// 상태 초기화
+	State = EEnemyState::Patrol;
+	Target = nullptr;
+    
+	// 타이머 초기화
+	LastSeenTime = -1000.f;
+	LastAttackTime = -1000.f;
+	StateEnterTime = -1000.f;
+	NextThinkTime = 0.f;
+    
+	// 전투 관련 초기화
+	bIsHitStunned = false;
+	bIsPerformingMelee = false;
+	bAttackWindowActive = false;
+	SwingHitActors.Reset();
+	AttackWindowEndTime = -1.f;
+    
+	// 타이머 정리
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(HitStunTimer);
+	}
+    
+	// 직진 스티어링 초기화
+	bDirectMoveActive = false;
+}
+
+void ACEnemyCharacterBase::ForceRestartAI()
+{
+	if (AAIController* OldAI = Cast<AAIController>(GetController()))
+	{
+		OldAI->UnPossess();
+		OldAI->Destroy();
+	}
+
+	SpawnDefaultController();
+
+	if (AAIController* NewAI = Cast<AAIController>(GetController()))
+	{
+		if (UBrainComponent* Brain = NewAI->GetBrainComponent())
+		{
+			if (!Brain->IsRunning())
+				Brain->StartLogic();
+		}
 	}
 }
 

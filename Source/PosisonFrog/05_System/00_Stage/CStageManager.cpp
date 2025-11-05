@@ -12,7 +12,9 @@
 #include "00_Character/01_Enemy/CEnemyCharacterBase.h"
 #include "00_Character/02_Component/CBaseHealthComponent.h"
 #include "99_Util/CLog.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "Navigation/PathFollowingComponent.h"
 
 
 ACStageManager::ACStageManager()
@@ -211,19 +213,27 @@ void ACStageManager::PrepareForRespawn(int32 TargetStageID)
 
 int32 ACStageManager::GetRemainingEnemies(int32 StageID) const
 {
-	if (auto* Enemies = StageEnemies.Find(StageID))
+	if (const TArray<TObjectPtr<ACEnemyCharacterBase>>* Enemies = StageEnemies.Find(StageID))
 	{
-		int32 ValidCount = 0;
-
+		int32 AliveCount = 0;
+ 
 		for (const TObjectPtr<ACEnemyCharacterBase>& Enemy : *Enemies)
 		{
-			if (IsValid(Enemy.Get()))
-				ValidCount++;
+			ACEnemyCharacterBase* EnemyPtr = Enemy.Get();
+			
+			if (!IsValid(EnemyPtr) || EnemyPtr->IsPendingKillPending())
+				continue;
+ 
+			const UCBaseHealthComponent* HealthComp = EnemyPtr->FindComponentByClass<UCBaseHealthComponent>();
+			const bool bIsAlive = !HealthComp || !HealthComp->IsDead();
+					
+			if (bIsAlive)
+				AliveCount++;
 		}
-
-		return ValidCount;
+ 
+		return AliveCount;
 	}
-
+	
 	return 0;
 }
 
@@ -396,12 +406,6 @@ void ACStageManager::ProcessSpawnBatch()
 			}
 			else
 			{
-				if (AAIController* AI = Cast<AAIController>(Enemy->GetController()))
-				{
-					AI->StopMovement();
-					AI->ClearFocus(EAIFocusPriority::Gameplay);
-				}
-				
 				if (UCBaseHealthComponent* HealthComp = Enemy->FindComponentByClass<UCBaseHealthComponent>())
 				{
 					HealthComp->OnDeath.AddDynamic(this, &ACStageManager::OnEnemyDied);
@@ -490,10 +494,25 @@ void ACStageManager::ActivatePreloadedStage(int32 StageID)
 
 		if (AAIController* AI = Cast<AAIController>(Enemy->GetController()))
 		{
+			if (UPathFollowingComponent* PathComp = AI->FindComponentByClass<UPathFollowingComponent>())
+			{
+				PathComp->AbortMove(*AI, FPathFollowingResultFlags::OwnerFinished);
+				PathComp->OnRequestFinished.Clear();
+			}
+
 			if (UBrainComponent* Brain = AI->GetBrainComponent())
 			{
-				Brain->ResumeLogic(TEXT("Activated"));
+				Brain->StopLogic(TEXT("Activate"));
+				Brain->RestartLogic();
 			}
+
+			AI->UnPossess();
+			AI->Possess(Enemy);
+		}
+		else
+		{
+			if (UWorld* World = Enemy->GetWorld())
+				Enemy->SpawnDefaultController();
 		}
 
 		if (UCBaseHealthComponent* HealthComp = Enemy->FindComponentByClass<UCBaseHealthComponent>())
@@ -586,16 +605,19 @@ void ACStageManager::OnEnemyDied(AActor* DeadActor)
 	{
 		return;
 	}
+
+	// 삭제 대기중이면 무시
+	if (DeadActor->IsPendingKillPending())
+		return;
 	
 	ACEnemyCharacterBase* DeadEnemy = Cast<ACEnemyCharacterBase>(DeadActor);
 	int32 FoundStage = -1; // 어느 스테이지의 적인지 찾기
 	
-	for (auto& Pair : StageEnemies)
+	for (const auto& Pair : StageEnemies)
 	{
 		if (Pair.Value.Contains(DeadEnemy))
 		{
 			FoundStage = Pair.Key;
-			Pair.Value.RemoveSingleSwap(DeadEnemy);
 			break;
 		}
 	}
@@ -656,10 +678,22 @@ void ACStageManager::CheckPreloadTrigger()
 
 void ACStageManager::ResetEnemy(ACEnemyCharacterBase* Enemy)
 {
-	if (!IsValid(Enemy))
+	if (!IsValid(Enemy) || Enemy->IsPendingKillPending())
 		return;
 
+	Enemy->SetLifeSpan(0.0f);
+	Enemy->ResetForRespawn();
 	Enemy->ResetToInitialTransform();
+	
+	if (UCharacterMovementComponent* Movement = Enemy->GetCharacterMovement())
+	{
+		Movement->SetMovementMode(MOVE_Walking);
+		Movement->SetComponentTickEnabled(true);
+		Movement->Activate();
+		Movement->Velocity = FVector::ZeroVector;
+		Movement->SetActive(true);
+		Movement->bForceNextFloorCheck = true;
+	}
 
 	if (UCBaseHealthComponent* HealthComp = Enemy->FindComponentByClass<UCBaseHealthComponent>())
 	{
@@ -673,10 +707,27 @@ void ACStageManager::ResetEnemy(ACEnemyCharacterBase* Enemy)
 		AI->StopMovement();
 		AI->ClearFocus(EAIFocusPriority::Gameplay);
 
+		if (UPathFollowingComponent* PathComp = AI->FindComponentByClass<UPathFollowingComponent>())
+		{
+			PathComp->AbortMove(*AI, FPathFollowingResultFlags::OwnerFinished);
+			PathComp->OnRequestFinished.Clear();
+		}
+		
 		if (UBrainComponent* BrainComp = AI->FindComponentByClass<UBrainComponent>())
-			BrainComp->ResumeLogic(TEXT("Reset"));
-	}
+		{
+			BrainComp->StopLogic(TEXT("Respawn"));
+			BrainComp->RestartLogic();
+		}
 
+		AI->UnPossess();
+		AI->Possess(Enemy);
+	}
+	else
+	{
+		if (UWorld* World = Enemy->GetWorld())
+			Enemy->SpawnDefaultController();
+	}
+	
 	if (USkeletalMeshComponent* Mesh = Enemy->GetMesh())
 	{
 		if (UAnimInstance* AnimInst = Mesh->GetAnimInstance())
