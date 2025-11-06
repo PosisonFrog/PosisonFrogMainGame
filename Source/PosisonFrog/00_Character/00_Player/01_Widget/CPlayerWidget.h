@@ -25,6 +25,10 @@ public:
     UFUNCTION(BlueprintCallable, Category = "PF|HUD")
     void UpdateHpBar(float Current, float Max);
 
+    // 오버힐
+    UFUNCTION(BlueprintCallable, Category = "PF|HUD")
+    void UpdateOverHealHPBar(float CurrentOverHeal, float MaxOverHeal);
+    
     // 대쉬
     UFUNCTION(BlueprintCallable, Category = "PF|HUD")
     void UpdateDashCooldown(float Remaining, float Total);
@@ -54,6 +58,10 @@ private:
     UPROPERTY(meta = (BindWidgetOptional))
     UProgressBar* HealthBar = nullptr;
 
+    // OverHealHealth
+    UPROPERTY(meta = (BindWidgetOptional))
+    UProgressBar* OverHealHpBar = nullptr;
+    
     // Dash
     UPROPERTY(meta = (BindWidgetOptional))
     UProgressBar* DashCooldownBar = nullptr;

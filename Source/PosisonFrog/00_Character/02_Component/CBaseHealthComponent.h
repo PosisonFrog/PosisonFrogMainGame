@@ -7,6 +7,7 @@
 #include "CBaseHealthComponent.generated.h"
 
 class UCPlayerStatAssetData;
+
 // 체력 변경/사망 이벤트
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnHealthChanged, float, Current, float, Max);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnDeath, AActor*, DeadActor);
@@ -40,7 +41,7 @@ public:
 	// --- 변경 ---
 	/** 회복: 실제 회복된 양을 반환 */
 	UFUNCTION(BlueprintCallable, Category = "Health")
-	float Healing(float InAmount);
+	virtual float Healing(float InAmount);
 
 	/** 피해: 실제 피해량을 반환 */
 	UFUNCTION(BlueprintCallable, Category = "Health")
@@ -63,7 +64,7 @@ public:
 	// --- 이벤트 ---
 	UPROPERTY(BlueprintAssignable, Category = "Health|Events")
 	FOnHealthChanged OnHealthChanged;
-
+	
 	UPROPERTY(BlueprintAssignable, Category = "Health|Events")
 	FOnDeath OnDeath;
 	

@@ -98,7 +98,9 @@ private:
     // ─────────── HP ───────────
     UFUNCTION() void HandleHealthChanged(float CurrentHealth, float MaxHealth);
     UFUNCTION() void HandleDeath(AActor* DeadActor);
-
+    
+    UFUNCTION() void HandleOverHealChanged(float CurrentOverHeal, float MaxOverHeal);
+    
     void KnockBackTankerDash();
     void UpdateHpUI() const;
     

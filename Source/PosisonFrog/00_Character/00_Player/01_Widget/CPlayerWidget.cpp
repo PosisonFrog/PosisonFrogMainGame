@@ -31,9 +31,11 @@ void UCPlayerWidget::NativeConstruct()
     // 위젯 생성 직후 기본 텍스트/수치 정리
     if (HealthBar)      HealthBar->SetPercent(1.0f);
     if (UltimateBar)    UltimateBar->SetPercent(0.0f);
+    if (OverHealHpBar)  OverHealHpBar->SetPercent(0.0f);
 
     SetDashReady(); // 대시는 처음엔 Ready 상태로
 }
+
 void UCPlayerWidget::UpdateHpBar(float Current, float Max)
 {
     const float Ratio = SafeRatio(Current, Max);  // 0~1
@@ -43,6 +45,24 @@ void UCPlayerWidget::UpdateHpBar(float Current, float Max)
         // 색상: 위험 임계치 이하면 Danger 색
         const FLinearColor UseColor = (Ratio <= HpDangerThreshold) ? HpColor_Danger : HpColor_Normal;
         HealthBar->SetFillColorAndOpacity(UseColor);
+    }
+}
+
+void UCPlayerWidget::UpdateOverHealHPBar(float CurrentOverHeal, float MaxOverHeal)
+{
+    if (!OverHealHpBar)
+        return;
+
+    const float Ratio = SafeRatio(CurrentOverHeal, MaxOverHeal);
+    OverHealHpBar->SetPercent(Ratio);
+
+    if (CurrentOverHeal > 0.1f)
+    {
+        OverHealHpBar->SetVisibility(ESlateVisibility::Visible);
+    }
+    else
+    {
+        OverHealHpBar->SetVisibility(ESlateVisibility::Hidden);
     }
 }
 

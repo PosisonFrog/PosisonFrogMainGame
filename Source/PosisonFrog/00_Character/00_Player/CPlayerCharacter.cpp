@@ -25,7 +25,6 @@
 #include "00_Character/02_Component/00_PlayerComponent/CGameplayTags.h"
 #include "00_Character/02_Component/00_PlayerComponent/CUltimateBuffComponent.h"
 #include "00_Character/02_Component/00_PlayerComponent/CFuryGaugeComponent.h"
-#include "00_Character/00_Player/03_Camera/TransparentCameraComponent.h"
 #include "01_Widget/CPlayerWidget.h"
 #include "04_Skill/CSkill_CommandLaunchSlam.h"
 #include "04_Skill/CSkill_SpinAttack.h"
@@ -71,7 +70,7 @@ ACPlayerCharacter::ACPlayerCharacter()
     PlayerCamera->SetupAttachment(SpringArm, USpringArmComponent::SocketName);
     PlayerCamera->bUsePawnControlRotation = false;
 
-   // TransparentCameraComponent = CreateDefaultSubobject<UTransparentCameraComponent>(TEXT("TransparentCamera"));
+    //TransparentCameraComponent = CreateDefaultSubobject<UTransparentCameraComponent>(TEXT("TransparentCamera"));
     //TransparentCameraComponent->SetupAttachment(RootComponent);
     
     
@@ -111,6 +110,8 @@ void ACPlayerCharacter::BeginPlay()
     {
         HealthComponent->OnHealthChanged.AddDynamic(this, &ACPlayerCharacter::HandleHealthChanged);
         HealthComponent->OnDeath.AddDynamic(this, &ACPlayerCharacter::HandleDeath);
+
+        HealthComponent->OnOverHealChanged.AddDynamic(this, &ACPlayerCharacter::HandleOverHealChanged);
     }
     
     // 탱커 돌진 델리게이트 바인딩
@@ -510,6 +511,14 @@ void ACPlayerCharacter::HandleDeath(AActor* DeadActor)
     {
         if (ACMainGameModeBase* GameMode = Cast<ACMainGameModeBase>(World->GetAuthGameMode()))
             GameMode->OnPlayerDeath(Pc);
+    }
+}
+
+void ACPlayerCharacter::HandleOverHealChanged(float CurrentOverHeal, float MaxOverHeal)
+{
+    if (PlayerWidget)
+    {
+        PlayerWidget->UpdateOverHealHPBar(CurrentOverHeal, MaxOverHeal);
     }
 }
 
