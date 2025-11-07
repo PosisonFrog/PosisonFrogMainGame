@@ -58,7 +58,6 @@ protected:
     void RequestTacticalChase();
     bool ShouldEnterAttackFromChase() const;
     void HandleCooldownStrafe();
-    void PlayMontageIfValid(UAnimMontage* Montage, float PlayRate = 1.f) const;
     void TryPlayIdleMontage() const;
     void SpawnAttackEffect() const;
     void SpawnHitEffectAtForward() const;
@@ -112,7 +111,9 @@ protected:
     UPROPERTY(EditAnywhere, Category="PF|Animation")
     UAnimMontage* DeadMontage = nullptr;
     
-    UPROPERTY(EditAnywhere, Category="PF|Animation")
+    /** @deprecated Use ComboHitReactionMontages in base class instead */
+    UPROPERTY(EditAnywhere, Category="PF|Animation", meta=(DeprecatedProperty, DeprecationMessage="Use ComboHitReactionMontages array in CEnemyCharacterBase instead"))
+    /** @deprecated Use ComboHitReactionMontages array in base class for combo-specific hit reactions */
     UAnimMontage* HitMontage = nullptr;
     
     UPROPERTY(EditAnywhere, Category="PF|Sound")

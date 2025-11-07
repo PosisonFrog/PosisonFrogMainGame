@@ -73,22 +73,20 @@ void ACRiotRobot::BeginPlay()
 {
     Super::BeginPlay();
     
-    // 피격 몽타주 설정
-    if (HitMontage)
+    // 하위 호환성: HitMontage가 설정되어 있고 ComboHitReactionMontages가 비어있으면
+    // 모든 콤보 인덱스에 동일한 몽타주 할당
+    if (HitMontage && ComboHitReactionMontages.Num() == 0)
     {
-        HitReactionMontage = HitMontage;
+        ComboHitReactionMontages.SetNum(3);
+        for (int32 i = 0; i < 3; ++i)
+        {
+            ComboHitReactionMontages[i] = HitMontage;
+        }
+        UE_LOG(LogTemp, Warning, TEXT("[RiotRobot] Auto-migrated HitMontage to ComboHitReactionMontages. Please set combo-specific montages in Blueprint."));
     }
 
     SyncAttackTuning();
     SetupCapsulePhysics();
-
-    // 대기 몽타주가 있으면 루프 재생(선택)
-    // if (IdleMontage)
-    // {
-    //     if (USkeletalMeshComponent* mesh = GetMesh())
-    //         if (UAnimInstance* Anim = mesh->GetAnimInstance())
-    //             Anim->Montage_Play(IdleMontage, 1.0f);
-    // }
 
     TryPlayIdleMontage();
 }
@@ -182,9 +180,14 @@ void ACRiotRobot::StartAttack()
     AttackStartedTime = GetWorld()->GetTimeSeconds();
 
     StopMovementAndFaceTarget();
-    SpawnAttackEffect();
+    
+    //공격 몽타주 재생 추가
     PlayMontageIfValid(AttackMontage);
+    
+    //공격 사운드 재생 추가
     PlaySoundIfValid(AttackSound);
+    
+    SpawnAttackEffect();
     
     GetWorldTimerManager().SetTimer(
         Timer_WindUp,
@@ -266,7 +269,7 @@ void ACRiotRobot::OnDead()
 {
     CancelAttack();
     Super::OnDead();
-    
+ 
     PlayMontageIfValid(DeadMontage);
     SpawnHitEffectAtLocation();
     PlaySoundIfValid(HitSound);
@@ -306,7 +309,6 @@ void ACRiotRobot::StopMovementAndFaceTarget()
     if (!Target)
         return;
     
-
     const FRotator LookAt = UKismetMathLibrary::FindLookAtRotation(GetActorLocation(), Target->GetActorLocation());
     SetActorRotation(FRotator(0.f, LookAt.Yaw, 0.f));
 }
@@ -351,26 +353,10 @@ void ACRiotRobot::HandleCooldownStrafe()
     }
 }
 
-void ACRiotRobot::PlayMontageIfValid(UAnimMontage* Montage, float PlayRate) const
-{
-    if (!Montage)
-        return;
-
-    if (USkeletalMeshComponent* MeshComp = GetMesh())
-    {
-        if (UAnimInstance* AnimInstance = MeshComp->GetAnimInstance())
-        {
-            AnimInstance->Montage_Play(Montage, PlayRate);
-        }
-    }
-}
-
 void ACRiotRobot::TryPlayIdleMontage() const
 {
     PlayMontageIfValid(IdleMontage);
 }
-
-
 
 void ACRiotRobot::SpawnAttackEffect() const
 {

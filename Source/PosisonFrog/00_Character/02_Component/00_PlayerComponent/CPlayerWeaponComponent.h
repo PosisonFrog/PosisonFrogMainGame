@@ -11,6 +11,9 @@ class ACharacter;
 class ACHammer;
 class UAnimMontage;
 
+// 플레이어 콤보 공격 히트 델리게이트
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnPlayerComboHit, AActor*, HitActor, int32, ComboIndex, float, Damage);
+
 
 /**
  * 무기/콤보 컴포넌트
@@ -40,6 +43,11 @@ public:
 
     // --- 해머 접근 ---
     ACHammer* GetHammer() const { return Cast<ACHammer>(GetCurrentWeapon()); }
+
+    // --- 콤보 히트 델리게이트 ---
+    /** 플레이어 콤보 공격이 적에게 적중했을 때 브로드캐스트 */
+    UPROPERTY(BlueprintAssignable, Category = "Attack|Events")
+    FOnPlayerComboHit OnPlayerComboHit;
     
 private:
     virtual void SpawnWeapon() override;
@@ -103,4 +111,3 @@ private:
     
     FTimerHandle ComboResetTimer;
 };
-

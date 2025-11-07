@@ -15,6 +15,7 @@
 #include "Global.h"
 #include "00_Character/00_Player/CPlayerCharacter.h"
 #include "00_Character/02_Component/00_PlayerComponent/CFuryGaugeComponent.h"
+#include "00_Character/02_Component/00_PlayerComponent/CPlayerWeaponComponent.h" 
 #include "00_Character/02_Component/01_EnemyComponent/CEnemyHealthComponent.h"
 #include "01_AIController/CTacticalEnemyAIController.h"
 #include "01_Item/CHealOrbPoolSubsystem.h"
@@ -89,13 +90,27 @@ void ACEnemyCharacterBase::BeginPlay()
 		HealthComponent->OnHealthChanged.AddDynamic(this, &ACEnemyCharacterBase::OnHealthChanged);
 	}
 
+
+	// 플레이어 콤보 히트 델리게이트 구독함수
+	SubscribeToPlayerComboHits();
+	
 	SetState(EEnemyState::Patrol); // 기본적으로 순찰모드
+}
+
+void ACEnemyCharacterBase::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	UnsubscribeFromPlayerComboHits();
+	Super::EndPlay(EndPlayReason);
 }
 
 void ACEnemyCharacterBase::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
+	if (State == EEnemyState::Dead || bIsHitStunned)
+	{
+		return;
+	}
 	
 	// 스윙 창: 프레임 독립 분할 스윕
 	if (bAttackWindowActive)
@@ -135,9 +150,11 @@ void ACEnemyCharacterBase::Tick(float DeltaSeconds)
 void ACEnemyCharacterBase::Think(float /*DeltaTime*/)
 {
 	if (bIsHitStunned)
-	{
 		return;
-	}
+	
+	if (State == EEnemyState::Dead)
+		return;
+	
 	
 	AcquireTarget();
 
@@ -273,6 +290,10 @@ void ACEnemyCharacterBase::DoAlert()
 
 void ACEnemyCharacterBase::DoChase()
 {
+
+	if (bIsHitStunned)
+		return;
+	
 	if (!Target)
 	{
 		SetState(EEnemyState::ReturnHome);
@@ -280,6 +301,7 @@ void ACEnemyCharacterBase::DoChase()
 	}
 
 	const float Dist = DistToTarget();
+
 
 	// ── 포위(링) 오프셋 목표 ──
 	FVector Goal = Target->GetActorLocation();
@@ -327,7 +349,7 @@ void ACEnemyCharacterBase::DoAttack()
 		SetState(EEnemyState::ReturnHome);
 		return;
 	}
-	
+
 	if (UCharacterMovementComponent* Move = GetCharacterMovement())
 	{
 		if (Move->IsFalling())
@@ -339,86 +361,70 @@ void ACEnemyCharacterBase::DoAttack()
 
 	const float Dist = DistToTarget();
 
-	// 사거리 완전히 벗어나면 바로 추격 복귀
+	// Attack → Chase
 	if (Dist > AttackExitDistance)
 	{
-		bIsPerformingMelee = false;
 		SetState(EEnemyState::Chase);
 		return;
 	}
 
-	// Attack 상태에서도, 타겟과의 거리가 애매하면 접근 유지 (정지해버리지 않도록)
-	if (Dist > AttackRange * 0.9f)
+	if (!bIsPerformingMelee)
 	{
-		if (bUseNavigation)
+		// 타겟에 접근
+		const float Approach = AttackMoveAcceptanceRadius;
+		if (Dist > Approach)
 		{
-			RequestMoveTo(Target->GetActorLocation(), AttackMoveAcceptanceRadius);
+			if (bUseNavigation)
+			{
+				RequestMoveTo(Target->GetActorLocation(), Approach);
+			}
+			else
+			{
+				FVector dir = Target->GetActorLocation() - GetActorLocation();
+				dir.Z = 0.f;
+				if (dir.Normalize())
+					AddMovementInput(dir, 1.f);
+			}
 		}
 		else
 		{
-			// 직진 스티어링
-			FVector Dir = (Target->GetActorLocation() - GetActorLocation()); Dir.Z = 0.f;
-			if (Dir.Normalize())
-				AddMovementInput(Dir, 1.f);
+			StopMove();
+		}
+
+		// 공격 수행 조건
+		if (Dist <= AttackEnterDistance && IsAttackReady() && HasVisualOnTarget())
+		{
+			bIsPerformingMelee = true;
+			LastAttackTime = GetWorld()->GetTimeSeconds();
+
+			// Base 클래스의 스윙창 열기
+			AttackWindowBegin(0.5f);
 		}
 	}
 	else
 	{
-		// 사거리 충분 → 한 번 멈춤(정교한 타격을 위해)
 		StopMove();
 	}
-
-	// 쿨타임이 됐으면 1회 공격 실행
-	if (!bIsPerformingMelee && IsAttackReady())
-	{
-		bIsPerformingMelee = true;
-
-		// 실제 타격
-		LastAttackTime = GetWorld()->GetTimeSeconds();
-		
-		ApplyAttackDamage();
-
-		// 혹시 애님/루트모션이 이동을 막았다면 복구
-		EnsureWalkingAndResume();
-
-		// 공격을 1회 수행했으면, 바로 재추격으로 복귀(멈춤 방지)
-		ReengageChase(AttackReengageDelay);
-		bIsPerformingMelee = false;
-		return;
-	}
-
-	// 아직 쿨타임 중이면 계속 거리 유지만
 }
 
 void ACEnemyCharacterBase::DoReturnHome()
 {
-	if (Target)
+	const float Dist2D = FVector::Dist2D(GetActorLocation(), HomeLocation);
+
+	if (Dist2D <= PatrolPointReachRadius)
 	{
-		const float DistToPlayer = DistToTarget();
-		if (DistToPlayer <= ChaseStartDistance)
-		{
-			if (HasVisualOnTarget())
-			{
-				if (const UWorld* World = GetWorld())
-				{
-					LastSeenTime = World->GetTimeSeconds();
-				}
-				SetState(EEnemyState::Chase);
-			}
-			else
-			{
-				SetState(EEnemyState::Alert);
-			}
-			return;
-		}
-	}
-	
-	if (Reached(HomeLocation, PatrolPointReachRadius))
-	{
+		Target = nullptr;
 		SetState(EEnemyState::Patrol);
 		return;
 	}
+
 	RequestMoveTo(HomeLocation, PatrolPointReachRadius);
+
+	if (Target && DistToTarget() <= ChaseStartDistance)
+	{
+		LastSeenTime = GetWorld()->GetTimeSeconds();
+		SetState(EEnemyState::Chase);
+	}
 }
 
 void ACEnemyCharacterBase::DoDead()
@@ -445,7 +451,7 @@ bool ACEnemyCharacterBase::IsAttackReady() const
 
 bool ACEnemyCharacterBase::IsInAttackDistance() const
 {
-	return Target && (DistToTarget() <= AttackEnterDistance);
+	return Target && DistToTarget() <= AttackEnterDistance;
 }
 
 bool ACEnemyCharacterBase::AcquireTarget()
@@ -457,7 +463,7 @@ bool ACEnemyCharacterBase::AcquireTarget()
 	// IsPendingKill() -> C4996 Warning 발생으로 코드 변경
 	if (IsValid(Target) && Target->IsA<ACPlayerCharacter>())
 		return true;
-	
+
 	// 가장 가까운 플레이어 탐색
 	TArray<AActor*> Players;
 	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACPlayerCharacter::StaticClass(), Players);
@@ -517,7 +523,11 @@ float ACEnemyCharacterBase::DistToTarget() const
 	return Target ? FVector::Dist(GetActorLocation(), Target->GetActorLocation()) : FLT_MAX;
 }
 
-// ─ 이동(Nav/직진) ─
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 이동
+// ─────────────────────────────────────────────────────────────────────────────
 void ACEnemyCharacterBase::RequestMoveTo(const FVector& Goal, float AcceptanceRadius)
 {
 	if (bUseNavigation)
@@ -566,15 +576,15 @@ void ACEnemyCharacterBase::DirectMoveTick(float /*DeltaSeconds*/)
 		bDirectMoveActive = false;
 		return;
 	}
-	
+
 	FVector Dir = (DirectMoveGoal - GetActorLocation());
 	Dir.Z = 0.f;
-	
+
 	if (Dir.IsNearlyZero())
 		return;
-	
+
 	Dir.Normalize();
-	
+
 	// Separation: 주변 적 밀어내기
 	if (bUseSeparation)
 	{
@@ -620,7 +630,6 @@ void ACEnemyCharacterBase::DirectMoveTick(float /*DeltaSeconds*/)
 	}
 
 	AddMovementInput(Dir, 1.f);
-
 }
 
 
@@ -634,13 +643,7 @@ void ACEnemyCharacterBase::DirectMoveTick(float /*DeltaSeconds*/)
 }
 */
 
-void ACEnemyCharacterBase::PlaySoundIfValid(USoundBase* Sound) const
-{
-	if (Sound)
-	{
-		UGameplayStatics::PlaySoundAtLocation(this, Sound, GetActorLocation());
-	}
-}
+
 
 float ACEnemyCharacterBase::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent,
 	AController* EventInstigator, AActor* DamageCauser)
@@ -650,7 +653,6 @@ float ACEnemyCharacterBase::TakeDamage(float DamageAmount, FDamageEvent const& D
 	UE_LOG(LogTemp, Warning, TEXT("[%s] TakeDamage 호출됨! 데미지: %.1f, 공격자: %s"), 
 		   *GetName(), DamageAmount, *GetNameSafe(DamageCauser));
 	
-	PlaySoundIfValid(HitSound);
 	
 	float Applied = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
 	if (Applied <= 0.0f) return Applied;
@@ -707,11 +709,6 @@ float ACEnemyCharacterBase::TakeDamage(float DamageAmount, FDamageEvent const& D
 		UE_LOG(LogTemp, Warning, TEXT("[%s] 체력 변화: %.1f -> %.1f"), 
 			   *GetName(), OldHealth, NewHealth);
 		
-		// 피격 반응 재생 (사망하지 않았을 경우)
-		if (NewHealth > 0.f)
-		{
-			PlayHitReaction();
-		}
 	}
 	else
 	{
@@ -730,54 +727,6 @@ void ACEnemyCharacterBase::OnHealthChanged(float Cur, float Max)
 	}
 }
 
-void ACEnemyCharacterBase::PlayHitReaction()
-{
-	// 사망 상태가 아니고, 피격 몽타주가 있으면 재생
-	if (State == EEnemyState::Dead)
-	{
-		return;
-	}
-	
-	if (!HitReactionMontage)
-	{
-		return;
-	}
-	StopMove();
-
-	// 피격 경직 상태 설정
-	bIsHitStunned = true;
-	
-	
-	if (USkeletalMeshComponent* MeshComp = GetMesh())
-	{
-		if (UAnimInstance* AnimInstance = MeshComp->GetAnimInstance())
-		{
-			// 이미 재생 중인 몽타주가 있으면 중단하고 새로 재생
-			if (AnimInstance->Montage_IsPlaying(HitReactionMontage))
-			{
-				AnimInstance->Montage_Stop(0.2f, HitReactionMontage);
-			}
-			
-			AnimInstance->Montage_Play(HitReactionMontage, 1.0f);
-		}
-	}
-
-	// 기존 타이머가 있다면 클리어
-	if (UWorld* World = GetWorld())
-	{
-		World->GetTimerManager().ClearTimer(HitStunTimer);
-        
-		// 경직 지속 시간 후 상태 해제
-		World->GetTimerManager().SetTimer(
-			HitStunTimer,
-			this,
-			&ACEnemyCharacterBase::EndHitStun,
-			HitStunDuration,
-			false
-		);
-	}
-}
-
 void ACEnemyCharacterBase::OnDead()
 {
 	bIsHitStunned = false;
@@ -791,7 +740,7 @@ void ACEnemyCharacterBase::OnDead()
 		Movement->DisableMovement();
 		Movement->StopMovementImmediately();
 	}
-	
+
 	if (AAIController* AIC = Cast<AAIController>(GetController()))
 	{
 		if (ACTacticalEnemyAIController* TacAI = Cast<ACTacticalEnemyAIController>(AIC))
@@ -799,45 +748,14 @@ void ACEnemyCharacterBase::OnDead()
 			TacAI->TacticalStop();
 		}
 	}
-	
+
 	DisableAllCollisions();
-	
+
 	bAttackWindowActive = false;
 	SwingHitActors.Reset();
 	AttackWindowEndTime = -1.f;
 
 	TryDropHealPack();
-}
-
-void ACEnemyCharacterBase::DisableAllCollisions()
-{
-	TInlineComponentArray<UPrimitiveComponent*> PrimitiveComponents;
-	GetComponents(PrimitiveComponents);
-	
-	for (UPrimitiveComponent* Component : PrimitiveComponents)
-	{
-		if (!Component)
-		{
-			continue;
-		}
-		
-		Component->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		Component->SetCollisionResponseToAllChannels(ECR_Ignore);
-		Component->SetGenerateOverlapEvents(false);
-	}
-	
-	SetActorEnableCollision(false);
-}
-
-void ACEnemyCharacterBase::EndHitStun()
-{
-	bIsHitStunned = false;
-    
-	// 타이머 클리어
-	if (UWorld* World = GetWorld())
-	{
-		World->GetTimerManager().ClearTimer(HitStunTimer);
-	}
 }
 
 void ACEnemyCharacterBase::TryDropHealPack()
@@ -869,47 +787,33 @@ void ACEnemyCharacterBase::TryDropHealPack()
 	
 }
 
-
-// ─────────────────────────────────────────────────────────────────────────────
-// 전투: 스윙 창 + 단발 스윕 + 분할 스윕
-// ─────────────────────────────────────────────────────────────────────────────
-
-void ACEnemyCharacterBase::AttackWindowBegin(float AutoEndAfter /*=0.f*/)
+void ACEnemyCharacterBase::DisableAllCollisions()
 {
-	bAttackWindowActive = true;
-	SwingHitActors.Reset();
-
-	const float Now = GetWorld()->GetTimeSeconds();
-	LastAttackSweepTime = Now;
-	AttackWindowEndTime = (AutoEndAfter > 0.f) ? (Now + AutoEndAfter) : -1.f;
-}
-
-void ACEnemyCharacterBase::AttackWindowEnd(bool bForce /*=true*/)
-{
-	if (bForce)
+	if (UCapsuleComponent* Capsule = GetCapsuleComponent())
 	{
-		bAttackWindowActive = false;
-		AttackWindowEndTime = -1.f;
-		SwingHitActors.Reset();
-		return;
+		Capsule->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
+		Capsule->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
+		Capsule->SetCollisionResponseToChannel(AttackTraceChannel, ECR_Ignore);
+
+		Capsule->SetCollisionResponseToChannel(ECC_WorldStatic, ECR_Block);
+		Capsule->SetCollisionResponseToChannel(ECC_WorldDynamic, ECR_Block);
 	}
 
-	if (AttackWindowEndTime < 0.f)
-		AttackWindowEndTime = GetWorld()->GetTimeSeconds();
+	if (USkeletalMeshComponent* mesh = GetMesh())
+	{
+		mesh->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
+		mesh->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
+		mesh->SetCollisionResponseToChannel(AttackTraceChannel, ECR_Ignore);
+	}
 }
 
-bool ACEnemyCharacterBase::IsValidAttackTarget(AActor* Other) const
+void ACEnemyCharacterBase::EnableAllCollisions()
 {
-	if (!Other || Other == this)
-		return false;
-	
-	if (Other->IsA(ACEnemyCharacterBase::StaticClass()))
-		return false;
-	
-	if (bAttackHitOnlyPlayers && !Other->IsA(ACPlayerCharacter::StaticClass()))
-		return false;
-	
-	return Other->CanBeDamaged();
+	if (UCapsuleComponent* Capsule = GetCapsuleComponent())
+		Capsule->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+
+	if (USkeletalMeshComponent* mesh = GetMesh())
+		mesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 }
 
 void ACEnemyCharacterBase::SaveInitialTransform()
@@ -922,178 +826,115 @@ void ACEnemyCharacterBase::ResetToInitialTransform()
 {
 	SetActorLocation(InitialSpawnLocation);
 	SetActorRotation(InitialSpawnRotation);
-
-	if (UCharacterMovementComponent* Movement = GetCharacterMovement())
-	{
-		Movement->StopMovementImmediately();
-		Movement->Velocity = FVector::ZeroVector;
-	}
 }
 
 void ACEnemyCharacterBase::ResetForRespawn()
 {
-	// 상태 초기화
-	State = EEnemyState::Patrol;
+	if (HealthComponent)
+		HealthComponent->ResetHealth();
+
+	EnableAllCollisions();
+	SetState(EEnemyState::Patrol);
 	Target = nullptr;
-    
-	// 타이머 초기화
-	LastSeenTime = -1000.f;
-	LastAttackTime = -1000.f;
-	StateEnterTime = -1000.f;
-	NextThinkTime = 0.f;
-    
-	// 전투 관련 초기화
-	bIsHitStunned = false;
-	bIsPerformingMelee = false;
-	bAttackWindowActive = false;
-	SwingHitActors.Reset();
-	AttackWindowEndTime = -1.f;
-    
-	// 타이머 정리
-	if (UWorld* World = GetWorld())
-	{
-		World->GetTimerManager().ClearTimer(HitStunTimer);
-	}
-    
-	// 직진 스티어링 초기화
-	bDirectMoveActive = false;
+
+	ResetToInitialTransform();
 }
 
 void ACEnemyCharacterBase::ForceRestartAI()
 {
-	if (AAIController* OldAI = Cast<AAIController>(GetController()))
+	if (AAIController* AIC = Cast<AAIController>(GetController()))
 	{
-		OldAI->UnPossess();
-		OldAI->Destroy();
-	}
-
-	SpawnDefaultController();
-
-	if (AAIController* NewAI = Cast<AAIController>(GetController()))
-	{
-		if (UBrainComponent* Brain = NewAI->GetBrainComponent())
+		if (UBrainComponent* Brain = AIC->GetBrainComponent())
 		{
-			if (!Brain->IsRunning())
-				Brain->StartLogic();
+			Brain->StopLogic(TEXT("ForceRestart"));
+			Brain->RestartLogic();
 		}
 	}
 }
 
-void ACEnemyCharacterBase::EnableAllCollisions()
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 전투(스윙 창 + 분할 스윕)
+// ─────────────────────────────────────────────────────────────────────────────
+void ACEnemyCharacterBase::AttackWindowBegin(float AutoEndAfter)
 {
-	if (UCapsuleComponent* CapsuleComp = GetCapsuleComponent())
-	{
-		CapsuleComp->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-		CapsuleComp->SetCollisionResponseToAllChannels(ECR_Block);
-		CapsuleComp->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
-		CapsuleComp->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
-		CapsuleComp->SetGenerateOverlapEvents(true);
-	}
+	if (bAttackWindowActive)
+		return;
 
-	if (USkeletalMeshComponent* MeshComp = GetMesh())
-	{
-		MeshComp->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-		MeshComp->SetCollisionObjectType(ECC_Pawn);
-		MeshComp->SetCollisionResponseToAllChannels(ECR_Block);
-		MeshComp->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
-		MeshComp->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
-		MeshComp->SetGenerateOverlapEvents(true);
-	}
+	bAttackWindowActive = true;
+	SwingHitActors.Empty();
 
-	SetActorEnableCollision(true);
-	SetCanBeDamaged(true);
+	LastAttackSweepTime = GetWorld()->GetTimeSeconds();
+
+	if (AutoEndAfter > 0.f)
+		AttackWindowEndTime = GetWorld()->GetTimeSeconds() + AutoEndAfter;
+	else
+		AttackWindowEndTime = -1.f;
+
+	UE_LOG(LogTemp, Verbose, TEXT("[Enemy] AttackWindow opened"));
 }
 
-// 단발 판정 (스윕 + Overlap 보조 + 거리 안전망)
-bool ACEnemyCharacterBase::ApplyAttackDamage(bool bCheckAngle /*=true*/)
+void ACEnemyCharacterBase::AttackWindowEnd(bool bForce)
+{
+	if (!bAttackWindowActive && !bForce)
+		return;
+
+	bAttackWindowActive = false;
+	AttackWindowEndTime = -1.f;
+	SwingHitActors.Empty();
+
+	bIsPerformingMelee = false;
+
+	UE_LOG(LogTemp, Verbose, TEXT("[Enemy] AttackWindow closed"));
+}
+
+bool ACEnemyCharacterBase::IsValidAttackTarget(AActor* Other) const
+{
+	if (!Other || Other == this)
+		return false;
+
+	if (!Other->CanBeDamaged())
+		return false;
+
+	if (bAttackHitOnlyPlayers)
+	{
+		if (!Other->IsA<ACPlayerCharacter>())
+			return false;
+	}
+
+	return true;
+}
+
+bool ACEnemyCharacterBase::ApplyAttackDamage(bool bCheckAngle)
 {
     UWorld* W = GetWorld();
     if (!W) return false;
 
-	// 즉시 공격(스윙 창 미사용) 시 이전에 맞춘 액터 목록을 초기화하여
-	// 한 번만 피해를 주는 문제가 발생하지 않도록 한다.
-	if (!bAttackWindowActive)
-	{
-		SwingHitActors.Reset();
-	}
-	
-    // 멀티 전용 처리 원하시면:
-    // if (!HasAuthority()) return false;
-
-    const FVector Origin = GetActorLocation() + AttackOriginOffset;
-    const FVector Forward = GetActorForwardVector().GetSafeNormal2D();
-    const FVector End = Origin + Forward * AttackSweepLength;
-
-    const FQuat Rot = FRotationMatrix::MakeFromX(Forward).ToQuat();
-    const FCollisionShape Shape = FCollisionShape::MakeCapsule(AttackSweepRadius, AttackSweepHalfHeight);
-
-    TArray<FHitResult> Hits;
-    FCollisionQueryParams Params(SCENE_QUERY_STAT(PF_AttackSweep_Immediate), false, this);
-
     bool bHitSomething = false;
-    const bool bAnySweep = W->SweepMultiByChannel(Hits, Origin, End, Rot, AttackTraceChannel, Shape, Params);
 
-    if (bDebugDrawAttack)
+    if (Target && IsValidAttackTarget(Target) && !SwingHitActors.Contains(Target))
     {
-        DrawDebugCapsule(W, Origin, AttackSweepHalfHeight, AttackSweepRadius, Rot, FColor::Yellow, false, 0.1f, 0, 1.5f);
-        DrawDebugCapsule(W, End, AttackSweepHalfHeight, AttackSweepRadius, Rot, FColor::Orange, false, 0.1f, 0, 1.5f);
-        DrawDebugLine(W, Origin, End, FColor::Cyan, false, 0.1f, 0, 1.5f);
-    }
-
-    if (bAnySweep)
-    {
-        for (const FHitResult& H : Hits)
+        // ── 보조 1: 캡슐 Overlap 감지(즉시 1회)
+        if (USkeletalMeshComponent* SkMesh = GetMesh())
         {
-            AActor* A = H.GetActor();
-        	if (!A) continue;
-        	if (!IsValidAttackTarget(A)) continue;
-            if (SwingHitActors.Contains(A)) continue;
-            if (bCheckAngle && !PassAngleFilter(A)) continue;
+        	TArray<AActor*> OverlappingActors;
+        	SkMesh->GetOverlappingActors(OverlappingActors, AActor::StaticClass());
 
-            SwingHitActors.Add(A);
-            UGameplayStatics::ApplyDamage(A, BaseDamage, GetController(), this, UDamageType::StaticClass());
-            bHitSomething = true;
+        	for (AActor* A : OverlappingActors)
+        	{
+        		if (!IsValidAttackTarget(A)) continue;
+        		if (SwingHitActors.Contains(A)) continue;
+        		if (bCheckAngle && !PassAngleFilter(A)) continue;
 
-            if (bDebugDrawAttack)
-                DrawDebugPoint(W, H.ImpactPoint, 10.f, FColor::Red, false, 0.2f);
+        		SwingHitActors.Add(A);
+        		UGameplayStatics::ApplyDamage(A, BaseDamage, GetController(), this, UDamageType::StaticClass());
+        		bHitSomething = true;
+
+        		if (bDebugDrawAttack)
+        			DrawDebugPoint(W, A->GetActorLocation(), 10.f, FColor::Magenta, false, 0.2f);
+        	}
         }
-    }
-    else
-    {
-        // ── 보조 1: Pawn ObjectType Overlap (채널 미스매치 대비)
-	    {
-		    FCollisionObjectQueryParams ObjParams;
-	    	ObjParams.AddObjectTypesToQuery(ECC_Pawn);
-	    	ObjParams.AddObjectTypesToQuery(PF::Collision::RiotEnemy);
-	    	FCollisionQueryParams QParams(SCENE_QUERY_STAT(PF_AttackOverlap), false, this);
-
-	    	TArray<FOverlapResult> Overlaps;
-	    	const bool bOver = W->OverlapMultiByObjectType(
-				Overlaps, End, Rot,
-				ObjParams, FCollisionShape::MakeCapsule(AttackSweepRadius, AttackSweepHalfHeight),
-				QParams
-			);
-
-	    	if (bOver)
-	    	{
-	    		for (const FOverlapResult& O : Overlaps)
-	    		{
-	    			AActor* A = O.GetActor();
-	    			if (!A || A == this) continue;
-	    			if (!A) continue;
-	    			if (!IsValidAttackTarget(A)) continue;
-	    			if (SwingHitActors.Contains(A)) continue;
-	    			if (bCheckAngle && !PassAngleFilter(A)) continue;
-
-	    			SwingHitActors.Add(A);
-	    			UGameplayStatics::ApplyDamage(A, BaseDamage, GetController(), this, UDamageType::StaticClass());
-	    			bHitSomething = true;
-
-	    			if (bDebugDrawAttack)
-	    				DrawDebugPoint(W, A->GetActorLocation(), 10.f, FColor::Magenta, false, 0.2f);
-	    		}
-	    	}
-	    }
 
         // ── 보조 2: AttackRange 거리 안전망
         if (!bHitSomething && Target && AttackRange > 0.f
@@ -1238,4 +1079,197 @@ bool ACEnemyCharacterBase::PassAngleFilter(const AActor* Other) const
 
 void ACEnemyCharacterBase::DebugDrawState()
 {
+}
+
+
+// ============================================================
+// 플레이어 콤보 히트 처리 
+// ============================================================
+
+void ACEnemyCharacterBase::SubscribeToPlayerComboHits()
+{
+	// 플레이어 찾기
+	APlayerController* PC = GetWorld()->GetFirstPlayerController();
+	if (!PC)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Enemy] SubscribeToPlayerComboHits: PlayerController not found"));
+		return;
+	}
+
+	APawn* PlayerPawn = PC->GetPawn();
+	if (!PlayerPawn)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Enemy] SubscribeToPlayerComboHits: PlayerPawn not found"));
+		return;
+	}
+
+	// WeaponComponent 직접 찾기
+	UCPlayerWeaponComponent* WeaponComp = PlayerPawn->FindComponentByClass<UCPlayerWeaponComponent>();
+	if (!WeaponComp)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Enemy] SubscribeToPlayerComboHits: WeaponComponent not found"));
+		return;
+	}
+
+	// 델리게이트 바인딩 (간단하고 직접적인 방식)
+	if (!WeaponComp->OnPlayerComboHit.Contains(this, FName("OnPlayerComboHit")))
+	{
+		WeaponComp->OnPlayerComboHit.AddDynamic(this, &ACEnemyCharacterBase::OnPlayerComboHit);
+		UE_LOG(LogTemp, Log, TEXT("[Enemy] Successfully subscribed to player combo hits"));
+	}
+}
+
+void ACEnemyCharacterBase::UnsubscribeFromPlayerComboHits()
+{
+	// 플레이어 찾기
+	APlayerController* PC = GetWorld()->GetFirstPlayerController();
+	if (!PC) return;
+
+	APawn* PlayerPawn = PC->GetPawn();
+	if (!PlayerPawn) return;
+
+	// WeaponComponent 찾아서 언바인딩
+	UCPlayerWeaponComponent* WeaponComp = PlayerPawn->FindComponentByClass<UCPlayerWeaponComponent>();
+	if (WeaponComp)
+	{
+		WeaponComp->OnPlayerComboHit.RemoveDynamic(this, &ACEnemyCharacterBase::OnPlayerComboHit);
+		UE_LOG(LogTemp, Log, TEXT("[Enemy] Unsubscribed from player combo hits"));
+	}
+}
+
+// ============================================================
+// 공통 유틸리티 함수
+// ============================================================
+
+void ACEnemyCharacterBase::PlayMontageIfValid(UAnimMontage* Montage, float PlayRate) const
+{
+	if (!Montage)
+		return;
+
+	if (USkeletalMeshComponent* MeshComp = GetMesh())
+	{
+		if (UAnimInstance* AnimInstance = MeshComp->GetAnimInstance())
+		{
+			AnimInstance->Montage_Play(Montage, PlayRate);
+		}
+	}
+}
+
+void ACEnemyCharacterBase::PlaySoundIfValid(USoundBase* Sound) const
+{
+	if (!Sound)
+		return;
+
+	UGameplayStatics::PlaySoundAtLocation(this, Sound, GetActorLocation());
+}
+
+void ACEnemyCharacterBase::OnPlayerComboHit(AActor* HitActor, int32 ComboIndex, float Damage)
+{
+    // 자신이 맞았는지 확인
+    if (HitActor != this)
+    {
+        return;
+    }
+    
+    UE_LOG(LogTemp, Warning, TEXT("[%s] OnPlayerComboHit CALLED! Combo: %d, Damage: %.1f"), 
+        *GetName(), ComboIndex, Damage);
+    
+    // 사망 상태면 무시
+    if (State == EEnemyState::Dead)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[%s] Ignoring hit - already dead"), *GetName());
+        return;
+    }
+    
+    // 콤보 인덱스 저장
+    PlayerCurrentCombo = ComboIndex;
+    
+    // 콤보에 맞는 피격 몽타주 재생
+    UAnimMontage* MontageToPlay = nullptr;
+    
+    // 1. ComboHitReactionMontages가 있고 유효한 인덱스인 경우
+    if (ComboHitReactionMontages.IsValidIndex(ComboIndex) && ComboHitReactionMontages[ComboIndex])
+    {
+        MontageToPlay = ComboHitReactionMontages[ComboIndex];
+        UE_LOG(LogTemp, Warning, TEXT("[%s] Using ComboHitReactionMontages[%d]"), *GetName(), ComboIndex);
+    }
+    // 2. 없으면 기본 HitReactionMontages 사용
+    else if (HitReactionMontages.IsValidIndex(ComboIndex) && HitReactionMontages[ComboIndex])
+    {
+        MontageToPlay = HitReactionMontages[ComboIndex];
+        UE_LOG(LogTemp, Warning, TEXT("[%s] Using HitReactionMontages[%d]"), *GetName(), ComboIndex);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("[%s] No hit reaction montage for combo index %d! ComboArray size: %d, HitArray size: %d"), 
+            *GetName(), ComboIndex, ComboHitReactionMontages.Num(), HitReactionMontages.Num());
+    }
+    
+    // 몽타주 재생
+    if (MontageToPlay)
+    {
+    	bIsHitStunned = true;
+        StopMove();
+
+    	if (AAIController* AIC = Cast<AAIController>(GetController()))
+    	{
+    		AIC->StopMovement();
+    	}
+        
+    	bDirectMoveActive = false;
+
+    	if (UCharacterMovementComponent* MovementComp = GetCharacterMovement())
+    	{
+    		MovementComp->StopMovementImmediately();
+    		MovementComp->Velocity = FVector::ZeroVector;
+    	}
+    	
+        if (USkeletalMeshComponent* MeshComp = GetMesh())
+        {
+            if (UAnimInstance* AnimInstance = MeshComp->GetAnimInstance())
+            {
+                // 이미 재생 중인 몽타주가 있으면 중단하고 새로 재생
+                if (AnimInstance->Montage_IsPlaying(MontageToPlay))
+                {
+                    AnimInstance->Montage_Stop(0.2f, MontageToPlay);
+                }
+                
+                const float Duration = AnimInstance->Montage_Play(MontageToPlay, 1.0f);
+                
+                UE_LOG(LogTemp, Warning, TEXT("[%s] Playing combo %d hit reaction montage (Duration: %.2f)"), 
+                    *GetName(), ComboIndex, Duration);
+            }
+            else
+            {
+                UE_LOG(LogTemp, Error, TEXT("[%s] AnimInstance is NULL!"), *GetName());
+            }
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("[%s] MeshComp is NULL!"), *GetName());
+        }
+        
+        // 피격 사운드
+        PlaySoundIfValid(HitSound);
+        
+        // 피격 경직 타이머 설정
+        GetWorldTimerManager().ClearTimer(HitStunTimer);
+        GetWorldTimerManager().SetTimer(HitStunTimer, this, &ACEnemyCharacterBase::EndHitStun, HitStunDuration, false);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("[%s] MontageToPlay is NULL! Cannot play hit reaction"), *GetName());
+    }
+}
+
+void ACEnemyCharacterBase::EndHitStun()
+{
+	if (State == EEnemyState::Dead)
+	{
+		UE_LOG(LogTemp, Verbose, TEXT("[%s] EndHitStun ignored - already dead"), *GetName());
+		return;
+	}
+	
+	bIsHitStunned = false;
+	UE_LOG(LogTemp, Verbose, TEXT("[%s] Hit stun ended"), *GetName());
 }

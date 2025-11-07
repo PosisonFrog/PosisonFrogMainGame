@@ -88,6 +88,19 @@ void UCPlayerWeaponComponent::HandleWeaponHit(AActor* InstigatorActor, AActor* H
 
     Super::HandleWeaponHit(InstigatorActor, HitActor, FinalDamage, Hit);
 
+    UE_LOG(LogTemp, Warning, TEXT("[WeaponComp] About to broadcast combo hit: Actor=%s, Combo=%d, Damage=%.1f, Bound=%d"), 
+         *HitActor->GetName(), CurrentCombo, FinalDamage, OnPlayerComboHit.IsBound() ? 1 : 0);
+    
+    if (OnPlayerComboHit.IsBound())
+    {
+        OnPlayerComboHit.Broadcast(HitActor, CurrentCombo, FinalDamage);
+        UE_LOG(LogTemp, Warning, TEXT("[WeaponComp] Broadcast complete"));
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("[WeaponComp] OnPlayerComboHit not bound!"));
+    }
+
     if (bEnableHitKnockback && HitKnockbackStrength > 0.f)
     {
         if (ACharacter* HitCharacter = Cast<ACharacter>(HitActor))

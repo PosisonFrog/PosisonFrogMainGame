@@ -62,10 +62,16 @@ void ACTankerBrute::BeginPlay()
 {
     Super::BeginPlay();
 
-    // 피격 몽타주 설정
-    if (HitMontage)
+    // 하위 호환성: HitMontage가 설정되어 있고 ComboHitReactionMontages가 비어있으면
+    // 모든 콤보 인덱스에 동일한 몽타주 할당
+    if (HitMontage && ComboHitReactionMontages.Num() == 0)
     {
-        HitReactionMontage = HitMontage;
+        ComboHitReactionMontages.SetNum(3);
+        for (int32 i = 0; i < 3; ++i)
+        {
+            ComboHitReactionMontages[i] = HitMontage;
+        }
+        UE_LOG(LogTemp, Warning, TEXT("[TankerBrute] Auto-migrated HitMontage to ComboHitReactionMontages. Please set combo-specific montages in Blueprint."));
     }
     
     ApplyPerceptionTuning();
@@ -192,18 +198,19 @@ void ACTankerBrute::OnDead()
     {
         if (UAnimInstance* Anim = MeshComp->GetAnimInstance())
         {
-            Anim->Montage_Play(DeadMontage, 1.0f);
+            if (DeadMontage)
+            {
+                Anim->Montage_Play(DeadMontage, 1.0f);
+                UE_LOG(LogTemp, Log, TEXT("[TankerBrute] Playing death montage"));
+            }
         }
     }
     
     if (HitEffect)
     {
-        UNiagaraFunctionLibrary::SpawnSystemAtLocation(this,HitEffect,GetActorLocation(), GetActorRotation());
+        UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, HitEffect, GetActorLocation(), GetActorRotation());
     }
-    
 }
-
-
 
 void ACTankerBrute::StartAttack()
 {
@@ -213,12 +220,12 @@ void ACTankerBrute::StartAttack()
     bIsPerformingMelee = true;
     AttackStartedTime = GetWorld()->GetTimeSeconds();
 
-    
     StopMovement();
-    SpawnAttackEffect();
     PlayMontageIfValid(AttackMontage);
     PlaySoundIfValid(AttackSound);
     
+    SpawnAttackEffect();
+
     GetWorldTimerManager().SetTimer(
         Timer_WindUp,
         this,
@@ -243,7 +250,7 @@ void ACTankerBrute::BeginAttackWindow()
  
     if (bDebugAttackLog)
     {
-        UE_LOG(LogTemp, Log, TEXT("[Riot] Attack window opened (%.2fs)"), AttackActiveWindow);
+        UE_LOG(LogTemp, Log, TEXT("[TankerBrute] Attack window opened (%.2fs)"), AttackActiveWindow);
     }
 }
 
@@ -261,7 +268,7 @@ void ACTankerBrute::FinishAttack()
  
     if (bDebugAttackLog)
     {
-        UE_LOG(LogTemp, Verbose, TEXT("[Riot] Attack finished"));
+        UE_LOG(LogTemp, Verbose, TEXT("[TankerBrute] Attack finished"));
     }
 }
 
@@ -279,7 +286,7 @@ void ACTankerBrute::CancelAttack()
  
     if (bDebugAttackLog && bWasAttacking)
     {
-        UE_LOG(LogTemp, Verbose, TEXT("[Riot] Attack canceled"));
+        UE_LOG(LogTemp, Verbose, TEXT("[TankerBrute] Attack canceled"));
     }
 }
 
@@ -289,29 +296,6 @@ void ACTankerBrute::ExitState(EEnemyState OldState)
     Super::ExitState(OldState);
     if (OldState == EEnemyState::Attack)
         CancelAttack();
-}
-
-
-void ACTankerBrute::PlayMontageIfValid(UAnimMontage* Montage, float PlayRate) const
-{
-    if (!Montage)
-        return;
-
-    if (USkeletalMeshComponent* MeshComp = GetMesh())
-    {
-        if (UAnimInstance* AnimInstance = MeshComp->GetAnimInstance())
-        {
-            AnimInstance->Montage_Play(Montage, PlayRate);
-        }
-    }
-}
-
-void ACTankerBrute::PlaySoundIfValid(USoundBase* Sound) const
-{
-    if (Sound)
-    {
-        UGameplayStatics::PlaySoundAtLocation(this, Sound, GetActorLocation());
-    }
 }
 
 void ACTankerBrute::SpawnAttackEffect() const
@@ -369,7 +353,6 @@ void ACTankerBrute::StopMovementAndFaceTarget()
     if (!Target)
         return;
 
-    
     const FRotator LookAt = UKismetMathLibrary::FindLookAtRotation(GetActorLocation(), Target->GetActorLocation());
     SetActorRotation(FRotator(0.f, LookAt.Yaw, 0.f));
 }
@@ -392,7 +375,6 @@ void ACTankerBrute::InitialiseChargeComponent()
     ChargeComp->OnChargeStateChanged.AddDynamic(this, &ACTankerBrute::HandleChargeStateChanged);
     ChargeComp->OnChargeFinished.AddDynamic(this, &ACTankerBrute::HandleChargeFinished);
 }
-
 
 void ACTankerBrute::ApplyPerceptionTuning()
 {
@@ -442,7 +424,6 @@ void ACTankerBrute::UpdateChargeStopOverride(float CurrentTime)
     ChargeStopOverrideRestoreTime = -1.f;
 }
 
-
 void ACTankerBrute::HandleImmediatePostCharge(float CurrentTime)
 {
     LastChargeFinishedTime = CurrentTime;
@@ -454,11 +435,9 @@ void ACTankerBrute::HandleImmediatePostCharge(float CurrentTime)
     }
     else
     {
-        
         ChargeStopOverrideRestoreTime = CurrentTime;
     }
 }
-    
 
 void ACTankerBrute::HandleChargeStateChanged(EChargeState NewState, EChargeState /*PrevState*/)
 {
@@ -476,7 +455,6 @@ void ACTankerBrute::HandleChargeStateChanged(EChargeState NewState, EChargeState
         LastSeenTime = GetWorld()->GetTimeSeconds();
     }
 }
-
 
 void ACTankerBrute::HandleChargeFinished(EChargeEndReason Reason, AActor* HitActor)
 {

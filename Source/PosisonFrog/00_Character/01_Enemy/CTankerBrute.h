@@ -58,8 +58,6 @@ private:
 	AAIController* GetEnemyAIController() const;
 	void StopMovement() const;
 	void StopMovementAndFaceTarget();
-	void PlayMontageIfValid(UAnimMontage* Montage, float PlayRate = 1.f) const;
-	void PlaySoundIfValid(USoundBase* Sound) const;
 	void SpawnAttackEffect() const;
 	void SpawnHitEffectAtForward() const;
 	void SpawnHitEffectAtLocation() const;
@@ -119,6 +117,7 @@ protected:
 	TObjectPtr<UAnimMontage> DeadMontage = nullptr;
 	
 	UPROPERTY(EditAnywhere, Category="PF|Animation")
+	/** @deprecated Use ComboHitReactionMontages array in base class for combo-specific hit reactions */
 	TObjectPtr<UAnimMontage> HitMontage = nullptr;
 
 	UPROPERTY(EditAnywhere, Category="PF|Sound")

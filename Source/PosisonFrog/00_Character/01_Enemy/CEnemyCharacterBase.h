@@ -199,6 +199,7 @@ public:
 protected:
     // AActor
     virtual void BeginPlay() override;
+    virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override; 
     virtual void Tick(float DeltaSeconds) override;
 
     // FSM
@@ -206,8 +207,7 @@ protected:
     virtual void EnterState(EEnemyState NewState);      // 새 상태 진입시 호출, 상태 초기화 작업.
     virtual void ExitState(EEnemyState OldState);       // 현 상태에서 벗어날 시 호출. 정리 작업.
     void         SetState(EEnemyState NewState);        // 상태 변경 함수. 위 두 함수 순서대로 호출.
-
-    void PlaySoundIfValid(USoundBase* Sound) const;
+    
     
     // 상태 처리
     virtual void DoPatrol();     //순찰
@@ -237,10 +237,22 @@ protected:
                              AController* EventInstigator, AActor* DamageCauser) override;
     UFUNCTION() void OnHealthChanged(float Cur, float Max);
     virtual void OnDead();
-    virtual void PlayHitReaction();  // 피격 반응 재생
+
+    // 플레이어 콤보 공격 피격 처리
+    UFUNCTION()
+    void OnPlayerComboHit(AActor* HitActor, int32 ComboIndex, float Damage);
+    void SubscribeToPlayerComboHits();
+    void UnsubscribeFromPlayerComboHits();
     virtual void TryDropHealPack();
     void DisableAllCollisions();
     void EndHitStun();  // 피격 경직 종료
+
+    // ───────── 공통 유틸리티 함수 ─────────
+    /** 몽타주가 유효하면 재생 */
+    void PlayMontageIfValid(UAnimMontage* Montage, float PlayRate = 1.f) const;
+    
+    /** 사운드가 유효하면 재생 */
+    void PlaySoundIfValid(USoundBase* Sound) const;
 
 
     // 전투(스윙 창(애님 노티파이) + 분할 스윕)
@@ -326,7 +338,14 @@ protected:
     
     // 애니메이션
     UPROPERTY(EditAnywhere, Category="PF|Animation")
-    UAnimMontage* HitReactionMontage = nullptr;
+    TArray<UAnimMontage*> HitReactionMontages;
+
+    /** 플레이어 콤보별 피격 반응 몽타주 (인덱스: 0=1타, 1=2타, 2=3타). 비어있으면 HitReactionMontages 사용 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="PF|Animation|ComboReaction")
+    TArray<UAnimMontage*> ComboHitReactionMontages;
+
+    UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "PF|Animation")
+    int32 PlayerCurrentCombo = 0;
     
     //체력 컴포넌트
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="PF|Components")
