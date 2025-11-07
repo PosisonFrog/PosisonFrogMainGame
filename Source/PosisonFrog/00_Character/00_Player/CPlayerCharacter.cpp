@@ -80,10 +80,6 @@ ACPlayerCharacter::ACPlayerCharacter()
     SpringArm->CameraLagSpeed = 5.f;                // 관성 속도 (낮을수록 느림, 보통 3~15)
     SpringArm->CameraLagMaxDistance = 200.f;          // 최대 지연 거리
     
-    // 회전 관성(Rotation Lag) 설정
-    SpringArm->bEnableCameraRotationLag = true;      // 회전 관성 활성화
-    SpringArm->CameraRotationLagSpeed = 8.f;         // 회전 관성 속도 (낮을수록 느림)
-    SpringArm->CameraLagMaxTimeStep = 0.1f;          // 최대 시간 간격 (부드러움 조절)
     
     bUseControllerRotationPitch = false;
     bUseControllerRotationYaw = false;
