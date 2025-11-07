@@ -110,6 +110,7 @@ protected:
     
 private:
     UPROPERTY() UCHitStopComponent* HitStopComponent = nullptr;
+    bool bHitStopTriggeredThisCombo = false; // 히트스톱 중복을 막기위한 플래그
     
     bool bHasNotifiedAttackEnd = false;
     

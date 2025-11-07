@@ -93,8 +93,10 @@ void UCPlayerWeaponComponent::HandleWeaponHit(AActor* InstigatorActor, AActor* H
 
     if (bEnableHitStop && IsValid(HitStopComponent) && CurrentCombo == 2)
     {
+        bHitStopTriggeredThisCombo = true;
+        
         TArray<AActor*> HitStopTargets;
-
+        
         if (OwnerChar.IsValid())
             HitStopTargets.Add(OwnerChar.Get());
         if (IsValid(HitActor))
@@ -192,6 +194,8 @@ void UCPlayerWeaponComponent::DoAttack()
 
 void UCPlayerWeaponComponent::PlayComboAttack()
 {
+    bHitStopTriggeredThisCombo = false;
+    
     if (!PlayerComboMontages.IsValidIndex(CurrentCombo))
     {
         CLog::Log(TEXT("[WeaponComp] PlayComboAttack: invalid index"));
