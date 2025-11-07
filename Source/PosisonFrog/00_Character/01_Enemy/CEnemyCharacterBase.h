@@ -327,6 +327,10 @@ protected:
     FVector InitialSpawnLocation = FVector::ZeroVector;
     FRotator InitialSpawnRotation = FRotator::ZeroRotator;
     FTimerHandle HitStunTimer;  // 피격 경직 타이머
+    FTimerHandle HitShakeTimer; // 셰이킹 타이머
+    FVector OriginalMeshLocation = FVector::ZeroVector;
+    bool bIsShaking = false;
+    float HitShakeElapsed = 0.f;
 
 
     // 피격 경직
@@ -335,6 +339,19 @@ protected:
 
     UPROPERTY(VisibleInstanceOnly, Category="PF|HitReaction")
     bool bIsHitStunned = false;  // 피격 경직 상태
+
+    UPROPERTY(EditAnywhere, Category="PF|HitReaction", meta=(ClampMin="0", ClampMax="2"))
+    float HitShakeDuration = 0.5f;  // 쉐이킹 지속 시간
+
+    UPROPERTY(EditAnywhere, Category="PF|HitReaction", meta=(ClampMin="0", ClampMax="100"))
+    float HitShakeIntensity = 15.f;  // 쉐이킹 세기 (위아래 움직임)
+    
+    UPROPERTY(EditAnywhere, Category="PF|HitReaction", meta=(ClampMin="0", ClampMax="200"))
+    float HitShakeFrequency = 20.f;  // 쉐이킹 속도 (높을수록 빠름)
+
+    void StartHitShake();
+    void UpdateHitShake();
+    void StopHitShake();
     
     // 애니메이션
     UPROPERTY(EditAnywhere, Category="PF|Animation")

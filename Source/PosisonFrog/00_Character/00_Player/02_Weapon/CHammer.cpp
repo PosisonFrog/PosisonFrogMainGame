@@ -15,7 +15,7 @@ ACHammer::ACHammer()
 	DamageBoxSocketName = FName("HammerHead_Socket");
 	DamageBoxRelativeLocation = FVector::ZeroVector;
 	DamageBoxRelativeRotation = FRotator::ZeroRotator;
-	DamageBoxExtent = FVector(54.0f, 60.0f, 60.0f);
+	DamageBoxExtent = FVector(100.f, 100.f, 100.f);
 
 	Damage = 20.0f;
 }

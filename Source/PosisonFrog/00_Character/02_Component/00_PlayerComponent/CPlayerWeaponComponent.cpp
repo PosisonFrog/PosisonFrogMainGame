@@ -10,6 +10,7 @@
 #include "Engine/World.h"
 #include "99_Util/CLog.h"
 #include "AnimNodes/AnimNode_RandomPlayer.h"
+#include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -108,26 +109,27 @@ void UCPlayerWeaponComponent::HandleWeaponHit(AActor* InstigatorActor, AActor* H
             if (HitCharacter->FindComponentByClass<UCEnemyHealthComponent>())
             {
                 FVector KnockDirection = FVector::ZeroVector;
-                           
-                if (Hit.bBlockingHit)
+            
+                // 적 캡슐 컴포넌트 중심 위치 가져오기
+                UCapsuleComponent* HitCapsule = HitCharacter->GetCapsuleComponent();
+                if (HitCapsule && OwnerChar.IsValid())
                 {
-                    KnockDirection = -Hit.ImpactNormal;
-                    KnockDirection.Z = 0.f;
+                    // 플레이어 → 적 캡슐 중심 방향
+                    FVector PlayerLoc = OwnerChar->GetActorLocation();
+                    FVector EnemyLoc = HitCapsule->GetComponentLocation();
+                
+                    KnockDirection = (EnemyLoc - PlayerLoc);
+                    KnockDirection.Z = 0.f;  // 수평 방향만
+                    KnockDirection.Normalize();
                 }
-                           
-                if (KnockDirection.IsNearlyZero() && OwnerChar.IsValid())
-                {
-                    KnockDirection = HitCharacter->GetActorLocation() - OwnerChar->GetActorLocation();
-                    KnockDirection.Z = 0.f;
-                }
-                           
+            
+                // 예외 처리: 방향 계산 실패 시 폴백
                 if (KnockDirection.IsNearlyZero())
                 {
                     KnockDirection = HitCharacter->GetActorForwardVector();
                     KnockDirection.Z = 0.f;
                 }
-                         
-                KnockDirection = KnockDirection.GetSafeNormal();
+            
                 if (!KnockDirection.IsNearlyZero())
                 {
                     FVector LaunchVelocity = KnockDirection * HitKnockbackStrength;
@@ -135,7 +137,7 @@ void UCPlayerWeaponComponent::HandleWeaponHit(AActor* InstigatorActor, AActor* H
                     {
                         LaunchVelocity.Z += HitKnockbackUpStrength;
                     }
-                                   
+                
                     HitCharacter->LaunchCharacter(LaunchVelocity, true, HitKnockbackUpStrength > 0.f);
                 }
             }

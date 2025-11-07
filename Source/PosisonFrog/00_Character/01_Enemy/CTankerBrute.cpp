@@ -145,13 +145,21 @@ void ACTankerBrute::DoAttack()
         bIsPerformingMelee = false;
         return;
     }
+
+     
+    if (bIsAttacking || bIsPerformingMelee)
+    {
+        return;
+    }
     
     if (TryStartCharge())
     {
         bIsPerformingMelee = false;
         LastSeenTime = GetWorld()->GetTimeSeconds();
+        return;
     }
-
+   
+    
     const float Dist = DistToTarget();
     const float ExitDistance = FMath::Max(AttackExitDistance, MeleeAttackDistance * 1.1f);
     if (Dist > ExitDistance)
@@ -220,9 +228,10 @@ void ACTankerBrute::StartAttack()
     bIsPerformingMelee = true;
     AttackStartedTime = GetWorld()->GetTimeSeconds();
 
-    StopMovement();
+    StopMove();
     PlayMontageIfValid(AttackMontage);
     PlaySoundIfValid(AttackSound);
+    
     
     SpawnAttackEffect();
 
@@ -263,6 +272,7 @@ void ACTankerBrute::EndAttackWindow(bool bForced)
 void ACTankerBrute::FinishAttack()
 {
     bIsAttacking = false;
+    bIsPerformingMelee = false;  
     
     ClearAttackTimers();
  

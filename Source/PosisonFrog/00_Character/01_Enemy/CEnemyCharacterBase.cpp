@@ -90,6 +90,11 @@ void ACEnemyCharacterBase::BeginPlay()
 		HealthComponent->OnHealthChanged.AddDynamic(this, &ACEnemyCharacterBase::OnHealthChanged);
 	}
 
+	if (USkeletalMeshComponent* MeshComp = GetMesh())
+	{
+		OriginalMeshLocation = MeshComp->GetRelativeLocation();
+	}
+
 
 	// 플레이어 콤보 히트 델리게이트 구독함수
 	SubscribeToPlayerComboHits();
@@ -100,6 +105,7 @@ void ACEnemyCharacterBase::BeginPlay()
 void ACEnemyCharacterBase::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	UnsubscribeFromPlayerComboHits();
+	StopHitShake();
 	Super::EndPlay(EndPlayReason);
 }
 
@@ -816,6 +822,8 @@ void ACEnemyCharacterBase::EnableAllCollisions()
 		mesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 }
 
+
+
 void ACEnemyCharacterBase::SaveInitialTransform()
 {
 	InitialSpawnLocation = GetActorLocation();
@@ -1183,6 +1191,7 @@ void ACEnemyCharacterBase::OnPlayerComboHit(AActor* HitActor, int32 ComboIndex, 
     
     // 콤보 인덱스 저장
     PlayerCurrentCombo = ComboIndex;
+	StartHitShake();
     
     // 콤보에 맞는 피격 몽타주 재생
     UAnimMontage* MontageToPlay = nullptr;
@@ -1272,4 +1281,82 @@ void ACEnemyCharacterBase::EndHitStun()
 	
 	bIsHitStunned = false;
 	UE_LOG(LogTemp, Verbose, TEXT("[%s] Hit stun ended"), *GetName());
+}
+
+void ACEnemyCharacterBase::StartHitShake()
+{
+	if (bIsShaking)
+	{
+		StopHitShake();
+	}
+
+	USkeletalMeshComponent* MeshComp = GetMesh();
+	if (!MeshComp)
+		return;
+
+	bIsShaking = true;
+	HitShakeElapsed = 0.f;
+	OriginalMeshLocation = MeshComp->GetRelativeLocation();
+
+	GetWorldTimerManager().SetTimer(
+		HitShakeTimer,
+		this,
+		&ACEnemyCharacterBase::UpdateHitShake,
+		0.01f,  // 100fps로 업데이트
+		true
+	);
+
+	if (bShowDebugInfo)
+	{
+		UE_LOG(LogTemp, Log, TEXT("[Enemy] Hit shake started"));
+	}
+}
+
+void ACEnemyCharacterBase::UpdateHitShake()
+{
+	USkeletalMeshComponent* MeshComp = GetMesh();
+	if (!MeshComp || !bIsShaking)
+	{
+		StopHitShake();
+		return;
+	}
+
+	HitShakeElapsed += 0.01f;
+
+	// 지속 시간 종료
+	if (HitShakeElapsed >= HitShakeDuration)
+	{
+		StopHitShake();
+		return;
+	}
+
+	// 사인파로 위아래 흔들기
+	const float Progress = HitShakeElapsed / HitShakeDuration;
+	const float DecayFactor = 1.f - Progress;  // 점점 약해지는 효과
+	const float ShakeAmount = FMath::Sin(HitShakeElapsed * HitShakeFrequency) * HitShakeIntensity * DecayFactor;
+    
+	FVector NewLocation = OriginalMeshLocation;
+	NewLocation.Z += ShakeAmount;
+    
+	MeshComp->SetRelativeLocation(NewLocation);
+}
+
+void ACEnemyCharacterBase::StopHitShake()
+{
+	if (!bIsShaking)
+		return;
+
+	bIsShaking = false;
+	GetWorldTimerManager().ClearTimer(HitShakeTimer);
+
+	// 원래 위치로 복귀
+	if (USkeletalMeshComponent* MeshComp = GetMesh())
+	{
+		MeshComp->SetRelativeLocation(OriginalMeshLocation);
+	}
+
+	if (bShowDebugInfo)
+	{
+		UE_LOG(LogTemp, Log, TEXT("[Enemy] Hit shake stopped"));
+	}
 }
