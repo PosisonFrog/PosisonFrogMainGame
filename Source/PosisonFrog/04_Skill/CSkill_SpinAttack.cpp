@@ -18,6 +18,7 @@
 #include "Engine/EngineTypes.h"
 #include "GameFramework/DamageType.h"
 #include "NiagaraComponent.h"
+#include "00_Character/02_Component/CHitStopComponent.h"
 
 
 UCSkill_SpinAttack::UCSkill_SpinAttack()
@@ -35,6 +36,8 @@ UCSkill_SpinAttack::UCSkill_SpinAttack()
         DamageTypeClass = UDamageType::StaticClass();
     if (!FinisherDamageTypeClass)
         FinisherDamageTypeClass = UDamageType::StaticClass();
+
+    HitStopComponent = CreateDefaultSubobject<UCHitStopComponent>(TEXT("HitStopComponent"));
 }
 
 void UCSkill_SpinAttack::TryStartSpin()
@@ -333,6 +336,27 @@ void UCSkill_SpinAttack::DoFinisherImpact()
             Inst,
             Owner,
             FinisherDamageTypeClass);
+    }
+
+    if (bEnableHitStop && IsValid(HitStopComponent) && Targets.Num() > 0)
+    {
+        TArray<AActor*> HitStopTargets;
+        HitStopTargets.Add(Owner);
+        HitStopTargets.Append(Targets);
+
+        if (ACPlayerCharacter* PlayerChar = Cast<ACPlayerCharacter>(Owner))
+        {
+            if (UCPlayerWeaponComponent* WeaponComp = PlayerChar->FindComponentByClass<UCPlayerWeaponComponent>())
+            {
+                if (ACHammer* Hammer = WeaponComp->GetHammer())
+                    HitStopTargets.Add(Hammer);
+            }
+        }
+
+        HitStopComponent->StartMultipleHitStop(
+            HitStopTargets,
+            FinisherHitStopDuration,
+            FinisherHitStopTimeScale);
     }
     
     // 연출(선택)

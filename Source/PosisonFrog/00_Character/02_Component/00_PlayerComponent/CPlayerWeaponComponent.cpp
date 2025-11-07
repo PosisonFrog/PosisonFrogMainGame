@@ -7,6 +7,7 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "Animation/AnimInstance.h"
 #include "TimerManager.h"
+#include "00_Character/02_Component/CHitStopComponent.h"
 #include "Engine/World.h"
 #include "99_Util/CLog.h"
 #include "AnimNodes/AnimNode_RandomPlayer.h"
@@ -20,6 +21,8 @@ class IBuffable;
 UCPlayerWeaponComponent::UCPlayerWeaponComponent()
 {
     AttachSocketName = TEXT("Hand_Hammer");
+
+    HitStopComponent = CreateDefaultSubobject<UCHitStopComponent>(TEXT("HitStopComponent"));
 }
 
 void UCPlayerWeaponComponent::SpawnWeapon()
@@ -83,15 +86,16 @@ void UCPlayerWeaponComponent::HandleWeaponHit(AActor* InstigatorActor, AActor* H
             FinalDamage *= Multiplier;
 
             if (Multiplier != 1.0f)
-                UE_LOG(LogTemp,Log,TEXT("[BaseWeaponComp] Damage scale : %.1f -> %.1f (x%.2f)"), Damage, FinalDamage, Multiplier);
+                UE_LOG(LogTemp, Log, TEXT("[BaseWeaponComp] Damage scale : %.1f -> %.1f (x%.2f)"), Damage, FinalDamage, Multiplier);
         }
     }
 
     Super::HandleWeaponHit(InstigatorActor, HitActor, FinalDamage, Hit);
 
-    UE_LOG(LogTemp, Warning, TEXT("[WeaponComp] About to broadcast combo hit: Actor=%s, Combo=%d, Damage=%.1f, Bound=%d"), 
-         *HitActor->GetName(), CurrentCombo, FinalDamage, OnPlayerComboHit.IsBound() ? 1 : 0);
-    
+
+    UE_LOG(LogTemp, Warning, TEXT("[WeaponComp] About to broadcast combo hit: Actor=%s, Combo=%d, Damage=%.1f, Bound=%d"),
+        *HitActor->GetName(), CurrentCombo, FinalDamage, OnPlayerComboHit.IsBound() ? 1 : 0);
+
     if (OnPlayerComboHit.IsBound())
     {
         OnPlayerComboHit.Broadcast(HitActor, CurrentCombo, FinalDamage);
@@ -102,6 +106,25 @@ void UCPlayerWeaponComponent::HandleWeaponHit(AActor* InstigatorActor, AActor* H
         UE_LOG(LogTemp, Error, TEXT("[WeaponComp] OnPlayerComboHit not bound!"));
     }
 
+    if (bEnableHitStop && IsValid(HitStopComponent) && CurrentCombo == 2)
+    {
+        bHitStopTriggeredThisCombo = true;
+        
+        TArray<AActor*> HitStopTargets;
+        
+        if (OwnerChar.IsValid())
+            HitStopTargets.Add(OwnerChar.Get());
+        if (IsValid(HitActor))
+            HitStopTargets.Add(HitActor);
+        if (IsValid(CurrentWeapon))
+            HitStopTargets.Add(CurrentWeapon);
+
+        HitStopComponent->StartMultipleHitStop(
+            HitStopTargets,
+            ThirdComboHitStopDuration,
+            ThirdComboHitStopTimeScale);
+    }
+    
     if (bEnableHitKnockback && HitKnockbackStrength > 0.f)
     {
         if (ACharacter* HitCharacter = Cast<ACharacter>(HitActor))
@@ -187,6 +210,8 @@ void UCPlayerWeaponComponent::DoAttack()
 
 void UCPlayerWeaponComponent::PlayComboAttack()
 {
+    bHitStopTriggeredThisCombo = false;
+    
     if (!PlayerComboMontages.IsValidIndex(CurrentCombo))
     {
         CLog::Log(TEXT("[WeaponComp] PlayComboAttack: invalid index"));
