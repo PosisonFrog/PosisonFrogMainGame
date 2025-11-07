@@ -10,10 +10,7 @@
 #include "00_Character/02_Component/CHitStopComponent.h"
 #include "Engine/World.h"
 #include "99_Util/CLog.h"
-#include "AnimNodes/AnimNode_RandomPlayer.h"
 #include "Components/CapsuleComponent.h"
-#include "GameFramework/CharacterMovementComponent.h"
-#include "Kismet/GameplayStatics.h"
 
 
 class IBuffable;
@@ -106,7 +103,7 @@ void UCPlayerWeaponComponent::HandleWeaponHit(AActor* InstigatorActor, AActor* H
         UE_LOG(LogTemp, Error, TEXT("[WeaponComp] OnPlayerComboHit not bound!"));
     }
 
-    if (bEnableHitStop && IsValid(HitStopComponent) && CurrentCombo == 2)
+    if (bEnableHitStop && IsValid(HitStopComponent) && CurrentCombo == 2 && !bHitStopTriggeredThisCombo)
     {
         bHitStopTriggeredThisCombo = true;
         
