@@ -116,6 +116,64 @@ void UCPlayerWeaponComponent::HandleWeaponHit(AActor* InstigatorActor, AActor* H
         if (IsValid(CurrentWeapon))
             HitStopTargets.Add(CurrentWeapon);
 
+        // 플레이어 애니메이션 명시적 정지
+        if (OwnerChar.IsValid() && OwnerChar->GetMesh())
+        {
+            UAnimInstance* PlayerAnimInst = OwnerChar->GetMesh()->GetAnimInstance();
+            if (PlayerAnimInst)
+            {
+                if (UAnimMontage* CurrentMontage = PlayerAnimInst->GetCurrentActiveMontage())
+                {
+                    PlayerAnimInst->Montage_Pause(CurrentMontage);
+                    
+                    // 히트스톱 종료 후 재개
+                    FTimerHandle ResumeTimer;
+                    GetWorld()->GetTimerManager().SetTimer(
+                        ResumeTimer,
+                        [PlayerAnimInst, CurrentMontage]()
+                        {
+                            if (IsValid(PlayerAnimInst) && IsValid(CurrentMontage))
+                            {
+                                PlayerAnimInst->Montage_Resume(CurrentMontage);
+                            }
+                        },
+                        ThirdComboHitStopDuration,
+                        false
+                    );
+                }
+            }
+        }
+
+        // 해머 애니메이션 명시적 정지
+        ACHammer* Hammer = GetHammer();
+        if (IsValid(Hammer) && Hammer->GetHammerMesh())
+        {
+            UAnimInstance* HammerAnimInst = Hammer->GetHammerMesh()->GetAnimInstance();
+            if (HammerAnimInst)
+            {
+                // 현재 재생 중인 몽타주 일시정지
+                if (UAnimMontage* CurrentMontage = HammerAnimInst->GetCurrentActiveMontage())
+                {
+                    HammerAnimInst->Montage_Pause(CurrentMontage);
+                    
+                    // 히트스톱 종료 후 재개하기 위한 타이머
+                    FTimerHandle ResumeTimer;
+                    GetWorld()->GetTimerManager().SetTimer(
+                        ResumeTimer,
+                        [HammerAnimInst, CurrentMontage]()
+                        {
+                            if (IsValid(HammerAnimInst) && IsValid(CurrentMontage))
+                            {
+                                HammerAnimInst->Montage_Resume(CurrentMontage);
+                            }
+                        },
+                        ThirdComboHitStopDuration,
+                        false
+                    );
+                }
+            }
+        }
+
         HitStopComponent->StartMultipleHitStop(
             HitStopTargets,
             ThirdComboHitStopDuration,
