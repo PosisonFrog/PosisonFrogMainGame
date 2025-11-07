@@ -815,14 +815,28 @@ void ACEnemyCharacterBase::DisableAllCollisions()
 
 void ACEnemyCharacterBase::EnableAllCollisions()
 {
-	if (UCapsuleComponent* Capsule = GetCapsuleComponent())
-		Capsule->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	if (UCapsuleComponent* CapsuleComp = GetCapsuleComponent())
+	{
+		CapsuleComp->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+		CapsuleComp->SetCollisionResponseToAllChannels(ECR_Block);
+		CapsuleComp->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
+		CapsuleComp->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
+		CapsuleComp->SetGenerateOverlapEvents(true);
+	}
 
-	if (USkeletalMeshComponent* mesh = GetMesh())
-		mesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	if (USkeletalMeshComponent* MeshComp = GetMesh())
+	{
+		MeshComp->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+		MeshComp->SetCollisionObjectType(ECC_Pawn);
+		MeshComp->SetCollisionResponseToAllChannels(ECR_Block);
+		MeshComp->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
+		MeshComp->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
+		MeshComp->SetGenerateOverlapEvents(true);
+	}
+
+	SetActorEnableCollision(true);
+	SetCanBeDamaged(true);
 }
-
-
 
 void ACEnemyCharacterBase::SaveInitialTransform()
 {
@@ -834,33 +848,87 @@ void ACEnemyCharacterBase::ResetToInitialTransform()
 {
 	SetActorLocation(InitialSpawnLocation);
 	SetActorRotation(InitialSpawnRotation);
+
+	if (UCharacterMovementComponent* Movement = GetCharacterMovement())
+	{
+		Movement->StopMovementImmediately();
+		Movement->Velocity = FVector::ZeroVector;
+	}
 }
 
 void ACEnemyCharacterBase::ResetForRespawn()
 {
-	if (HealthComponent)
-		HealthComponent->ResetHealth();
-
-	EnableAllCollisions();
-	SetState(EEnemyState::Patrol);
+	// 상태 초기화
+	State = EEnemyState::Patrol;
 	Target = nullptr;
+    
+	// 타이머 초기화
+	LastSeenTime = -1000.f;
+	LastAttackTime = -1000.f;
+	StateEnterTime = -1000.f;
+	NextThinkTime = 0.f;
+    
+	// 전투 관련 초기화
+	bIsHitStunned = false;
+	bIsPerformingMelee = false;
+	bAttackWindowActive = false;
+	SwingHitActors.Reset();
+	AttackWindowEndTime = -1.f;
+    
+	// 타이머 정리
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(HitStunTimer);
+	}
+    
+	// 직진 스티어링 초기화
+	bDirectMoveActive = false;
 
-	ResetToInitialTransform();
+	if (UCharacterMovementComponent* Movement = GetCharacterMovement())
+	{
+		Movement->SetMovementMode(MOVE_Walking);
+		Movement->SetComponentTickEnabled(true);
+		Movement->Activate();
+		Movement->Velocity = FVector::ZeroVector;
+		Movement->SetActive(true);
+		Movement->bForceNextFloorCheck = true;
+	}
+
+	if (HealthComponent)
+	{
+		HealthComponent->ResetHealth();
+	}
+
+	if (USkeletalMeshComponent* MeshComp = GetMesh())
+	{
+		if (UAnimInstance* AnimInst = MeshComp->GetAnimInstance())
+		{
+			AnimInst->Montage_Stop(0.0f);
+		}
+	}
+	
+	EnableAllCollisions();
 }
 
 void ACEnemyCharacterBase::ForceRestartAI()
 {
-	if (AAIController* AIC = Cast<AAIController>(GetController()))
+	if (AAIController* OldAI = Cast<AAIController>(GetController()))
 	{
-		if (UBrainComponent* Brain = AIC->GetBrainComponent())
+		OldAI->UnPossess();
+		OldAI->Destroy();
+	}
+
+	SpawnDefaultController();
+
+	if (AAIController* NewAI = Cast<AAIController>(GetController()))
+	{
+		if (UBrainComponent* Brain = NewAI->GetBrainComponent())
 		{
-			Brain->StopLogic(TEXT("ForceRestart"));
-			Brain->RestartLogic();
+			if (!Brain->IsRunning())
+				Brain->StartLogic();
 		}
 	}
 }
-
-
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 전투(스윙 창 + 분할 스윕)

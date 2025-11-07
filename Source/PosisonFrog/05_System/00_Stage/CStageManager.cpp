@@ -684,36 +684,15 @@ void ACStageManager::ResetEnemy(ACEnemyCharacterBase* Enemy)
 	Enemy->SetLifeSpan(0.0f);
 	Enemy->ResetForRespawn();
 	Enemy->ResetToInitialTransform();
-	
-	if (UCharacterMovementComponent* Movement = Enemy->GetCharacterMovement())
-	{
-		Movement->SetMovementMode(MOVE_Walking);
-		Movement->SetComponentTickEnabled(true);
-		Movement->Activate();
-		Movement->Velocity = FVector::ZeroVector;
-		Movement->SetActive(true);
-		Movement->bForceNextFloorCheck = true;
-	}
 
 	if (UCBaseHealthComponent* HealthComp = Enemy->FindComponentByClass<UCBaseHealthComponent>())
 	{
-		HealthComp->ResetHealth();
 		HealthComp->OnDeath.RemoveAll(this);
 		HealthComp->OnDeath.AddDynamic(this, &ACStageManager::OnEnemyDied);
 	}
 
 	Enemy->ForceRestartAI();
-	
-	if (USkeletalMeshComponent* Mesh = Enemy->GetMesh())
-	{
-		if (UAnimInstance* AnimInst = Mesh->GetAnimInstance())
-		{
-			AnimInst->Montage_Stop(0.0f);
-		}
-	}
 
-	Enemy->EnableAllCollisions();
-	
 	Enemy->SetActorHiddenInGame(false);
 	Enemy->SetActorTickEnabled(true);
 }
