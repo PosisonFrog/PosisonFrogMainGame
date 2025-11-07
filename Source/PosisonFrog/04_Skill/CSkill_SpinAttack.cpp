@@ -351,12 +351,108 @@ void UCSkill_SpinAttack::DoFinisherImpact()
                 if (ACHammer* Hammer = WeaponComp->GetHammer())
                     HitStopTargets.Add(Hammer);
             }
+
+            // 플레이어 및 해머 애니메이션 명시적 정지
+            if (PlayerChar->GetMesh())
+            {
+                if (UAnimInstance* PlayerAnimInst = PlayerChar->GetMesh()->GetAnimInstance())
+                {
+                    if (UAnimMontage* CurrentMontage = PlayerAnimInst->GetCurrentActiveMontage())
+                    {
+                        PlayerAnimInst->Montage_Pause(CurrentMontage);
+                        
+                        FTimerHandle ResumeTimer;
+                        GetWorld()->GetTimerManager().SetTimer(
+                            ResumeTimer,
+                            [PlayerAnimInst, CurrentMontage]()
+                            {
+                                if (IsValid(PlayerAnimInst) && IsValid(CurrentMontage))
+                                {
+                                    PlayerAnimInst->Montage_Resume(CurrentMontage);
+                                }
+                            },
+                            FinisherHitStopDuration,
+                            false
+                        );
+                    }
+                }
+            }
+
+            if (UCPlayerWeaponComponent* WeaponComp = PlayerChar->FindComponentByClass<UCPlayerWeaponComponent>())
+            {
+                if (ACHammer* Hammer = WeaponComp->GetHammer())
+                {
+                    if (Hammer->GetHammerMesh())
+                    {
+                        if (UAnimInstance* HammerAnimInst = Hammer->GetHammerMesh()->GetAnimInstance())
+                        {
+                            if (UAnimMontage* CurrentMontage = HammerAnimInst->GetCurrentActiveMontage())
+                            {
+                                HammerAnimInst->Montage_Pause(CurrentMontage);
+                                
+                                FTimerHandle ResumeTimer;
+                                GetWorld()->GetTimerManager().SetTimer(
+                                    ResumeTimer,
+                                    [HammerAnimInst, CurrentMontage]()
+                                    {
+                                        if (IsValid(HammerAnimInst) && IsValid(CurrentMontage))
+                                        {
+                                            HammerAnimInst->Montage_Resume(CurrentMontage);
+                                        }
+                                    },
+                                    FinisherHitStopDuration,
+                                    false
+                                );
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         HitStopComponent->StartMultipleHitStop(
             HitStopTargets,
             FinisherHitStopDuration,
             FinisherHitStopTimeScale);
+    }
+
+    // 피니셔 넉백: 플레이어 정면 방향으로 적들을 Launch
+    if (bEnableFinisherKnockback && FinisherKnockbackStrength > 0.f && Targets.Num() > 0)
+    {
+        // 플레이어의 정면 방향 벡터 (수평만)
+        FVector LaunchDirection = Owner->GetActorForwardVector();
+        LaunchDirection.Z = 0.f;
+        LaunchDirection.Normalize();
+
+        if (!LaunchDirection.IsNearlyZero())
+        {
+            // 히트스톱 종료 후 Launch 적용
+            FTimerHandle KnockbackTimer;
+            FTimerDelegate KnockbackDelegate;
+            KnockbackDelegate.BindLambda([this, Targets, LaunchDirection]()
+            {
+                for (AActor* Target : Targets)
+                {
+                    if (ACharacter* HitCharacter = Cast<ACharacter>(Target))
+                    {
+                        FVector LaunchVelocity = LaunchDirection * FinisherKnockbackStrength;
+                        if (FinisherKnockbackUpStrength > 0.f)
+                        {
+                            LaunchVelocity.Z += FinisherKnockbackUpStrength;
+                        }
+                        
+                        HitCharacter->LaunchCharacter(LaunchVelocity, true, FinisherKnockbackUpStrength > 0.f);
+                    }
+                }
+            });
+            
+            GetWorld()->GetTimerManager().SetTimer(
+                KnockbackTimer,
+                KnockbackDelegate,
+                FinisherHitStopDuration,
+                false
+            );
+        }
     }
     
     // 연출(선택)
@@ -368,4 +464,3 @@ void UCSkill_SpinAttack::DoFinisherImpact()
         if (APlayerController* PC = Cast<APlayerController>(UGameplayStatics::GetPlayerController(GetWorld(), 0)))
             PC->ClientStartCameraShake(FinisherCameraShake);
 }
-

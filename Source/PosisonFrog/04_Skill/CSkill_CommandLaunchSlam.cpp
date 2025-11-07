@@ -15,6 +15,7 @@
 #include "Global.h"
 #include "00_Character/01_Enemy/CEnemyCharacterBase.h"
 #include "00_Character/02_Component/00_PlayerComponent/CPlayerWeaponComponent.h"
+#include "00_Character/02_Component/CHitStopComponent.h"
 
 UCSkill_CommandLaunchSlam::UCSkill_CommandLaunchSlam()
 {
@@ -24,6 +25,8 @@ UCSkill_CommandLaunchSlam::UCSkill_CommandLaunchSlam()
 
     LaunchAllowTags = { TEXT("Enemy.Type.Normal"), TEXT("Enemy.Type.Ranged") };
     LaunchDenyTags  = { TEXT("Enemy.Type.Tank"),   TEXT("Enemy.Type.Boss") };
+
+    HitStopComponent = CreateDefaultSubobject<UCHitStopComponent>(TEXT("HitStopComponent"));
 }
 
 void UCSkill_CommandLaunchSlam::BeginPlay()
@@ -438,6 +441,79 @@ void UCSkill_CommandLaunchSlam::DoShockwaveImpact()
             Inst,
             OwnerChar.Get(),
             ShockwaveDamageType); // Fury 스택 X
+    }
+
+    // 히트스톱 적용
+    if (bEnableHitStop && IsValid(HitStopComponent) && Affected.Num() > 0)
+    {
+        TArray<AActor*> HitStopTargets;
+        HitStopTargets.Add(OwnerChar.Get());
+        
+        for (ACharacter* C : Affected)
+        {
+            if (C && C->IsA(ACEnemyCharacterBase::StaticClass()))
+                HitStopTargets.Add(C);
+        }
+
+        if (Hammer.IsValid())
+            HitStopTargets.Add(Hammer.Get());
+
+        // 플레이어 애니메이션 명시적 정지
+        if (OwnerChar->GetMesh())
+        {
+            if (UAnimInstance* PlayerAnimInst = OwnerChar->GetMesh()->GetAnimInstance())
+            {
+                if (UAnimMontage* CurrentMontage = PlayerAnimInst->GetCurrentActiveMontage())
+                {
+                    PlayerAnimInst->Montage_Pause(CurrentMontage);
+                    
+                    FTimerHandle ResumeTimer;
+                    GetWorld()->GetTimerManager().SetTimer(
+                        ResumeTimer,
+                        [PlayerAnimInst, CurrentMontage]()
+                        {
+                            if (IsValid(PlayerAnimInst) && IsValid(CurrentMontage))
+                            {
+                                PlayerAnimInst->Montage_Resume(CurrentMontage);
+                            }
+                        },
+                        SlamHitStopDuration,
+                        false
+                    );
+                }
+            }
+        }
+
+        // 해머 애니메이션 명시적 정지
+        if (Hammer.IsValid() && Hammer->GetHammerMesh())
+        {
+            if (UAnimInstance* HammerAnimInst = Hammer->GetHammerMesh()->GetAnimInstance())
+            {
+                if (UAnimMontage* CurrentMontage = HammerAnimInst->GetCurrentActiveMontage())
+                {
+                    HammerAnimInst->Montage_Pause(CurrentMontage);
+                    
+                    FTimerHandle ResumeTimer;
+                    GetWorld()->GetTimerManager().SetTimer(
+                        ResumeTimer,
+                        [HammerAnimInst, CurrentMontage]()
+                        {
+                            if (IsValid(HammerAnimInst) && IsValid(CurrentMontage))
+                            {
+                                HammerAnimInst->Montage_Resume(CurrentMontage);
+                            }
+                        },
+                        SlamHitStopDuration,
+                        false
+                    );
+                }
+            }
+        }
+
+        HitStopComponent->StartMultipleHitStop(
+            HitStopTargets,
+            SlamHitStopDuration,
+            SlamHitStopTimeScale);
     }
 }
 

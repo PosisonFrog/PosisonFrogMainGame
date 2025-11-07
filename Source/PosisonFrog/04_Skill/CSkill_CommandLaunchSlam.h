@@ -16,6 +16,7 @@ class UCharacterMovementComponent;
 class UAnimMontage;
 class UAnimInstance;
 class ACEnemyCharacterBase;
+class UCHitStopComponent;
 
 // 자기 자신의 중복 입력을 막귀 위해서 Launching을 추가
 UENUM(BlueprintType)
@@ -155,6 +156,18 @@ private:
     USoundBase*                ShockwaveSFX = nullptr;
     UPROPERTY(EditDefaultsOnly, Category="CommandSkill|FX")
     TSubclassOf<UCameraShakeBase> ShockwaveCameraShake;
+
+    // 히트 스톱
+    UPROPERTY(EditAnywhere, Category = "CommandSkill|HitStop", meta = (ClampMin = "0.01", ClampMax = "1.0"))
+    float SlamHitStopDuration = 0.2f;
+
+    UPROPERTY(EditAnywhere, Category = "CommandSkill|HitStop", meta = (ClampMin = "0.01", ClampMax = "1.0"))
+    float SlamHitStopTimeScale = 0.05f;
+
+    UPROPERTY(EditAnywhere, Category = "CommandSkill|HitStop")
+    bool bEnableHitStop = true;
+
+    UPROPERTY() UCHitStopComponent* HitStopComponent = nullptr;
 
     // ─ Launch 대상 필터(태그/폴백) ─
     UPROPERTY(EditDefaultsOnly, Category="CommandSkill|Filter|Tags")

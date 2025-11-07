@@ -55,7 +55,7 @@ private:
     void PlayFinisherMontageAndScheduleImpact(float FinisherDamage);
     void DoFinisherImpact(); // 실제 피해 및 이펙트
 
-private:
+protected:
     // ───────── 스핀 파라미터 ─────────
     UPROPERTY(EditDefaultsOnly, Category="Spin|Anim")
     UAnimMontage* CharSpinMontage = nullptr;
@@ -104,7 +104,7 @@ private:
     float FinisherImpactDelay = 0.35f;
 
     UPROPERTY(EditDefaultsOnly, Category="Finisher|Damage", meta=(ClampMin="0"))
-    float FinisherDamageDefault = 250.f;
+    float FinisherDamageDefault = 20.f;
 
     UPROPERTY(EditDefaultsOnly, Category="Finisher|Range", meta=(ClampMin="50"))
     float FinisherRadius = 320.f;
@@ -133,6 +133,16 @@ private:
     UPROPERTY(EditAnywhere, Category = "Attack|HitStop")
     bool bEnableHitStop = true;
 
+    // 피니셔 넉백
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Finisher|Knockback")
+    bool bEnableFinisherKnockback = true;
+   
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Finisher|Knockback", meta = (ClampMin = "0.0"))
+    float FinisherKnockbackStrength = 1200.f;
+   
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Finisher|Knockback", meta = (ClampMin = "0.0"))
+    float FinisherKnockbackUpStrength = 400.f;
+
     UPROPERTY() UCHitStopComponent* HitStopComponent = nullptr;
 
 private:
@@ -149,4 +159,3 @@ private:
 
     int32 StacksAtActivation = 0;
 };
-
