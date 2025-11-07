@@ -7,6 +7,7 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "Animation/AnimInstance.h"
 #include "TimerManager.h"
+#include "00_Character/02_Component/CHitStopComponent.h"
 #include "Engine/World.h"
 #include "99_Util/CLog.h"
 #include "AnimNodes/AnimNode_RandomPlayer.h"
@@ -19,6 +20,8 @@ class IBuffable;
 UCPlayerWeaponComponent::UCPlayerWeaponComponent()
 {
     AttachSocketName = TEXT("Hand_Hammer");
+
+    HitStopComponent = CreateDefaultSubobject<UCHitStopComponent>(TEXT("HitStopComponent"));
 }
 
 void UCPlayerWeaponComponent::SpawnWeapon()
@@ -82,12 +85,29 @@ void UCPlayerWeaponComponent::HandleWeaponHit(AActor* InstigatorActor, AActor* H
             FinalDamage *= Multiplier;
 
             if (Multiplier != 1.0f)
-                UE_LOG(LogTemp,Log,TEXT("[BaseWeaponComp] Damage scale : %.1f -> %.1f (x%.2f)"), Damage, FinalDamage, Multiplier);
+                UE_LOG(LogTemp, Log, TEXT("[BaseWeaponComp] Damage scale : %.1f -> %.1f (x%.2f)"), Damage, FinalDamage, Multiplier);
         }
     }
 
     Super::HandleWeaponHit(InstigatorActor, HitActor, FinalDamage, Hit);
 
+    if (bEnableHitStop && IsValid(HitStopComponent) && CurrentCombo == 2)
+    {
+        TArray<AActor*> HitStopTargets;
+
+        if (OwnerChar.IsValid())
+            HitStopTargets.Add(OwnerChar.Get());
+        if (IsValid(HitActor))
+            HitStopTargets.Add(HitActor);
+        if (IsValid(CurrentWeapon))
+            HitStopTargets.Add(CurrentWeapon);
+
+        HitStopComponent->StartMultipleHitStop(
+            HitStopTargets,
+            ThirdComboHitStopDuration,
+            ThirdComboHitStopTimeScale);
+    }
+    
     if (bEnableHitKnockback && HitKnockbackStrength > 0.f)
     {
         if (ACharacter* HitCharacter = Cast<ACharacter>(HitActor))

@@ -10,7 +10,7 @@ class UCUltimateBuffComponent;
 class ACharacter;
 class ACHammer;
 class UAnimMontage;
-
+class UCHitStopComponent;
 
 /**
  * 무기/콤보 컴포넌트
@@ -50,7 +50,7 @@ private:
     void PlayComboAttack();
     void StepToNextCombo();      // 다음 콤보 스텝으로 전진(인덱스 증가 + Play)
     void ResetCombo();
-
+    
     UFUNCTION() void OnMontageEnded(UAnimMontage* Montage, bool bInterrupted);
  
 protected:
@@ -67,6 +67,16 @@ protected:
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Attack", meta = (ClampMin = "0.1"))
     TArray <float> ComboAttackRatio  = {0.9f, 1.1f, 1.4f}; 
 
+    // 히트 스톱
+    UPROPERTY(EditAnywhere, Category = "Attack|HitStop", meta = (ClampMin = "0.01", ClampMax = "1.0"))
+    float ThirdComboHitStopDuration = 0.3f;
+
+    UPROPERTY(EditAnywhere, Category = "Attack|HitStop", meta = (ClampMin = "0.01", ClampMax = "1.0"))
+    float ThirdComboHitStopTimeScale = 0.01f;
+
+    UPROPERTY(EditAnywhere, Category = "Attack|HitStop")
+    bool bEnableHitStop = true;
+    
     // --- 궁극기 게이지 ---
     UPROPERTY(EditAnywhere, Category = "Ultimate|State")
     float AddUltGaugeMul = 0.02f;
@@ -99,6 +109,8 @@ protected:
     float HitKnockbackUpStrength = 120.f;
     
 private:
+    UPROPERTY() UCHitStopComponent* HitStopComponent = nullptr;
+    
     bool bHasNotifiedAttackEnd = false;
     
     FTimerHandle ComboResetTimer;

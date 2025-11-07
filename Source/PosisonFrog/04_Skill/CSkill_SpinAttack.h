@@ -11,6 +11,7 @@ class UAnimMontage;
 class USoundBase;
 class UParticleSystem;
 class UCameraShakeBase;
+class UCHitStopComponent;
 
 /**
  * 홀드형 회전 공격 스킬
@@ -121,6 +122,18 @@ private:
 
     UPROPERTY(EditDefaultsOnly, Category="Finisher|FX")
     TSubclassOf<UCameraShakeBase> FinisherCameraShake;
+
+    // 히트 스톱
+    UPROPERTY(EditAnywhere, Category = "Attack|HitStop", meta = (ClampMin = "0.01", ClampMax = "1.0"))
+    float FinisherHitStopDuration = 0.16f;
+
+    UPROPERTY(EditAnywhere, Category = "Attack|HitStop", meta = (ClampMin = "0.01", ClampMax = "1.0"))
+    float FinisherHitStopTimeScale = 0.03f;
+
+    UPROPERTY(EditAnywhere, Category = "Attack|HitStop")
+    bool bEnableHitStop = true;
+
+    UPROPERTY() UCHitStopComponent* HitStopComponent = nullptr;
 
 private:
     UPROPERTY() UNiagaraComponent* ActiveSpinVFXComponent = nullptr;
