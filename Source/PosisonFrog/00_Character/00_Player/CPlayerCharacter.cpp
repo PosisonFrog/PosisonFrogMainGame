@@ -25,6 +25,7 @@
 #include "00_Character/02_Component/00_PlayerComponent/CGameplayTags.h"
 #include "00_Character/02_Component/00_PlayerComponent/CUltimateBuffComponent.h"
 #include "00_Character/02_Component/00_PlayerComponent/CFuryGaugeComponent.h"
+#include "00_Character/02_Component/00_PlayerComponent/ComboStackComponent.h"
 #include "01_Widget/CPlayerWidget.h"
 #include "04_Skill/CSkill_CommandLaunchSlam.h"
 #include "04_Skill/CSkill_SpinAttack.h"
@@ -48,6 +49,7 @@ ACPlayerCharacter::ACPlayerCharacter()
     MovementBuffComponent = CreateDefaultSubobject<UCPlayerMovementBuffComponent>(TEXT("MovementBuff"));
     UltimateBuffComponent = CreateDefaultSubobject<UCUltimateBuffComponent>(TEXT("UltimateBuffComponent"));
     FuryGaugeComponent = CreateDefaultSubobject<UCFuryGaugeComponent>(TEXT("FuryComponent"));
+    ComboStackComponent = CreateDefaultSubobject<UComboStackComponent>(TEXT("ComboStackComponent"));
     SpinAttackComponent = CreateDefaultSubobject<UCSkill_SpinAttack>(TEXT("SkillSpinAttack"));
     CommandLaunchSlamComponent = CreateDefaultSubobject<UCSkill_CommandLaunchSlam>(TEXT("CommandLaunchSlam"));
     
@@ -57,6 +59,7 @@ ACPlayerCharacter::ACPlayerCharacter()
     check(MovementBuffComponent);
     check(UltimateBuffComponent);
     check(FuryGaugeComponent);
+    check(ComboStackComponent);
     check(SpinAttackComponent);
     check(CommandLaunchSlamComponent);
 
@@ -110,6 +113,12 @@ void ACPlayerCharacter::BeginPlay()
     if (CommandLaunchSlamComponent)
         CommandLaunchSlamComponent->OnAirCommandLockChanged.AddDynamic(
             this, &ACPlayerCharacter::HandleCommandMovementLockChanged);
+
+
+    if (WeaponComponent && ComboStackComponent)
+    {
+        WeaponComponent->OnPlayerComboHit.AddDynamic(this, &ACPlayerCharacter::HandlePlayerComboHit);
+    }
     
     // 체력 이벤트 → HP UI 갱신
     if (ensureMsgf(HealthComponent != nullptr, TEXT("HealthComponent missing")))
@@ -172,6 +181,7 @@ void ACPlayerCharacter::PostInitializeComponents()
     checkf(UltimateBuffComponent != nullptr, TEXT("UltimateBuffComponent missing"));
 
     checkf(FuryGaugeComponent != nullptr, TEXT("FuryGauge missing"));
+    checkf(ComboStackComponent != nullptr, TEXT("ComboStackComponent missing"));
     checkf(SpinAttackComponent != nullptr, TEXT("SkillSpinAttack missing"));
     
     // TransparentCameraComponent 설정 개선
@@ -216,6 +226,15 @@ void ACPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
 
 void ACPlayerCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+    if (WeaponComponent)
+    {
+        WeaponComponent->OnPlayerComboHit.RemoveDynamic(this, &ACPlayerCharacter::HandlePlayerComboHit);
+    }
+    
+    if (ComboStackComponent)
+    {
+        ComboStackComponent->OnReset(ECSCResetReason::Reset_Respawn);
+    }
     if (IsValid(WeaponComponent))
     {
         if (ACWeaponBase* Weapon = WeaponComponent->GetCurrentWeapon())
@@ -286,7 +305,19 @@ void ACPlayerCharacter::Attack()
     else
         CLog::Log(TEXT("WeaponComponent missing"));
 }
+void ACPlayerCharacter::HandlePlayerComboHit(AActor* HitActor, int32 ComboIndex, float Damage)
+{
+    if (!ComboStackComponent || !GetWorld())
+        return;
 
+    //기본 공격 3타까지만 CSC 집계
+    if (ComboIndex < 0 || ComboIndex > 2)
+        return;
+
+    static const FName ComboIds[] = { TEXT("BasicCombo_0"), TEXT("BasicCombo_1"), TEXT("BasicCombo_2") };
+    const float Now = GetWorld()->GetTimeSeconds();
+    ComboStackComponent->OnDirectHit(ComboIds[ComboIndex], Now);
+}
 // 무기/애님에서 공격 시작 시점에 호출(있으면 더 견고)
 void ACPlayerCharacter::OnAttackStarted()
 {
@@ -471,6 +502,11 @@ void ACPlayerCharacter::HandleDeath(AActor* DeadActor)
 
     if (SpinAttackComponent && SpinAttackComponent->IsSkillActive())
         SpinAttackComponent->StopSpin();
+
+
+    if (ComboStackComponent)
+        ComboStackComponent->OnReset(ECSCResetReason::Reset_Respawn);
+    
     
     // 입력 차단
     ACPlayerController* Pc = Cast<ACPlayerController>(GetController());
@@ -558,6 +594,10 @@ void ACPlayerCharacter::OnHitByTankerCharge(AActor* HitPlayer, FVector Knockback
             }
         }
     }
+    if (ComboStackComponent)
+    {
+        ComboStackComponent->OnReset(ECSCResetReason::Reset_BA_Rush);
+    }
 }
 
 void ACPlayerCharacter::UpdateHpUI() const
@@ -593,7 +633,13 @@ void ACPlayerCharacter::UseUltimate()
     if (bUltActive || !UltimateBuffComponent || CurUltGauge < MaxUltGauge)
         return;
 
+    if (!ComboStackComponent || !ComboStackComponent->CanCastUlt())
+        return;
+
+    static const FName PlayerUltId(TEXT("PlayerUlt"));
+
     bUltActive = true;
+    ComboStackComponent->OnUltStarted(PlayerUltId);
     UltimateBuffComponent->ActivateUltimate();
     UE_LOG(LogTemp, Log, TEXT("[ULT] UseUltimate On Gauge=%.1f/%.1f"), CurUltGauge, MaxUltGauge);
 
@@ -625,6 +671,12 @@ void ACPlayerCharacter::OnUltimateExpired()
     if (UltimateBuffComponent)
         UltimateBuffComponent->DeactivateUltimate();
 
+    if (ComboStackComponent)
+    {
+        static const FName PlayerUltId(TEXT("PlayerUlt"));
+        ComboStackComponent->OnUltEnded(PlayerUltId);
+    }
+    
     CleanupUltVFX();
     
     CLog::Log(TEXT("[ULT] UseUltimate OFF"));
