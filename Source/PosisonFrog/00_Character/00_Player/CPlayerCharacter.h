@@ -21,6 +21,8 @@ class UCPlayerMovementBuffComponent;
 class UCInputConfig;
 class UCPlayerWidget;
 class UCameraShakeBase;
+class AActor;
+class UComboStackComponent;
 struct FInputActionValue;
 
 
@@ -50,6 +52,8 @@ public:
     
     // ─ 애니메이션
     FORCEINLINE UAnimMontage* GetKnockbackMontage() const { return KnockbackMontage; }
+    FORCEINLINE UComboStackComponent* GetComboStackComponent() const { return ComboStackComponent; }
+ 
 
     // ─────────── IBuffable ───────────
     // ─ 인터페이스 구현
@@ -74,6 +78,7 @@ public:
     UFUNCTION() void OnSpinPressed();      // 스핀 시작(홀드)
     UFUNCTION() void OnSpinReleased();     // 스핀 종료
     UFUNCTION() void OnCommandPressed();
+    UFUNCTION() void HandlePlayerComboHit(AActor* HitActor, int32 ComboIndex, float Damage);
 
     // 무기/애님에서 호출 (공격 시작/종료/대시소비 윈도우)
     UFUNCTION() void OnAttackStarted();
@@ -138,6 +143,9 @@ protected:
 
     UPROPERTY(Transient, meta = (AllowPrivateAccess = "true"))
     TObjectPtr<UCPlayerWidget> PlayerWidget = nullptr;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combo", meta = (AllowPrivateAccess = "true"))
+    TObjectPtr<UComboStackComponent> ComboStackComponent = nullptr;
 
     // ─────────── Dash ───────────
     // ─ Dash 버퍼/락 정책
