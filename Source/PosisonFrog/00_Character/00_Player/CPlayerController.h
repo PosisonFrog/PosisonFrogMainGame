@@ -12,6 +12,8 @@ class UInputAction;
 class UCInputConfig;
 class UCPlayerWidget;
 class ACPlayerCharacter;
+class UCPauseSubsystem;
+enum class EGamePauseState : uint8;
 
 /**
  * C++ 중심 컨트롤러
@@ -31,10 +33,13 @@ protected:
     virtual void BeginPlay() override;
     virtual void SetupInputComponent() override;
     virtual void OnPossess(APawn* InPawn) override;
+    virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
     // ────────────── 입력 핸들러 ──────────────
     UFUNCTION() void HandlePausePressed();
     UFUNCTION() void HandleToggleMouse();
+
+    UFUNCTION() void HandlePauseStateChanged(EGamePauseState NewState);
 
     // ────────────── 메뉴/입력 모드 ──────────────
     void ShowPauseMenu();
@@ -84,4 +89,7 @@ private:
     /** 현재 일시정지 여부 캐시 */
     UPROPERTY(VisibleInstanceOnly, Category = "State")
     bool bIsPausedMenuOpen = false;
+
+    UPROPERTY(Transient)
+    TObjectPtr<UCPauseSubsystem> CachedPauseSubsystem = nullptr;
 };

@@ -11,10 +11,12 @@
 
 // 위젯 (프로젝트 경로에 맞춰 통일)
 #include "01_Widget/CPlayerWidget.h"
+#include "05_System/CPauseSubsystem.h"
 
 #include "99_Util/CLog.h"
 #include "Engine/LocalPlayer.h"
 #include "Engine/World.h"
+#include "Kismet/GameplayStatics.h"
 
 // ------------------------------------------------------------------
 // 생성자
@@ -60,6 +62,15 @@ void ACPlayerController::BeginPlay()
     // 시작은 게임 전용 입력 모드
     SetInputMode_GameOnly();
 
+    if (UGameInstance* GameInstance = GetGameInstance())
+    {
+        CachedPauseSubsystem = GameInstance->GetSubsystem<UCPauseSubsystem>();
+        if (CachedPauseSubsystem)
+        {
+            CachedPauseSubsystem->OnPauseStateChanged.AddDynamic(this, &ACPlayerController::HandlePauseStateChanged);
+            HandlePauseStateChanged(CachedPauseSubsystem->GetPauseState());
+        }
+    }
     
     /*// UI 생성은 로컬 컨트롤러 + 게임플레이 맵에서만
     if (IsLocalController() && ShouldCreatePlayerWidget())
@@ -94,6 +105,17 @@ void ACPlayerController::OnPossess(APawn* InPawn)
     }
 }
 
+void ACPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+    if (CachedPauseSubsystem)
+    {
+        CachedPauseSubsystem->OnPauseStateChanged.RemoveDynamic(this, &ACPlayerController::HandlePauseStateChanged);
+        CachedPauseSubsystem = nullptr;
+    }
+    
+    Super::EndPlay(EndPlayReason);
+}
+
 // ------------------------------------------------------------------
 // SetupInputComponent
 // ------------------------------------------------------------------
@@ -125,10 +147,22 @@ void ACPlayerController::SetupInputComponent()
 // ─────────────────────────────────────────────────────────────
 void ACPlayerController::HandlePausePressed()
 {
-    if (bIsPausedMenuOpen)
+    if (CachedPauseSubsystem)
+    {
+        CachedPauseSubsystem->RequestTogglePause(this);
+        return;
+    }
+    
+    if (UGameplayStatics::IsGamePaused(this))
+    {
+        SetPause(false);
         HidePauseMenu();
+    }
     else
+    {
+        SetPause(true);
         ShowPauseMenu();
+    }
 }
 
 void ACPlayerController::HandleToggleMouse()
@@ -141,6 +175,18 @@ void ACPlayerController::HandleToggleMouse()
         SetInputMode_GameOnly();
 }
 
+void ACPlayerController::HandlePauseStateChanged(EGamePauseState NewState)
+{
+    if (NewState == EGamePauseState::Paused)
+    {
+        ShowPauseMenu();
+    }
+    else
+    {
+        HidePauseMenu();
+    }
+}
+
 
 // ─────────────────────────────────────────────────────────────
 // 메뉴/입력 모드
@@ -148,9 +194,6 @@ void ACPlayerController::HandleToggleMouse()
 void ACPlayerController::ShowPauseMenu()
 {
     if (bIsPausedMenuOpen) return;
-
-    // 게임 일시정지
-    SetPause(true);
 
     // 위젯 생성/표시
     if (PauseMenuClass && !PauseMenuInstance)
@@ -176,9 +219,6 @@ void ACPlayerController::HidePauseMenu()
     {
         PauseMenuInstance->RemoveFromParent();
     }
-
-    // 게임 재개
-    SetPause(false);
 
     bIsPausedMenuOpen = false;
     SetInputMode_GameOnly();
