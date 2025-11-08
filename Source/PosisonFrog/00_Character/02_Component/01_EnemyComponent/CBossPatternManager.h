@@ -4,14 +4,15 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "03_Combat/Boss/BossPhaseDataAsset.h"
 #include "CBossPatternManager.generated.h"
 
 class ACEnemyBossCharacter;
 class UCEnemyBossPhaseComponent;
 class UCEnemyWeaponComponent;
 class AAIController;
-struct FBossPhaseDefinition;
-struct FBossPatternDefinition;
+
+
 
 /**
  * 보스 패턴 실행을 전담하는 매니저 컴포넌트
@@ -108,8 +109,54 @@ protected:
 
 	/** AI 컨트롤러 가져오기 */
 	AAIController* GetBossAI() const;
-	
 
+
+	struct FBossSpawnedActorEntry
+	{
+		TWeakObjectPtr<AActor> Actor;
+		bool bDestroyOnPatternEnd = false;
+	};
+	
+	struct FBossSpawnedMinionEntry
+	{
+		TWeakObjectPtr<APawn> Pawn;
+		bool bDestroyOnPatternEnd = false;
+	};
+	
+	struct FBossUtilitySpawnRuntime
+	{
+		FBossPatternUtilitySpawnDefinition Definition;
+		int32 SpawnedCount = 0;
+		FTimerHandle TimerHandle;
+	};
+	
+	struct FBossMinionSpawnRuntime
+	{
+		FBossPatternMinionSpawnDefinition Definition;
+		FTimerHandle TimerHandle;
+	};
+	
+	/** 패턴 스폰 처리 */
+	void SpawnPatternActors(const FBossPatternDefinition& PatternData);
+	void SpawnPatternWeapons(const FBossPatternDefinition& PatternData);
+	void SpawnPatternUtilities(const FBossPatternDefinition& PatternData);
+	void SpawnPatternMinions(const FBossPatternDefinition& PatternData);
+	void CleanupPatternActors();
+	void CleanupUtilitySpawnTimers();
+	void CleanupMinionSpawnTimers();
+	FTransform ResolveSpawnTransform(const FBossPatternSpawnTransform& SpawnTransform) const;
+	void RegisterSpawnedActor(AActor* Actor, bool bDestroyOnPatternEnd, TArray<FBossSpawnedActorEntry>& Container);
+	void RegisterSpawnedMinion(APawn* Pawn, bool bDestroyOnPatternEnd);
+	void ApplyInitialVelocity(AActor* SpawnedActor, const FVector& InitialVelocity) const;
+	void SpawnUtilityActorImmediate(const FBossPatternUtilitySpawnDefinition& Definition);
+	void SpawnMinionBatch(const FBossPatternMinionSpawnDefinition& Definition);
+	void HandleUtilitySpawnTimer(int32 RuntimeId);
+	void HandleMinionSpawnTimer(int32 RuntimeId);
+	void StartProjectileRain(const FBossPatternProjectileRainSettings& RainSettings);
+	void HandleProjectileRainTick();
+	void StopProjectileRain(bool bNotifyPatternEnd = false);
+	void SpawnProjectileRainWave();
+ 
 
 	
 	/**============ 오너 & 컴포넌트 ============**/
@@ -199,6 +246,22 @@ protected:
 	FTimerHandle GroundCheckTimer;
 	FTimerHandle PhaseTransitionTimer;
 
+
+	TArray<FBossSpawnedActorEntry> ActiveWeaponActors;
+	TArray<FBossSpawnedActorEntry> ActiveUtilityActors;
+	TArray<FBossSpawnedMinionEntry> ActiveMinions;
+	
+	TMap<int32, FBossUtilitySpawnRuntime> ActiveUtilitySpawnRuntimes;
+	int32 UtilitySpawnRuntimeIdCounter = 0;
+	
+	TMap<int32, FBossMinionSpawnRuntime> ActiveMinionSpawnRuntimes;
+	int32 MinionSpawnRuntimeIdCounter = 0;
+	
+	FBossPatternProjectileRainSettings ActiveProjectileRainSettings;
+	bool bProjectileRainActive = false;
+	int32 ProjectileRainWaveCounter = 0;
+	FTimerHandle ProjectileRainTimerHandle;
+	
 	// 몽타주 종료 델리게이트
 	FOnMontageEnded MontageEndDelegate;
 	bool bShouldNotifyOnMontageEnd;
