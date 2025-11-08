@@ -2,6 +2,7 @@
 
 #include "00_Character/00_Player/CPlayerController.h"
 #include "00_Character/00_Player/CPlayerCharacter.h"
+#include "05_System/CPauseSubsystem.h"
 
 // Enhanced Input
 #include "EnhancedInputSubsystems.h"
@@ -10,13 +11,15 @@
 #include "00_Character/02_Component/00_PlayerComponent/CInputConfig.h"           // 프로젝트용(선택)
 
 // 위젯 (프로젝트 경로에 맞춰 통일)
+#include "00_Character/CMainGameModeBase.h"
+#include "01_Widget/CPauseMenuWidget.h"
 #include "01_Widget/CPlayerWidget.h"
-#include "05_System/CPauseSubsystem.h"
 
 #include "99_Util/CLog.h"
 #include "Engine/LocalPlayer.h"
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
+#include "Kismet/KismetSystemLibrary.h"
 
 // ------------------------------------------------------------------
 // 생성자
@@ -36,32 +39,9 @@ void ACPlayerController::BeginPlay()
 {
     Super::BeginPlay();
 
-    // 입력 모드 / 마우스 커서
-    FInputModeGameOnly Mode;
-    SetInputMode(Mode);
-    bShowMouseCursor = false;
-    
-
-    // Enhanced Input IMC를 C++에서 적용
-    if (ULocalPlayer* LP = GetLocalPlayer())
-    {
-        if (UEnhancedInputLocalPlayerSubsystem* Subsys = LP->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>())
-        {
-            if (DefaultMappingContext)
-            {
-                Subsys->AddMappingContext(DefaultMappingContext, MappingPriority);
-            }
-
-            if (GamepadMappingContext)
-            {
-                Subsys->AddMappingContext(GamepadMappingContext, GamepadMappingPriority);
-            }
-        }
-    }
-
     // 시작은 게임 전용 입력 모드
     SetInputMode_GameOnly();
-
+ 
     if (UGameInstance* GameInstance = GetGameInstance())
     {
         CachedPauseSubsystem = GameInstance->GetSubsystem<UCPauseSubsystem>();
@@ -71,6 +51,9 @@ void ACPlayerController::BeginPlay()
             HandlePauseStateChanged(CachedPauseSubsystem->GetPauseState());
         }
     }
+    
+    // 기본 입력 컨텍스트 적용
+    ActivateGameInputMappings();
     
     /*// UI 생성은 로컬 컨트롤러 + 게임플레이 맵에서만
     if (IsLocalController() && ShouldCreatePlayerWidget())
@@ -170,7 +153,16 @@ void ACPlayerController::HandleToggleMouse()
     bShowMouseCursor = !bShowMouseCursor;
 
     if (bShowMouseCursor)
-        SetInputMode(FInputModeGameAndUI().SetHideCursorDuringCapture(false).SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock));
+    {
+        if (bIsPausedMenuOpen && PauseMenuInstance)
+        {
+            SetInputMode_UIOnly(PauseMenuInstance);
+        }
+        else
+        {
+            SetInputMode(FInputModeGameAndUI().SetHideCursorDuringCapture(false).SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock));
+        }
+    }
     else
         SetInputMode_GameOnly();
 }
@@ -195,19 +187,38 @@ void ACPlayerController::ShowPauseMenu()
 {
     if (bIsPausedMenuOpen) return;
 
+    DeactivateGameInputMappings();
+    ActivatePauseMappings();
+    
+    // 게임 일시정지
+    // SetPause(true);
+ 
     // 위젯 생성/표시
     if (PauseMenuClass && !PauseMenuInstance)
     {
-        PauseMenuInstance = CreateWidget<UUserWidget>(this, PauseMenuClass);
-    }
+        PauseMenuInstance = CreateWidget<UPauseMenuWidget>(this, PauseMenuClass);
+        if (PauseMenuInstance)
+        {
+            PauseMenuInstance->OnResumeRequested.AddDynamic(this, &ACPlayerController::HandlePauseMenuResumeRequested);
+            PauseMenuInstance->OnRestartRequested.AddDynamic(this, &ACPlayerController::HandlePauseMenuRestartRequested);
+            PauseMenuInstance->OnReturnToTitleRequested.AddDynamic(this, &ACPlayerController::HandlePauseMenuReturnToTitleRequested);
+            PauseMenuInstance->OnExitRequested.AddDynamic(this, &ACPlayerController::HandlePauseMenuExitRequested);
 
-    if (PauseMenuInstance && !PauseMenuInstance->IsInViewport())
+            PauseMenuInstance->AddToViewport(1000);
+        }
+    }
+ 
+    if (PauseMenuInstance)
     {
-        PauseMenuInstance->AddToViewport(1000);
+        PauseMenuInstance->SetVisibility(ESlateVisibility::Visible);
+        PauseMenuInstance->ResetMenuState();
+        PauseMenuInstance->FocusInitial();
     }
-
+ 
+    ApplyPauseAudio();
+    
     bIsPausedMenuOpen = true;
-    SetInputMode_UIOnly();
+    SetInputMode_UIOnly(PauseMenuInstance);
 }
 
 void ACPlayerController::HidePauseMenu()
@@ -215,11 +226,21 @@ void ACPlayerController::HidePauseMenu()
     if (!bIsPausedMenuOpen) return;
 
     // 위젯 제거
-    if (PauseMenuInstance && PauseMenuInstance->IsInViewport())
+    /*if (PauseMenuInstance && PauseMenuInstance->IsInViewport())
     {
         PauseMenuInstance->RemoveFromParent();
+    }*/
+
+    if (PauseMenuInstance && PauseMenuInstance->IsInViewport())
+    {
+        PauseMenuInstance->SetVisibility(ESlateVisibility::Collapsed);
     }
 
+    //SetPause(false);
+    DeactivatePauseMappings();
+    ActivateGameInputMappings();
+    RestorePauseAudio();
+    
     bIsPausedMenuOpen = false;
     SetInputMode_GameOnly();
 }
@@ -233,14 +254,219 @@ void ACPlayerController::SetInputMode_GameOnly()
     bEnableMouseOverEvents = false;
 }
 
-void ACPlayerController::SetInputMode_UIOnly()
+void ACPlayerController::SetInputMode_UIOnly(UUserWidget* InWidgetToFocus)
 {
     FInputModeUIOnly Mode;
     Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+    if (InWidgetToFocus)
+    {
+        Mode.SetWidgetToFocus(InWidgetToFocus->TakeWidget());
+    }
     SetInputMode(Mode);
     bShowMouseCursor = true;
     bEnableClickEvents = true;
     bEnableMouseOverEvents = true;
+}
+
+UEnhancedInputLocalPlayerSubsystem* ACPlayerController::GetEnhancedInputSubsystem() const
+{
+    if (const ULocalPlayer* LP = GetLocalPlayer())
+    {
+        return LP->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>();
+    }
+    
+    return nullptr;
+}
+
+void ACPlayerController::ActivateGameInputMappings()
+{
+    if (UEnhancedInputLocalPlayerSubsystem* Subsys = GetEnhancedInputSubsystem())
+    {
+        if (PauseMappingContext && bPauseMappingActive)
+        {
+            Subsys->RemoveMappingContext(PauseMappingContext);
+            bPauseMappingActive = false;
+        }
+            
+        if (DefaultMappingContext && !bKeyboardMappingActive)
+        {
+            Subsys->AddMappingContext(DefaultMappingContext, MappingPriority);
+            bKeyboardMappingActive = true;
+        }
+            
+        if (GamepadMappingContext && !bGamepadMappingActive)
+        {
+            Subsys->AddMappingContext(GamepadMappingContext, GamepadMappingPriority);
+            bGamepadMappingActive = true;
+        }
+    }
+}
+
+void ACPlayerController::DeactivateGameInputMappings()
+{
+    if (UEnhancedInputLocalPlayerSubsystem* Subsys = GetEnhancedInputSubsystem())
+    {
+        if (DefaultMappingContext && bKeyboardMappingActive)
+        {
+            Subsys->RemoveMappingContext(DefaultMappingContext);
+            bKeyboardMappingActive = false;
+        }
+            
+        if (GamepadMappingContext && bGamepadMappingActive)
+        {
+            Subsys->RemoveMappingContext(GamepadMappingContext);
+            bGamepadMappingActive = false;
+        }
+    }
+}
+
+void ACPlayerController::ActivatePauseMappings()
+{
+    if (UEnhancedInputLocalPlayerSubsystem* Subsys = GetEnhancedInputSubsystem())
+    {
+        if (PauseMappingContext && !bPauseMappingActive)
+        {
+            Subsys->AddMappingContext(PauseMappingContext, PauseMappingPriority);
+            bPauseMappingActive = true;
+        }
+    }
+}
+
+void ACPlayerController::DeactivatePauseMappings()
+{
+    if (UEnhancedInputLocalPlayerSubsystem* Subsys = GetEnhancedInputSubsystem())
+    {
+        if (PauseMappingContext && bPauseMappingActive)
+        {
+            Subsys->RemoveMappingContext(PauseMappingContext);
+            bPauseMappingActive = false;
+        }
+    }
+}
+
+void ACPlayerController::ApplyPauseAudio()
+{
+    if (!GetWorld())
+    {
+        return;
+    }
+    
+    GetWorldTimerManager().ClearTimer(PauseSoundMixTimerHandle);
+    
+    if (PauseSoundMix && PauseBGMClass)
+    {
+        const float TargetVolume = FMath::Clamp(PauseBGMVolumeMultiplier, 0.0f, 1.0f);
+        UGameplayStatics::SetSoundMixClassOverride(GetWorld(), PauseSoundMix, PauseBGMClass, TargetVolume, 1.0f, PauseAudioFadeTime, true);
+        UGameplayStatics::PushSoundMixModifier(GetWorld(), PauseSoundMix);
+        bPauseSoundMixActive = true;
+    }
+    
+    if (PauseEnterSound)
+    {
+        UGameplayStatics::PlaySound2D(this, PauseEnterSound);
+    }
+}
+
+void ACPlayerController::RestorePauseAudio()
+{
+    if (!GetWorld())
+    {
+        return;
+    }
+    
+    if (bPauseSoundMixActive && PauseSoundMix && PauseBGMClass)
+    {
+        GetWorldTimerManager().ClearTimer(PauseSoundMixTimerHandle);
+        UGameplayStatics::SetSoundMixClassOverride(GetWorld(), PauseSoundMix, PauseBGMClass, 1.0f, 1.0f, PauseAudioFadeTime, true);
+            
+        if (PauseAudioFadeTime <= 0.0f)
+        {
+            ClearPauseAudioOverride();
+        }
+        else
+        {
+            GetWorldTimerManager().SetTimer(PauseSoundMixTimerHandle, this, &ACPlayerController::ClearPauseAudioOverride, PauseAudioFadeTime, false);
+        }
+    }
+    
+    if (PauseResumeSound)
+    {
+        UGameplayStatics::PlaySound2D(this, PauseResumeSound);
+    }
+}
+
+void ACPlayerController::ClearPauseAudioOverride()
+{
+    if (!GetWorld())
+    {
+        return;
+    }
+    
+    if (bPauseSoundMixActive && PauseSoundMix)
+    {
+        UGameplayStatics::PopSoundMixModifier(GetWorld(), PauseSoundMix);
+
+        if (PauseBGMClass)
+        {
+            UGameplayStatics::ClearSoundMixClassOverride(GetWorld(), PauseSoundMix, PauseBGMClass);
+        }
+            
+        bPauseSoundMixActive = false;
+    }
+}
+
+void ACPlayerController::HandlePauseMenuResumeRequested()
+{
+    if (CachedPauseSubsystem)
+    {
+        CachedPauseSubsystem->RequestResume(this);
+    }
+    else
+    {
+        SetPause(false);
+        HidePauseMenu();
+    }
+}
+
+void ACPlayerController::HandlePauseMenuRestartRequested()
+{
+    if (CachedPauseSubsystem)
+    {
+        CachedPauseSubsystem->RequestResume(this);
+    }
+    else
+    {
+        SetPause(false);
+        HidePauseMenu();
+    }
+    
+    if (ACMainGameModeBase* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<ACMainGameModeBase>() : nullptr)
+    {
+        GameMode->RestartFromLastCheckpoint(this);
+    }
+}
+
+void ACPlayerController::HandlePauseMenuReturnToTitleRequested()
+{
+    if (CachedPauseSubsystem)
+    {
+        CachedPauseSubsystem->RequestResume(this);
+    }
+    else
+    {
+        SetPause(false);
+        HidePauseMenu();
+    }
+    
+    if (ACMainGameModeBase* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<ACMainGameModeBase>() : nullptr)
+    {
+        GameMode->ReturnToTitleScreen();
+    }
+}
+
+void ACPlayerController::HandlePauseMenuExitRequested()
+{
+    UKismetSystemLibrary::QuitGame(this, this, EQuitPreference::Quit, true);
 }
 
 // ------------------------------------------------------------------

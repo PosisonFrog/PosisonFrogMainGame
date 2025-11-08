@@ -72,6 +72,15 @@ public:
 	UFUNCTION()
 	ACCheckPoint* GetCurrentCheckPoint() const { return CurrentCheckPoint; }
 
+	UFUNCTION(BlueprintCallable, Category = "Game|Pause")
+	void RestartFromLastCheckpoint(ACPlayerController* PlayerController);
+	
+	UFUNCTION(BlueprintCallable, Category = "Game|Pause")
+	void ReturnToTitleScreen();
+	
+	UFUNCTION(BlueprintPure, Category = "Game|Pause")
+	FName GetMainMenuLevelName() const { return MainMenuLevelName; }
+
 	// ──────────── 플레이어 사망/리스폰 ────────────
 	UFUNCTION()
 	void OnPlayerDeath(ACPlayerController* PlayerController);

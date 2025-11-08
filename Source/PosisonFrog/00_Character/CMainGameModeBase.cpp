@@ -67,6 +67,40 @@ void ACMainGameModeBase::OnCheckPointActivateEvent(ACCheckPoint* CheckPoint, ACP
 	CLog::Log(FString::Printf(TEXT("[ACMainGameModeBase::OnCheckPointActivateEvent] 체크포인트 이벤트 받음 : %s (Section %d)"), *CheckPoint->GetName(), CheckPoint->SectionID));
 }
 
+void ACMainGameModeBase::RestartFromLastCheckpoint(ACPlayerController* PlayerController)
+{
+	if (!PlayerController)
+	{
+		CLog::Log(TEXT("[ACMainGameModeBase::RestartFromLastCheckpoint] Invalid PlayerController"));
+		return;
+	}
+	
+	GetWorldTimerManager().ClearTimer(TimerHandle_Respawn);
+	GetWorldTimerManager().ClearTimer(TimerHandle_ReturnToMenu);
+	
+	if (UCHealOrbPoolSubsystem* Pool = GetGameInstance()->GetSubsystem<UCHealOrbPoolSubsystem>())
+	{
+		Pool->ClearPool();
+	}
+	
+	RespawnPlayerAtCheckPoint(PlayerController);
+}
+
+void ACMainGameModeBase::ReturnToTitleScreen()
+{
+	GetWorldTimerManager().ClearTimer(TimerHandle_Respawn);
+	GetWorldTimerManager().ClearTimer(TimerHandle_ReturnToMenu);
+	
+	if (MainMenuLevelName != NAME_None)
+	{
+		UGameplayStatics::OpenLevel(this, MainMenuLevelName);
+	}
+	else
+	{
+		CLog::Log(TEXT("[ACMainGameModeBase::ReturnToTitleScreen] MainMenuLevelName is not set."));
+	}
+}
+
 void ACMainGameModeBase::OnPlayerDeath(ACPlayerController* PlayerController)
 {
 	if (!PlayerController)
