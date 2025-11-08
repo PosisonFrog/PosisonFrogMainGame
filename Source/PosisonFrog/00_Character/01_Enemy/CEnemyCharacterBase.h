@@ -10,6 +10,15 @@ class UCharacterMovementComponent;
 class UCEnemyHealthComponent;
 class UCEnemyWeaponComponent;
 class USoundBase;
+class UAnimMontage;
+
+UENUM(BlueprintType)
+enum class EEnemyHitDirection : uint8
+{
+    None,
+    FromLeft,
+    FromRight
+};
 
 UENUM(BlueprintType)
 enum class EEnemyState : uint8
@@ -355,14 +364,32 @@ protected:
     
     // 애니메이션
     UPROPERTY(EditAnywhere, Category="PF|Animation")
+    TArray<UAnimMontage*> HitReactionMontagesLeft;
+    
+    UPROPERTY(EditAnywhere, Category="PF|Animation")
+    TArray<UAnimMontage*> HitReactionMontagesRight;
+    
+    UPROPERTY(EditAnywhere, Category="PF|Animation")
     TArray<UAnimMontage*> HitReactionMontages;
 
     /** 플레이어 콤보별 피격 반응 몽타주 (인덱스: 0=1타, 1=2타, 2=3타). 비어있으면 HitReactionMontages 사용 */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="PF|Animation|ComboReaction")
     TArray<UAnimMontage*> ComboHitReactionMontages;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="PF|Animation|ComboReaction")
+    TArray<UAnimMontage*> ComboHitReactionMontagesLeft;
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="PF|Animation|ComboReaction")
+    TArray<UAnimMontage*> ComboHitReactionMontagesRight;
+    
     UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "PF|Animation")
     int32 PlayerCurrentCombo = 0;
+
+    UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "PF|HitReaction")
+    EEnemyHitDirection LastHitDirection = EEnemyHitDirection::None;
+    
+    UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "PF|HitReaction")
+    float LastHitDirectionRightDot = 0.f;
     
     //체력 컴포넌트
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="PF|Components")
@@ -370,4 +397,7 @@ protected:
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="PF|Components")
     UCEnemyWeaponComponent* WeaponComponent;
+
+    void UpdateHitDirectionFromAttacker(AActor* AttackerActor);
+    UAnimMontage* ResolveComboHitReactionMontage(int32 ComboIndex, FName& OutSource) const;
 };

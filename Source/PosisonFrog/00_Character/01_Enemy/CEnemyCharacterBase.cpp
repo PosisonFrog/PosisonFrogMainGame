@@ -649,13 +649,152 @@ void ACEnemyCharacterBase::DirectMoveTick(float /*DeltaSeconds*/)
 }
 */
 
+void ACEnemyCharacterBase::UpdateHitDirectionFromAttacker(AActor* AttackerActor)
+{
+	LastHitDirection = EEnemyHitDirection::None;
+	LastHitDirectionRightDot = 0.f;
 
+	if (!IsValid(AttackerActor))
+	{
+		return;
+	}
+
+	if (State == EEnemyState::Dead)
+	{
+		return;
+	}
+
+	if (const UCharacterMovementComponent* Movement = GetCharacterMovement())
+	{
+		if (!Movement->IsMovingOnGround())
+		{
+			if (bShowDebugInfo)
+			{
+				UE_LOG(LogTemp, Verbose, TEXT("[%s] Skipping directional hit react - not on ground"), *GetName());
+			}
+			return;
+		}
+	}
+
+	FVector DirToAttacker = AttackerActor->GetActorLocation() - GetActorLocation();
+	DirToAttacker.Z = 0.f;
+	if (!DirToAttacker.Normalize())
+	{
+		return;
+	}
+
+	FVector EnemyRight = GetActorRightVector();
+	EnemyRight.Z = 0.f;
+	if (!EnemyRight.Normalize())
+	{
+		FVector EnemyForward = GetActorForwardVector();
+		EnemyForward.Z = 0.f;
+		if (EnemyForward.Normalize())
+		{
+			EnemyRight = FVector::CrossProduct(FVector::UpVector, EnemyForward).GetSafeNormal();
+		}
+	}
+
+	if (!EnemyRight.Normalize())
+	{
+		return;
+	}
+
+	LastHitDirectionRightDot = FVector::DotProduct(DirToAttacker, EnemyRight);
+
+	constexpr float DirectionDeadzone = 0.1f;
+	if (LastHitDirectionRightDot > DirectionDeadzone)
+	{
+		LastHitDirection = EEnemyHitDirection::FromRight;
+	}
+	else if (LastHitDirectionRightDot < -DirectionDeadzone)
+	{
+		LastHitDirection = EEnemyHitDirection::FromLeft;
+	}
+
+	if (bShowDebugInfo)
+	{
+		const TCHAR* DirText = TEXT("None");
+		switch (LastHitDirection)
+		{
+		case EEnemyHitDirection::FromLeft: DirText = TEXT("FromLeft"); break;
+		case EEnemyHitDirection::FromRight: DirText = TEXT("FromRight"); break;
+		default: break;
+		}
+
+		UE_LOG(LogTemp, Log, TEXT("[%s] Hit direction resolved: DotRight=%.3f -> %s (Attacker: %s)"),
+				*GetName(), LastHitDirectionRightDot, DirText, *GetNameSafe(AttackerActor));
+	}
+}
+
+UAnimMontage* ACEnemyCharacterBase::ResolveComboHitReactionMontage(int32 ComboIndex, FName& OutSource) const
+{
+	OutSource = NAME_None;
+
+	auto TryResolve = [ComboIndex](const TArray<UAnimMontage*>* Montages) -> UAnimMontage*
+	{
+		if (!Montages)
+			return nullptr;
+
+		if (Montages->IsValidIndex(ComboIndex))
+		{
+			return (*Montages)[ComboIndex];
+		}
+
+		return nullptr;
+	};
+
+	const TArray<UAnimMontage*>* DirectionalComboArray = nullptr;
+	const TArray<UAnimMontage*>* DirectionalFallbackArray = nullptr;
+
+	switch (LastHitDirection)
+	{
+	case EEnemyHitDirection::FromLeft:
+		DirectionalComboArray = &ComboHitReactionMontagesLeft;
+		DirectionalFallbackArray = &HitReactionMontagesLeft;
+		break;
+	case EEnemyHitDirection::FromRight:
+		DirectionalComboArray = &ComboHitReactionMontagesRight;
+		DirectionalFallbackArray = &HitReactionMontagesRight;
+		break;
+	default:
+		break;
+	}
+	
+	if (UAnimMontage* Montage = TryResolve(DirectionalComboArray))
+	{
+		OutSource = (LastHitDirection == EEnemyHitDirection::FromLeft)
+				? FName(TEXT("DirectionalCombo_Left"))
+				: FName(TEXT("DirectionalCombo_Right"));
+		return Montage;
+	}
+
+	if (ComboHitReactionMontages.IsValidIndex(ComboIndex) && ComboHitReactionMontages[ComboIndex])
+	{
+		OutSource = FName(TEXT("DefaultCombo"));
+		return ComboHitReactionMontages[ComboIndex];
+	}
+
+	if (UAnimMontage* Montage = TryResolve(DirectionalFallbackArray))
+	{
+		OutSource = (LastHitDirection == EEnemyHitDirection::FromLeft)
+				? FName(TEXT("DirectionalFallback_Left"))
+				: FName(TEXT("DirectionalFallback_Right"));
+		return Montage;
+	}
+
+	if (HitReactionMontages.IsValidIndex(ComboIndex) && HitReactionMontages[ComboIndex])
+	{
+		OutSource = FName(TEXT("DefaultFallback"));
+		return HitReactionMontages[ComboIndex];
+	}
+
+	return nullptr;
+}
 
 float ACEnemyCharacterBase::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent,
 	AController* EventInstigator, AActor* DamageCauser)
 {
-
-	
 	UE_LOG(LogTemp, Warning, TEXT("[%s] TakeDamage 호출됨! 데미지: %.1f, 공격자: %s"), 
 		   *GetName(), DamageAmount, *GetNameSafe(DamageCauser));
 	
@@ -677,9 +816,11 @@ float ACEnemyCharacterBase::TakeDamage(float DamageAmount, FDamageEvent const& D
 			InstigatorPawn = Cast<APawn>(DamageCauser->GetOwner());
 		}
 	}
-	
+
 	if (ACPlayerCharacter* PlayerInstigator = Cast<ACPlayerCharacter>(InstigatorPawn))
 	{
+		UpdateHitDirectionFromAttacker(PlayerInstigator);
+			
 		Target = PlayerInstigator;
 		LastSeenTime = GetWorld()->GetTimeSeconds();
 			
@@ -693,6 +834,11 @@ float ACEnemyCharacterBase::TakeDamage(float DamageAmount, FDamageEvent const& D
 		default:
 			break;
 		}
+	}
+	else
+	{
+		LastHitDirection = EEnemyHitDirection::None;
+		LastHitDirectionRightDot = 0.f;
 	}
 	
 	const bool bCountsForFury = DamageEvent.DamageTypeClass && DamageEvent.DamageTypeClass->IsChildOf(UDamageType_FuryCountable::StaticClass());
@@ -760,6 +906,9 @@ void ACEnemyCharacterBase::OnDead()
 	bAttackWindowActive = false;
 	SwingHitActors.Reset();
 	AttackWindowEndTime = -1.f;
+
+	LastHitDirection = EEnemyHitDirection::None;
+	LastHitDirectionRightDot = 0.f;
 
 	TryDropHealPack();
 }
@@ -899,6 +1048,9 @@ void ACEnemyCharacterBase::ResetForRespawn()
 		HealthComponent->ResetHealth();
 	}
 
+	LastHitDirection = EEnemyHitDirection::None;
+	LastHitDirectionRightDot = 0.f;
+	
 	if (USkeletalMeshComponent* MeshComp = GetMesh())
 	{
 		if (UAnimInstance* AnimInst = MeshComp->GetAnimInstance())
@@ -1241,102 +1393,101 @@ void ACEnemyCharacterBase::PlaySoundIfValid(USoundBase* Sound) const
 
 void ACEnemyCharacterBase::OnPlayerComboHit(AActor* HitActor, int32 ComboIndex, float Damage)
 {
-    // 자신이 맞았는지 확인
-    if (HitActor != this)
-    {
-        return;
-    }
+	// 자신이 맞았는지 확인
+	if (HitActor != this)
+	{
+		return;
+	}
     
-    UE_LOG(LogTemp, Warning, TEXT("[%s] OnPlayerComboHit CALLED! Combo: %d, Damage: %.1f"), 
-        *GetName(), ComboIndex, Damage);
+	const TCHAR* DirText = TEXT("None");
+	switch (LastHitDirection)
+	{
+	case EEnemyHitDirection::FromLeft: DirText = TEXT("FromLeft"); break;
+	case EEnemyHitDirection::FromRight: DirText = TEXT("FromRight"); break;
+	default: break;
+	}
+	
+	UE_LOG(LogTemp, Warning, TEXT("[%s] OnPlayerComboHit CALLED! Combo: %d, Damage: %.1f, Dir: %s (DotRight: %.3f)"),
+		*GetName(), ComboIndex, Damage, DirText, LastHitDirectionRightDot);
     
-    // 사망 상태면 무시
-    if (State == EEnemyState::Dead)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("[%s] Ignoring hit - already dead"), *GetName());
-        return;
-    }
+	// 사망 상태면 무시
+	if (State == EEnemyState::Dead)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[%s] Ignoring hit - already dead"), *GetName());
+		return;
+	}
     
-    // 콤보 인덱스 저장
-    PlayerCurrentCombo = ComboIndex;
+	// 콤보 인덱스 저장
+	PlayerCurrentCombo = ComboIndex;
 	StartHitShake();
     
-    // 콤보에 맞는 피격 몽타주 재생
-    UAnimMontage* MontageToPlay = nullptr;
+	// 콤보에 맞는 피격 몽타주 재생
+	FName MontageSource = NAME_None;
+	UAnimMontage* MontageToPlay = ResolveComboHitReactionMontage(ComboIndex, MontageSource);
+	
+	if (!MontageToPlay)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[%s] No hit reaction montage for combo index %d! Dir: %s, Combo size: %d, ComboLeft size: %d, ComboRight size: %d, Hit size: %d, HitLeft size: %d, HitRight size: %d"),
+			*GetName(), ComboIndex, DirText,
+			ComboHitReactionMontages.Num(), ComboHitReactionMontagesLeft.Num(), ComboHitReactionMontagesRight.Num(),
+			HitReactionMontages.Num(), HitReactionMontagesLeft.Num(), HitReactionMontagesRight.Num());
+	}
     
-    // 1. ComboHitReactionMontages가 있고 유효한 인덱스인 경우
-    if (ComboHitReactionMontages.IsValidIndex(ComboIndex) && ComboHitReactionMontages[ComboIndex])
-    {
-        MontageToPlay = ComboHitReactionMontages[ComboIndex];
-        UE_LOG(LogTemp, Warning, TEXT("[%s] Using ComboHitReactionMontages[%d]"), *GetName(), ComboIndex);
-    }
-    // 2. 없으면 기본 HitReactionMontages 사용
-    else if (HitReactionMontages.IsValidIndex(ComboIndex) && HitReactionMontages[ComboIndex])
-    {
-        MontageToPlay = HitReactionMontages[ComboIndex];
-        UE_LOG(LogTemp, Warning, TEXT("[%s] Using HitReactionMontages[%d]"), *GetName(), ComboIndex);
-    }
-    else
-    {
-        UE_LOG(LogTemp, Error, TEXT("[%s] No hit reaction montage for combo index %d! ComboArray size: %d, HitArray size: %d"), 
-            *GetName(), ComboIndex, ComboHitReactionMontages.Num(), HitReactionMontages.Num());
-    }
-    
-    // 몽타주 재생
-    if (MontageToPlay)
-    {
-    	bIsHitStunned = true;
-        StopMove();
+	// 몽타주 재생
+	if (MontageToPlay)
+	{
+		bIsHitStunned = true;
+		StopMove();
 
-    	if (AAIController* AIC = Cast<AAIController>(GetController()))
-    	{
-    		AIC->StopMovement();
-    	}
+		if (AAIController* AIC = Cast<AAIController>(GetController()))
+		{
+			AIC->StopMovement();
+		}
         
-    	bDirectMoveActive = false;
+		bDirectMoveActive = false;
 
-    	if (UCharacterMovementComponent* MovementComp = GetCharacterMovement())
-    	{
-    		MovementComp->StopMovementImmediately();
-    		MovementComp->Velocity = FVector::ZeroVector;
-    	}
+		if (UCharacterMovementComponent* MovementComp = GetCharacterMovement())
+		{
+			MovementComp->StopMovementImmediately();
+			MovementComp->Velocity = FVector::ZeroVector;
+		}
     	
-        if (USkeletalMeshComponent* MeshComp = GetMesh())
-        {
-            if (UAnimInstance* AnimInstance = MeshComp->GetAnimInstance())
-            {
-                // 이미 재생 중인 몽타주가 있으면 중단하고 새로 재생
-                if (AnimInstance->Montage_IsPlaying(MontageToPlay))
-                {
-                    AnimInstance->Montage_Stop(0.2f, MontageToPlay);
-                }
+		if (USkeletalMeshComponent* MeshComp = GetMesh())
+		{
+			if (UAnimInstance* AnimInstance = MeshComp->GetAnimInstance())
+			{
+				// 이미 재생 중인 몽타주가 있으면 중단하고 새로 재생
+				if (AnimInstance->Montage_IsPlaying(MontageToPlay))
+				{
+					AnimInstance->Montage_Stop(0.2f, MontageToPlay);
+				}
                 
-                const float Duration = AnimInstance->Montage_Play(MontageToPlay, 1.0f);
+				const float Duration = AnimInstance->Montage_Play(MontageToPlay, 1.0f);
                 
-                UE_LOG(LogTemp, Warning, TEXT("[%s] Playing combo %d hit reaction montage (Duration: %.2f)"), 
-                    *GetName(), ComboIndex, Duration);
-            }
-            else
-            {
-                UE_LOG(LogTemp, Error, TEXT("[%s] AnimInstance is NULL!"), *GetName());
-            }
-        }
-        else
-        {
-            UE_LOG(LogTemp, Error, TEXT("[%s] MeshComp is NULL!"), *GetName());
-        }
+				UE_LOG(LogTemp, Warning, TEXT("[%s] Playing combo %d hit reaction montage from %s (Duration: %.2f)"),
+					*GetName(), ComboIndex, MontageSource.IsNone() ? TEXT("Unknown") : *MontageSource.ToString(), Duration);
+			}
+			else
+			{
+				UE_LOG(LogTemp, Error, TEXT("[%s] AnimInstance is NULL!"), *GetName());
+			}
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("[%s] MeshComp is NULL!"), *GetName());
+		}
         
-        // 피격 사운드
-        PlaySoundIfValid(HitSound);
+		// 피격 사운드
+		PlaySoundIfValid(HitSound);
         
-        // 피격 경직 타이머 설정
-        GetWorldTimerManager().ClearTimer(HitStunTimer);
-        GetWorldTimerManager().SetTimer(HitStunTimer, this, &ACEnemyCharacterBase::EndHitStun, HitStunDuration, false);
-    }
-    else
-    {
-        UE_LOG(LogTemp, Error, TEXT("[%s] MontageToPlay is NULL! Cannot play hit reaction"), *GetName());
-    }
+		// 피격 경직 타이머 설정
+		GetWorldTimerManager().ClearTimer(HitStunTimer);
+		GetWorldTimerManager().SetTimer(HitStunTimer, this, &ACEnemyCharacterBase::EndHitStun, HitStunDuration, false);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("[%s] MontageToPlay is NULL! Cannot play hit reaction"), *GetName());
+	}
 }
 
 void ACEnemyCharacterBase::EndHitStun()
