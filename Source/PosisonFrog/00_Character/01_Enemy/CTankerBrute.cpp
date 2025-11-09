@@ -24,10 +24,28 @@ ACTankerBrute::ACTankerBrute()
     Tags.AddUnique(TEXT("Enemy.Type.Tank"));
     ApplyPerceptionTuning();
  
-    if (UCapsuleComponent* Capsule = GetCapsuleComponent())
+    if (USkeletalMeshComponent* MeshComp = GetMesh())
     {
-        const float DesiredSeparation = Capsule->GetScaledCapsuleRadius() * 2.f + 5.f;
+        MeshComp->SetGenerateOverlapEvents(false);
+        MeshComp->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+
+        MeshComp->SetCollisionResponseToAllChannels(ECR_Overlap);
+    }
+
+    if (UCapsuleComponent* CapsuleComp = GetCapsuleComponent())
+    {
+        const float DesiredSeparation = CapsuleComp->GetScaledCapsuleRadius() * 2.f + 5.f;
         SeparationRadius = FMath::Max(SeparationRadius, DesiredSeparation);
+        
+        CapsuleComp->SetGenerateOverlapEvents(true);
+        CapsuleComp->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+
+        CapsuleComp->SetCollisionResponseToAllChannels(ECR_Block);
+        CapsuleComp->SetCollisionResponseToChannel(ECC_Visibility, ECR_Ignore);
+        CapsuleComp->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
+        CapsuleComp->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+        CapsuleComp->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Overlap);
+        CapsuleComp->SetCollisionResponseToChannel(ECC_GameTraceChannel3, ECR_Overlap);
     }
 }
 

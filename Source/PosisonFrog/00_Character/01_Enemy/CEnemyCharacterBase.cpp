@@ -913,8 +913,6 @@ void ACEnemyCharacterBase::OnDead()
 		}
 	}
 
-	DisableAllCollisions();
-
 	bAttackWindowActive = false;
 	SwingHitActors.Reset();
 	AttackWindowEndTime = -1.f;
@@ -929,13 +927,6 @@ void ACEnemyCharacterBase::TryDropHealPack()
 {
 	if (!HealPackClass) return;
 	if (FMath::FRand() > HealPackDropChance) return;
-
-	/*
-	FActorSpawnParameters P;
-	P.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
-
-	GetWorld()->SpawnActor<AActor>(HealPackClass, GetActorLocation(), FRotator::ZeroRotator, P);
-	*/
 	
 	// 힐 오브 드랍(풀 우선) - 
 	const FVector  SpawnLoc = GetActorLocation();
@@ -952,51 +943,6 @@ void ACEnemyCharacterBase::TryDropHealPack()
 		}
 	}
 	
-}
-
-void ACEnemyCharacterBase::DisableAllCollisions()
-{
-	if (UCapsuleComponent* Capsule = GetCapsuleComponent())
-	{
-		Capsule->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
-		Capsule->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
-		Capsule->SetCollisionResponseToChannel(AttackTraceChannel, ECR_Ignore);
-
-		Capsule->SetCollisionResponseToChannel(ECC_WorldStatic, ECR_Block);
-		Capsule->SetCollisionResponseToChannel(ECC_WorldDynamic, ECR_Block);
-	}
-
-	if (USkeletalMeshComponent* mesh = GetMesh())
-	{
-		mesh->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
-		mesh->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
-		mesh->SetCollisionResponseToChannel(AttackTraceChannel, ECR_Ignore);
-	}
-}
-
-void ACEnemyCharacterBase::EnableAllCollisions()
-{
-	if (UCapsuleComponent* CapsuleComp = GetCapsuleComponent())
-	{
-		CapsuleComp->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-		CapsuleComp->SetCollisionResponseToAllChannels(ECR_Block);
-		CapsuleComp->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
-		CapsuleComp->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
-		CapsuleComp->SetGenerateOverlapEvents(true);
-	}
-
-	if (USkeletalMeshComponent* MeshComp = GetMesh())
-	{
-		MeshComp->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-		MeshComp->SetCollisionObjectType(ECC_Pawn);
-		MeshComp->SetCollisionResponseToAllChannels(ECR_Block);
-		MeshComp->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
-		MeshComp->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
-		MeshComp->SetGenerateOverlapEvents(true);
-	}
-
-	SetActorEnableCollision(true);
-	SetCanBeDamaged(true);
 }
 
 void ACEnemyCharacterBase::SaveInitialTransform()
@@ -1071,7 +1017,8 @@ void ACEnemyCharacterBase::ResetForRespawn()
 		}
 	}
 	
-	EnableAllCollisions();
+	SetActorEnableCollision(true);
+	SetCanBeDamaged(true);
 }
 
 void ACEnemyCharacterBase::ForceRestartAI()

@@ -254,7 +254,6 @@ protected:
     void SubscribeToPlayerComboHits();
     void UnsubscribeFromPlayerComboHits();
     virtual void TryDropHealPack();
-    void DisableAllCollisions();
     void EndHitStun();  // 피격 경직 종료
 
     // ───────── 공통 유틸리티 함수 ─────────
@@ -294,10 +293,7 @@ public:
     // 리스폰 시 초기 위치로 복귀
     void ResetToInitialTransform();
     void ResetForRespawn();
-
     void ForceRestartAI();
-
-    void EnableAllCollisions();
     
 protected:
     // 런타임 상태

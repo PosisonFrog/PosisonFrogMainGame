@@ -22,12 +22,6 @@ ACWeaponBase::ACWeaponBase()
 	
 	DamageBox = CreateDefaultSubobject<UBoxComponent>(TEXT("DamageBox"));
 	DamageBox->SetupAttachment(WeaponMesh);
-	DamageBox->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	DamageBox->SetGenerateOverlapEvents(false);
-	DamageBox->SetCollisionObjectType(ECC_WorldDynamic);
-	DamageBox->SetCollisionResponseToAllChannels(ECR_Ignore);
-	DamageBox->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
-	DamageBox->SetCollisionResponseToChannel(PF::Collision::RiotEnemy, ECR_Overlap);
 	
 	// (선택) 물리 바디/월드 다이나믹 등 부딪히고 싶은 채널 추가
 	// DamageBox->SetCollisionResponseToChannel(ECC_PhysicsBody, ECR_Overlap);
