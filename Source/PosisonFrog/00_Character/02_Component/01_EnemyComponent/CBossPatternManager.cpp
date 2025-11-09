@@ -553,6 +553,27 @@ void UCBossPatternManager::ExecuteBarragePattern()
 		return;
 	}
 
+	if (WeaponComponent)
+	{
+		const int32 BarrageAttackIndex = 3;  // Barrage 패턴용 몽타주 인덱스
+    
+		WeaponComponent->SetCurrentAttackIndex(BarrageAttackIndex);
+    
+		if (WeaponComponent->IsAttackIndexValid(BarrageAttackIndex))
+		{
+			WeaponComponent->DoAttack();
+			UE_LOG(LogTemp, Log, TEXT("[PatternManager] Playing Barrage montage (Index: %d)"), BarrageAttackIndex);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[PatternManager] Barrage attack index %d is invalid!"), BarrageAttackIndex);
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[PatternManager] WeaponComponent is missing for Barrage!"));
+	}
+	
 	BarrageShotCount = 0;
 
 	// 발사 루프 타이머
