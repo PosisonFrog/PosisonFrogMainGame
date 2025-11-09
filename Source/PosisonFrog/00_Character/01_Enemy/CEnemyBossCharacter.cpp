@@ -4,7 +4,10 @@
 #include "00_Character/02_Component/01_EnemyComponent/CEnemyBossPhaseComponent.h"
 #include "00_Character/02_Component/01_EnemyComponent/CEnemyHealthComponent.h"
 #include "00_Character/02_Component/01_EnemyComponent/CEnemyWeaponComponent.h"
+#include "00_Character/01_Enemy/01_AIController/BossAIController.h"
 #include "03_Combat/Boss/BossPhaseDataAsset.h"
+#include "AIController.h"
+#include "GameFramework/CharacterMovementComponent.h"
 
 ACEnemyBossCharacter::ACEnemyBossCharacter()
 {
@@ -227,12 +230,43 @@ void ACEnemyBossCharacter::HandleBossDeath(AActor* DeadActor)
     }
   
     bIsBossDead = true;
+
+    
+
+    if (AAIController* AIController = Cast<AAIController>(GetController()))
+    {
+        AIController->StopMovement();
+        
+        if (ABossAIController* BossAI = Cast<ABossAIController>(AIController))
+        {
+            BossAI->SetChaseEnabled(false);
+            BossAI->SetTargetPlayer(nullptr);
+        }
+    }
+    
+    if (UCharacterMovementComponent* MovementComponent = GetCharacterMovement())
+    {
+        MovementComponent->StopMovementImmediately();
+    }
+    
+    SetActorTickEnabled(false);
+
    
     if (USkeletalMeshComponent* mesh = GetMesh())
     {
         if (UAnimInstance* AnimInst = mesh->GetAnimInstance())
         {
-            AnimInst->StopAllMontages(0.f);
+            AnimInst->StopAllMontages(0.f); 
+            
+            if (DeathMontage)
+            {
+                AnimInst->Montage_Play(DeathMontage, 1.0f);
+                UE_LOG(LogTemp, Warning, TEXT("[Boss] Playing death montage: %s"), *DeathMontage->GetName());
+            }
+            else
+            {
+                UE_LOG(LogTemp, Warning, TEXT("[Boss] No death montage assigned!"));
+            }
         }
     }
 }

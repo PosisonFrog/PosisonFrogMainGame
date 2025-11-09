@@ -148,6 +148,10 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "PF|Charge", meta = (ClampMin = "0"))
 	float ChargeStopDistanceOverride = 4500.f;
 
+	/** 돌진을 시도하기 위한 최소 거리. 이보다 가까우면 근접 공격을 사용한다. */
+	UPROPERTY(EditDefaultsOnly, Category = "PF|Charge", meta = (ClampMin = "0"))
+	float MinimumChargeDistance = 450.f;
+	
 	UPROPERTY(EditDefaultsOnly, Category = "PF|Melee", meta = (ClampMin = "0"))
 	float MeleeAttackDistance = 220.f;
 

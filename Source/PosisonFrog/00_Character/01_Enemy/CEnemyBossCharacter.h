@@ -87,4 +87,8 @@ protected:
 
     /** 보스의 사망 여부를 추적합니다. */
     bool bIsBossDead = false;
+
+    /** 보스 사망 시 재생할 몽타주 */
+    UPROPERTY(EditAnywhere, Category="Boss|Animation")
+    TObjectPtr<UAnimMontage> DeathMontage;
 };

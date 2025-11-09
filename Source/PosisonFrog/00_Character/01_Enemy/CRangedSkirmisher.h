@@ -5,7 +5,7 @@
 
 class UAnimMontage;
 class USoundBase;
-class UParticleSystem;
+class UNiagaraSystem;
 class UCapsuleComponent;
 class UCharacterMovementComponent;
 class CEnemyBullet;
@@ -109,7 +109,7 @@ protected:
 
     // ───── 연출 ─────
     UPROPERTY(EditAnywhere, Category="PF|Ranged|VFX")
-    UParticleSystem* MuzzleFX = nullptr;
+    UNiagaraSystem* MuzzleFX = nullptr;
 
     UPROPERTY(EditAnywhere, Category="PF|Ranged|SFX")
     USoundBase* FireSFX = nullptr;

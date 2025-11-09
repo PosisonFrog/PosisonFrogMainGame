@@ -396,11 +396,22 @@ void ACTankerBrute::ApplyPerceptionTuning()
 
 bool ACTankerBrute::ShouldAttemptCharge() const
 {
-    return bPreferCharge
+    if (!(bPreferCharge
         && ChargeComp
         && Target
         && !ChargeComp->IsOnCooldown()
-        && HasVisualOnTarget();
+        && HasVisualOnTarget()))
+    {
+        return false;
+    }
+
+    const float DistanceToTarget = DistToTarget();
+    if (DistanceToTarget <= MinimumChargeDistance)
+    {
+        return false;
+    }
+   
+    return true;
 }
 
 bool ACTankerBrute::TryStartCharge()

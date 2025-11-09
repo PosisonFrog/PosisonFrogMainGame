@@ -8,6 +8,7 @@
 #include "Kismet/KismetMathLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "DrawDebugHelpers.h"
+#include "NiagaraFunctionLibrary.h"
 
 // ─────────────────────────────────────────────────────
 ACRangedSkirmisher::ACRangedSkirmisher()
@@ -355,7 +356,7 @@ void ACRangedSkirmisher::FireOnce()
         }
 
         if (MuzzleFX)
-            UGameplayStatics::SpawnEmitterAtLocation(this, MuzzleFX, MuzzleLoc, AimDir.Rotation());
+            UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, MuzzleFX, MuzzleLoc, GetActorRotation());
         if (FireSFX)
             UGameplayStatics::PlaySoundAtLocation(this, FireSFX, MuzzleLoc);
         if (FireMontage)
