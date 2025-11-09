@@ -13,6 +13,7 @@
 #include "Components/SkeletalMeshComponent.h"
 
 #include "Global.h"
+#include "NiagaraFunctionLibrary.h"
 #include "00_Character/00_Player/CPlayerCharacter.h"
 #include "00_Character/02_Component/00_PlayerComponent/CFuryGaugeComponent.h"
 #include "00_Character/02_Component/00_PlayerComponent/CPlayerWeaponComponent.h" 
@@ -802,6 +803,18 @@ float ACEnemyCharacterBase::TakeDamage(float DamageAmount, FDamageEvent const& D
 	float Applied = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
 	if (Applied <= 0.0f) return Applied;
 
+	if (DamageEvent.IsOfType(FPointDamageEvent::ClassID))
+	{
+		const FPointDamageEvent* PointDamage = static_cast<const FPointDamageEvent*>(&DamageEvent);
+		SpawnDamageReceivedEffect(PointDamage->HitInfo.ImpactPoint, PointDamage->HitInfo.ImpactNormal);
+	}
+	else
+	{
+		FVector HitLocation = GetActorLocation();
+		FVector HitNormal = DamageCauser ? (GetActorLocation() - DamageCauser->GetActorLocation()).GetSafeNormal() : FVector::UpVector;
+		SpawnDamageReceivedEffect(HitLocation, HitNormal);
+	}
+	
 	APawn* InstigatorPawn = EventInstigator ? EventInstigator->GetPawn() : nullptr;
 	if (!InstigatorPawn && DamageCauser)
 	{
@@ -860,7 +873,6 @@ float ACEnemyCharacterBase::TakeDamage(float DamageAmount, FDamageEvent const& D
         
 		UE_LOG(LogTemp, Warning, TEXT("[%s] 체력 변화: %.1f -> %.1f"), 
 			   *GetName(), OldHealth, NewHealth);
-		
 	}
 	else
 	{
@@ -1476,7 +1488,7 @@ void ACEnemyCharacterBase::OnPlayerComboHit(AActor* HitActor, int32 ComboIndex, 
 		{
 			UE_LOG(LogTemp, Error, TEXT("[%s] MeshComp is NULL!"), *GetName());
 		}
-        
+		
 		// 피격 사운드
 		PlaySoundIfValid(HitSound);
         
@@ -1500,6 +1512,23 @@ void ACEnemyCharacterBase::EndHitStun()
 	
 	bIsHitStunned = false;
 	UE_LOG(LogTemp, Verbose, TEXT("[%s] Hit stun ended"), *GetName());
+}
+
+void ACEnemyCharacterBase::SpawnDamageReceivedEffect(const FVector& HitLocation, const FVector& HitNormal)
+{
+	if (TakeHitEffect)
+	{
+		FRotator Rotation = HitNormal.Rotation();
+		UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+			GetWorld(),
+			TakeHitEffect,
+			HitLocation,
+			Rotation,
+			FVector(1.0f),
+			true,
+			true,
+			ENCPoolMethod::None);
+	}
 }
 
 void ACEnemyCharacterBase::StartHitShake()

@@ -5,6 +5,7 @@
 #include "00_Character/CBaseCharacter.h"
 #include "CEnemyCharacterBase.generated.h"
 
+class UNiagaraSystem;
 class UCapsuleComponent;
 class UCharacterMovementComponent;
 class UCEnemyHealthComponent;
@@ -358,6 +359,12 @@ protected:
     UPROPERTY(EditAnywhere, Category="PF|HitReaction", meta=(ClampMin="0", ClampMax="200"))
     float HitShakeFrequency = 20.f;  // 쉐이킹 속도 (높을수록 빠름)
 
+    // 피격 VFX
+    UPROPERTY(EditAnywhere, Category = "Effects|Damage")
+    UNiagaraSystem* TakeHitEffect = nullptr;
+
+    void SpawnDamageReceivedEffect(const FVector& HitLocation, const FVector& HitNormal);
+    
     void StartHitShake();
     void UpdateHitShake();
     void StopHitShake();
