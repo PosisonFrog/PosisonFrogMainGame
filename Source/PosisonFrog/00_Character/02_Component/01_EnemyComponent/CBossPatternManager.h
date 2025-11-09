@@ -205,7 +205,38 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Category="Pattern|Barrage")
 	float BarrageTotalDuration = 3.0f;
-	
+
+	/** 장판 데칼 클래스 (붉은 원형) */
+	UPROPERTY(EditDefaultsOnly, Category="Pattern|Barrage")
+	TSubclassOf<AActor> WarningDecalClass;
+
+	/** 장판 표시 후 코코넛 떨어지는 시간 (1.5초) */
+	UPROPERTY(EditDefaultsOnly, Category="Pattern|Barrage")
+	float CoconutFallDelay = 1.5f;
+
+	/** 데칼 미리 표시 시간 (떨어지기 1초 전) */
+	UPROPERTY(EditDefaultsOnly, Category="Pattern|Barrage")
+	float DecalPreviewTime = 1.0f;
+
+	/** 플레이어 근처 랜덤 범위 */
+	UPROPERTY(EditDefaultsOnly, Category="Pattern|Barrage")
+	float RandomSpawnRadius = 500.f;
+
+	/** 장판 반경 */
+	UPROPERTY(EditDefaultsOnly, Category="Pattern|Barrage")
+	float WarningDecalRadius = 200.f;
+
+	/** 코코넛을 위로 던지는 힘 (높을수록 빠름) */
+	UPROPERTY(EditDefaultsOnly, Category="Pattern|Barrage")
+	float ThrowUpwardForce = 4000.f;
+
+	/** 코코넛이 떨어지는 속도 (높을수록 빠름) */
+	UPROPERTY(EditDefaultsOnly, Category="Pattern|Barrage")
+	float FallSpeed = 3500.f;
+
+	/** 코코넛 떨어지기 시작하는 높이 */
+	UPROPERTY(EditDefaultsOnly, Category="Pattern|Barrage")
+	float DropHeight = 2500.f;
 
 	// Phase 설정
 	UPROPERTY(EditDefaultsOnly, Category="Phase")
@@ -237,6 +268,9 @@ protected:
 	int32 BarrageShotCount;
 	bool bIsPatternActive;
 	bool bIsRushing;
+
+	// Barrage 런타임
+	TArray<FVector> PrePlannedDropLocations;  // 미리 계획된 낙하 위치들
 
 	// 타이머 핸들
 	FTimerHandle RushDelayTimer;

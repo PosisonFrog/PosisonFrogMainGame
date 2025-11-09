@@ -544,7 +544,7 @@ void UCBossPatternManager::ExecuteSlamPattern()
 
 void UCBossPatternManager::ExecuteBarragePattern()
 {
-	UE_LOG(LogTemp, Warning, TEXT("[PatternManager]  BARRAGE ATTACK!"));
+	UE_LOG(LogTemp, Warning, TEXT("[PatternManager] ★ BARRAGE PATTERN START!"));
 
 	if (!ProjectileClass)
 	{
@@ -552,40 +552,118 @@ void UCBossPatternManager::ExecuteBarragePattern()
 		PhaseComponent->NotifyPatternFinished(false);
 		return;
 	}
-
+	
 	if (WeaponComponent)
 	{
-		const int32 BarrageAttackIndex = 3;  // Barrage 패턴용 몽타주 인덱스
-    
+		const int32 BarrageAttackIndex = 3;
+		
 		WeaponComponent->SetCurrentAttackIndex(BarrageAttackIndex);
-    
+		
 		if (WeaponComponent->IsAttackIndexValid(BarrageAttackIndex))
 		{
 			WeaponComponent->DoAttack();
-			UE_LOG(LogTemp, Log, TEXT("[PatternManager] Playing Barrage montage (Index: %d)"), BarrageAttackIndex);
+			UE_LOG(LogTemp, Log, TEXT("[PatternManager] Playing Barrage montage"));
 		}
-		else
-		{
-			UE_LOG(LogTemp, Warning, TEXT("[PatternManager] Barrage attack index %d is invalid!"), BarrageAttackIndex);
-		}
+	}
+
+	// 모든 낙하 위치를 미리 계획
+	PrePlannedDropLocations.Empty();
+
+	AActor* Target = GetPlayerTarget();
+	if (!Target)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[PatternManager] No player target!"));
+		PhaseComponent->NotifyPatternFinished(false);
+		return;
+	}
+
+	FVector PlayerLocation = Target->GetActorLocation();
+
+	// LineTrace로 바닥 찾기
+	FVector TraceStart = PlayerLocation + FVector(0, 0, 500.f);  
+	FVector TraceEnd = PlayerLocation - FVector(0, 0, 1000.f);  
+
+	FHitResult HitResult;
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(OwnerBoss);
+	QueryParams.AddIgnoredActor(Target);
+
+	float GroundZ = PlayerLocation.Z;
+
+	if (GetWorld()->LineTraceSingleByChannel(HitResult, TraceStart, TraceEnd, ECC_Visibility, QueryParams))
+	{
+		GroundZ = HitResult.Location.Z;
+		UE_LOG(LogTemp, Log, TEXT("[PatternManager] Ground found at Z=%.1f"), GroundZ);
 	}
 	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[PatternManager] WeaponComponent is missing for Barrage!"));
+		// 못 찾으면 보스 높이 사용
+		GroundZ = OwnerBoss->GetActorLocation().Z;
+		UE_LOG(LogTemp, Warning, TEXT("[PatternManager] Ground not found, using Boss Z=%.1f"), GroundZ);
 	}
-	
-	BarrageShotCount = 0;
 
-	// 발사 루프 타이머
+	PlayerLocation.Z = GroundZ;  
+
+	// 첫 번째는 무조건 플레이어 현재 위치
+	PrePlannedDropLocations.Add(PlayerLocation);
+
+	// 나머지는 플레이어 근처 랜덤
+	for (int32 i = 1; i < MaxBarrageShots; ++i)
+	{
+		FVector2D RandomCircle = FMath::RandPointInCircle(RandomSpawnRadius);
+		FVector RandomLocation = PlayerLocation + FVector(RandomCircle.X, RandomCircle.Y, 0.f);
+    
+		PrePlannedDropLocations.Add(RandomLocation);
+	}
+
+	// 모든 위치에 데칼 미리 생성
+	if (WarningDecalClass)
+	{
+		for (int32 i = 0; i < PrePlannedDropLocations.Num(); ++i)
+		{
+			const FVector& DropLocation = PrePlannedDropLocations[i];
+			
+			FTimerHandle DecalTimerHandle;
+			GetWorld()->GetTimerManager().SetTimer(
+				DecalTimerHandle,
+				[this, DropLocation, i]()
+				{
+					FActorSpawnParameters DecalSpawnParams;
+					DecalSpawnParams.Owner = OwnerBoss;
+					DecalSpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+					AActor* Decal = GetWorld()->SpawnActor<AActor>(
+						WarningDecalClass,
+						DropLocation,
+						FRotator::ZeroRotator,
+						DecalSpawnParams
+					);
+
+					if (Decal)
+					{
+						Decal->SetLifeSpan(DecalPreviewTime + 0.5f);
+						
+						UE_LOG(LogTemp, Warning, TEXT("[PatternManager] ★ Decal[%d] spawned at (%.1f, %.1f)"), 
+						       i, DropLocation.X, DropLocation.Y);
+					}
+				},
+				CoconutFallDelay - DecalPreviewTime, 
+				false
+			);
+		}
+	}
+
+
+	BarrageShotCount = 0;
 	GetWorld()->GetTimerManager().SetTimer(
 		BarrageLoopTimer,
 		this,
 		&UCBossPatternManager::FireBarrageShot,
 		BarrageShotInterval,
-		true
+		true,
+		0.f
 	);
-
-	// 총 지속 시간 후 중지
+	
 	GetWorld()->GetTimerManager().SetTimer(
 		BarrageStopTimer,
 		this,
@@ -593,6 +671,11 @@ void UCBossPatternManager::ExecuteBarragePattern()
 		BarrageTotalDuration,
 		false
 	);
+
+	UE_LOG(LogTemp, Log, TEXT("[PatternManager] Barrage: %d locations planned, decals at %.1fs, drops at %.1fs"), 
+	       PrePlannedDropLocations.Num(), 
+	       CoconutFallDelay - DecalPreviewTime,
+	       CoconutFallDelay);
 }
 
 void UCBossPatternManager::FireBarrageShot()
@@ -601,38 +684,101 @@ void UCBossPatternManager::FireBarrageShot()
 
 	if (BarrageShotCount > MaxBarrageShots)
 	{
-		StopBarrage();
+		GetWorld()->GetTimerManager().ClearTimer(BarrageLoopTimer);
 		return;
 	}
 
-	AActor* Target = GetPlayerTarget();
-	if (!Target)
+	int32 Index = BarrageShotCount - 1;
+	if (!PrePlannedDropLocations.IsValidIndex(Index))
 	{
+		UE_LOG(LogTemp, Error, TEXT("[PatternManager] Invalid drop location index: %d"), Index);
 		return;
 	}
 
-	// 발사 위치 계산
-	FVector SpawnLocation = OwnerBoss->GetActorLocation() + 
-	                        OwnerBoss->GetActorForwardVector() * 100.f +
-	                        FVector(0, 0, 50.f);
+	const FVector& TargetLocation = PrePlannedDropLocations[Index];
 
-	// 플레이어 방향으로 회전
-	FRotator SpawnRotation = (Target->GetActorLocation() - SpawnLocation).Rotation();
+	UE_LOG(LogTemp, Warning, TEXT("[PatternManager] ★ Throwing coconut %d/%d"), BarrageShotCount, MaxBarrageShots);
+	
+	FVector BossLocation = OwnerBoss->GetActorLocation();
+	FVector ThrowLocation = BossLocation + FVector(0, 0, 100.f);
 
-	// 발사체 스폰
-	FActorSpawnParameters SpawnParams;
-	SpawnParams.Owner = OwnerBoss;
-	SpawnParams.Instigator = OwnerBoss;
+	FActorSpawnParameters ThrowSpawnParams;
+	ThrowSpawnParams.Owner = OwnerBoss;
+	ThrowSpawnParams.Instigator = OwnerBoss;
+	ThrowSpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-	AActor* Projectile = GetWorld()->SpawnActor<AActor>(
+	AActor* ThrownProjectile = GetWorld()->SpawnActor<AActor>(
 		ProjectileClass,
-		SpawnLocation,
-		SpawnRotation,
-		SpawnParams
+		ThrowLocation,
+		FRotator::ZeroRotator,
+		ThrowSpawnParams
 	);
 
-	UE_LOG(LogTemp, Verbose, TEXT("[PatternManager] Fired projectile %d/%d"), 
-	       BarrageShotCount, MaxBarrageShots);
+	if (ThrownProjectile)
+	{
+		// 위로 던지기
+		if (UPrimitiveComponent* PrimComp = ThrownProjectile->FindComponentByClass<UPrimitiveComponent>())
+		{
+			PrimComp->SetSimulatePhysics(true);
+			PrimComp->SetEnableGravity(true);
+			
+			FVector UpwardForce = FVector(0, 0, ThrowUpwardForce);
+			PrimComp->AddImpulse(UpwardForce, NAME_None, true);
+		}
+
+		ThrownProjectile->SetLifeSpan(CoconutFallDelay);
+	}
+
+	// 계획된 위치에 코코넛 떨어뜨림
+	FTimerHandle DropTimerHandle;
+	GetWorld()->GetTimerManager().SetTimer(
+		DropTimerHandle,
+		[this, TargetLocation, Index]()
+		{
+			FVector DropLocation = TargetLocation + FVector(0, 0, DropHeight);
+
+			FActorSpawnParameters DropSpawnParams;
+			DropSpawnParams.Owner = OwnerBoss;
+			DropSpawnParams.Instigator = OwnerBoss;
+			DropSpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+			AActor* FallingProjectile = GetWorld()->SpawnActor<AActor>(
+				ProjectileClass,
+				DropLocation,
+				FRotator::ZeroRotator,
+				DropSpawnParams
+			);
+
+			if (FallingProjectile)
+			{
+				if (UFunction* InitFunc = FallingProjectile->FindFunction(TEXT("InitProjectile")))
+				{
+					struct FInitProjectileParams
+					{
+						AActor* Shooter;
+						float Damage;
+						float Speed;
+						FVector Direction;
+					};
+
+					FInitProjectileParams Params;
+					Params.Shooter = OwnerBoss;
+					Params.Damage = 25.f;
+					Params.Speed = FallSpeed;
+					Params.Direction = FVector(0, 0, -1);
+
+					FallingProjectile->ProcessEvent(InitFunc, &Params);
+
+					UE_LOG(LogTemp, Warning, TEXT("[PatternManager] ★★★ Coconut[%d] DROPPED at (%.1f, %.1f)!"), 
+					       Index, TargetLocation.X, TargetLocation.Y);
+				}
+
+				FallingProjectile->SetLifeSpan(2.f);
+			}
+		},
+		CoconutFallDelay,
+		false
+	);
 }
 
 void UCBossPatternManager::StopBarrage()
@@ -640,7 +786,7 @@ void UCBossPatternManager::StopBarrage()
 	GetWorld()->GetTimerManager().ClearTimer(BarrageLoopTimer);
 	GetWorld()->GetTimerManager().ClearTimer(BarrageStopTimer);
 
-	UE_LOG(LogTemp, Log, TEXT("[PatternManager] Barrage Stopped"));
+	UE_LOG(LogTemp, Log, TEXT("[PatternManager] Barrage Stopped - Threw %d projectiles"), BarrageShotCount);
 	StopProjectileRain(false);
 	
 	if (PhaseComponent)
