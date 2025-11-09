@@ -34,7 +34,7 @@ protected:
 	UPROPERTY(VisibleAnywhere) UProjectileMovementComponent* Proj = nullptr;
 
 	UPROPERTY(EditAnywhere, Category="PF|Bullet")
-	float LifeSeconds = 3.0f;
+	float LifeSeconds = 1.8f;
 
 	UPROPERTY(EditAnywhere, Category="PF|Bullet")
 	bool bHitOnlyPlayers = true;

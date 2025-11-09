@@ -16,8 +16,15 @@ ACRangedSkirmisher::ACRangedSkirmisher()
     AutoPossessAI     = EAutoPossessAI::PlacedInWorldOrSpawned;
 
     // 베이스 튜닝(근접값은 무시되고 사격으로 전투)
-    AttackInterval = FireInterval;        // EnemyBase의 공통 타이머와 맞춤
+    AttackInterval = BurstShotInterval;      // EnemyBase의 공통 타이머와 맞춤
     BaseDamage     = BulletDamage;
+
+    // 중요: 원거리 적이므로 AttackRange를 사격 거리로 설정
+    AttackRange = 900.f;  // DesiredRangeMax보다 약간 크게
+    AttackEnterDistance = 900.f;  // Attack 상태 진입 거리
+    AttackExitDistance = 1000.f;  // Attack 상태 이탈 거리
+    
+    UE_LOG(LogTemp, Warning, TEXT("[Skirmisher] 생성자: AttackRange = %.2f로 설정"), AttackRange);
 
     // 이동 빠름
     if (UCharacterMovementComponent* M = GetCharacterMovement())
@@ -34,23 +41,91 @@ void ACRangedSkirmisher::BeginPlay()
 
     // 피해 이벤트 → 반사 회피 트리거
     OnTakeAnyDamage.AddDynamic(this, &ACRangedSkirmisher::OnAnyDamaged);
+    
+    UE_LOG(LogTemp, Warning, TEXT("[Skirmisher] BeginPlay 완료 - AttackRange: %.2f"), AttackRange);
 }
 
 void ACRangedSkirmisher::Tick(float DeltaSeconds)
 {
     Super::Tick(DeltaSeconds);
+    
+    // 현재 상태 주기적 로그 (1초마다)
+    /*static float LogTimer = 0.f;
+    LogTimer += DeltaSeconds;
+    if (LogTimer >= 1.0f)
+    {
+        LogTimer = 0.f;
+        if (Target)
+        {
+            const float D = DistToTarget();
+            const FString StateName = UEnum::GetValueAsString(State);
+            UE_LOG(LogTemp, Log, TEXT("[Skirmisher] 현재 상태: %s, 타겟 거리: %.2f, AttackRange: %.2f"), 
+                   *StateName, D, AttackRange);
+        }
+    }*/
 }
+
+
+void ACRangedSkirmisher::OnDead()
+{
+    if (UWorld* World = GetWorld())
+    {
+        World->GetTimerManager().ClearTimer(BurstTimerHandle);
+    }
+    ShotsFiredInBurst = 0;
+    LastBurstTime = -1000.f;
+
+    PlayMontageIfValid(DeadMontage);
+    
+    OnTakeAnyDamage.RemoveDynamic(this, &ACRangedSkirmisher::OnAnyDamaged);
+    Super::OnDead();
+    
+    if (USkeletalMeshComponent* mesh = GetMesh())
+    {
+        mesh->DetachFromComponent(FDetachmentTransformRules::KeepWorldTransform);
+        mesh->SetSimulatePhysics(true);
+        
+        mesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+        mesh->SetCollisionProfileName(TEXT("Ragdoll"));
+        
+        FVector ImpulseDir = FVector(
+            FMath::FRandRange(-100.f, 100.f),  // 좌우 랜덤
+            FMath::FRandRange(-100.f, 100.f),  // 앞뒤 랜덤
+            FMath::FRandRange(200.f, 400.f)    // 위로 튀기
+        );
+        mesh->AddImpulse(ImpulseDir, NAME_None, true);
+    }
+    
+    if (UCapsuleComponent* Capsule = GetCapsuleComponent())
+    {
+        Capsule->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    }
+}
+
+
 
 // ───────────────── FSM 확장 ─────────────────
 void ACRangedSkirmisher::DoChase()
 {
+    UE_LOG(LogTemp, Log, TEXT("[Skirmisher] DoChase 호출됨"));
+
     if (!Target)
     {
+        UE_LOG(LogTemp, Warning, TEXT("[Skirmisher] DoChase: Target 없음, ReturnHome으로"));
         SetState(EEnemyState::ReturnHome);
         return;
     }
 
     const float D = DistToTarget();
+    UE_LOG(LogTemp, Log, TEXT("[Skirmisher] DoChase: 거리 = %.2f, AttackEnterDistance = %.2f"), D, AttackEnterDistance);
+
+    // 사격 거리 안에 들어오면 Attack 상태로 전환
+    if (D <= AttackEnterDistance)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[Skirmisher] DoChase: 사격 거리 안! Attack 상태로 전환"));
+        SetState(EEnemyState::Attack);
+        return;
+    }
 
     // 사거리 밴드 유지
     if (bUseNavigation)
@@ -92,13 +167,26 @@ void ACRangedSkirmisher::DoChase()
 
 void ACRangedSkirmisher::DoAttack()
 {
+    UE_LOG(LogTemp, Warning, TEXT("[Skirmisher] ========== DoAttack 호출됨 =========="));
+
     if (!Target)
     {
+        UE_LOG(LogTemp, Warning, TEXT("[Skirmisher] DoAttack: Target이 없어서 Chase로 전환"));
         SetState(EEnemyState::Chase);
         return;
     }
 
     const float D = DistToTarget();
+    UE_LOG(LogTemp, Warning, TEXT("[Skirmisher] DoAttack: 타겟까지 거리 = %.2f (범위: %.2f ~ %.2f)"), 
+           D, DesiredRangeMin, DesiredRangeMax);
+
+    // 너무 멀어지면 다시 Chase로
+    if (D > AttackExitDistance)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[Skirmisher] DoAttack: 너무 멀어져서 Chase로 전환 (거리: %.2f > %.2f)"), D, AttackExitDistance);
+        SetState(EEnemyState::Chase);
+        return;
+    }
 
     // 회피(확률적)
     TryEvadeRandom();
@@ -106,12 +194,26 @@ void ACRangedSkirmisher::DoAttack()
     // 사격 조건: 거리 밴드 + LoS + 쿨타임
     const float Now = GetWorld()->GetTimeSeconds();
     const bool bRangeOK = (D >= DesiredRangeMin && D <= DesiredRangeMax);
-    if (bRangeOK && HasClearShot() && Now - LocalLastFireTime >= FireInterval)
+    const bool bHasClearShot = HasClearShot();
+    const bool bTimerActive = GetWorldTimerManager().IsTimerActive(BurstTimerHandle);
+    const float TimeSinceLastBurst = Now - LastBurstTime;
+    const bool bCooldownReady = (TimeSinceLastBurst >= BurstCooldown);
+    const bool bBurstReady = (!bTimerActive && bCooldownReady);
+    
+    UE_LOG(LogTemp, Warning, TEXT("[Skirmisher] DoAttack 조건 체크:"));
+    UE_LOG(LogTemp, Warning, TEXT("  - bRangeOK = %d"), bRangeOK);
+    UE_LOG(LogTemp, Warning, TEXT("  - bHasClearShot = %d"), bHasClearShot);
+    UE_LOG(LogTemp, Warning, TEXT("  - bTimerActive = %d"), bTimerActive);
+    UE_LOG(LogTemp, Warning, TEXT("  - TimeSinceLastBurst = %.2f (필요: %.2f)"), TimeSinceLastBurst, BurstCooldown);
+    UE_LOG(LogTemp, Warning, TEXT("  - bCooldownReady = %d"), bCooldownReady);
+    UE_LOG(LogTemp, Warning, TEXT("  - bBurstReady = %d"), bBurstReady);
+    
+    if (bRangeOK && bHasClearShot && bBurstReady)
     {
-        FireOnce();
-        LocalLastFireTime = Now;
+        UE_LOG(LogTemp, Warning, TEXT("[Skirmisher] DoAttack: 모든 조건 만족 -> StartBurst 호출"));
+        StartBurst();
 
-        // 쿨다운 동안 스트레이프
+        // 버스트 동안 스트레이프로 움직임 유지       
         if (ACTacticalEnemyAIController* TAC = Cast<ACTacticalEnemyAIController>(GetController()))
         {
             const float Sign = (FMath::FRand() > 0.5f) ? +1.f : -1.f;
@@ -120,10 +222,15 @@ void ACRangedSkirmisher::DoAttack()
         }
         return;
     }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[Skirmisher] DoAttack: 사격 조건 불충족"));
+    }
 
     // 너무 가까우면 추적으로 반환하여 거리 벌림
     if (D < DesiredRangeMin - 60.f)
     {
+        UE_LOG(LogTemp, Warning, TEXT("[Skirmisher] DoAttack: 너무 가까워서 Chase로 전환"));
         SetState(EEnemyState::Chase);
     }
 }
@@ -131,13 +238,95 @@ void ACRangedSkirmisher::DoAttack()
 void ACRangedSkirmisher::ExitState(EEnemyState OldState)
 {
     Super::ExitState(OldState);
-    // 사격은 타이머를 쓰지 않으므로 특별 정리 없음
+    if (GetWorldTimerManager().IsTimerActive(BurstTimerHandle))
+    {
+        GetWorldTimerManager().ClearTimer(BurstTimerHandle);
+        if (UWorld* World = GetWorld())
+        {
+            LastBurstTime = World->GetTimeSeconds();
+        }
+    }
+}
+
+// ───────────────── 사격 ─────────────────
+void ACRangedSkirmisher::StartBurst()
+{
+    UE_LOG(LogTemp, Warning, TEXT("[Skirmisher] ========== StartBurst 호출됨 =========="));
+    UE_LOG(LogTemp, Warning, TEXT("[Skirmisher] ShotsPerBurst = %d, BurstShotInterval = %.2f"), ShotsPerBurst, BurstShotInterval);
+    
+    ShotsFiredInBurst = 0;
+    FireBurstShot();
+
+    if (ShotsPerBurst <= 1) 
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[Skirmisher] ShotsPerBurst가 1이하라서 추가 타이머 없이 종료"));
+        return;
+    }
+
+    const float Interval = FMath::Max(0.f, BurstShotInterval);
+    if (Interval <= 0.f)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[Skirmisher] Interval이 0이라서 즉시 모든 샷 발사"));
+        while (ShotsFiredInBurst < ShotsPerBurst)
+        {
+            FireBurstShot();
+        }
+        return;
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("[Skirmisher] %.2f초 간격으로 타이머 설정"), Interval);
+    GetWorldTimerManager().SetTimer(BurstTimerHandle, this, &ACRangedSkirmisher::FireBurstShot, Interval, true);
+}
+
+void ACRangedSkirmisher::FireBurstShot()
+{
+    UE_LOG(LogTemp, Warning, TEXT("[Skirmisher] ========== FireBurstShot 호출 (%d / %d) =========="), 
+           ShotsFiredInBurst + 1, ShotsPerBurst);
+
+    if (!Target || ShotsFiredInBurst >= ShotsPerBurst)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[Skirmisher] FireBurstShot: 버스트 종료 (Target=%s, Shots=%d/%d)"),
+               Target ? TEXT("Valid") : TEXT("Null"), ShotsFiredInBurst, ShotsPerBurst);
+        GetWorldTimerManager().ClearTimer(BurstTimerHandle);
+        if (UWorld* World = GetWorld())
+        {
+            LastBurstTime = World->GetTimeSeconds();
+        }
+        return;
+    }
+    
+    FireOnce();
+    ++ShotsFiredInBurst;
+    
+    if (ShotsFiredInBurst >= ShotsPerBurst)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[Skirmisher] FireBurstShot: 최종 샷 발사 완료, 타이머 정리"));
+        GetWorldTimerManager().ClearTimer(BurstTimerHandle);
+        if (UWorld* World = GetWorld())
+        {
+            LastBurstTime = World->GetTimeSeconds();
+        }
+    }
 }
 
 // ───────────────── 사격 ─────────────────
 void ACRangedSkirmisher::FireOnce()
 {
-    if (!ProjectileClass || !Target) return;
+    UE_LOG(LogTemp, Error, TEXT("[Skirmisher] !!!! FireOnce 호출됨 !!!! "));
+
+    if (!ProjectileClass)
+    {
+        UE_LOG(LogTemp, Error, TEXT("[Skirmisher] ProjectileClass가 nullptr입니다! BP에서 설정했는지 확인하세요."));
+        return;
+    }
+
+    if (!Target)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[Skirmisher] Target이 nullptr입니다."));
+        return;
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("[Skirmisher] ProjectileClass: %s"), *ProjectileClass->GetName());
 
     FRotator MuzzleRot;
     const FVector MuzzleLoc = GetMuzzleLocation(MuzzleRot);
@@ -160,20 +349,31 @@ void ACRangedSkirmisher::FireOnce()
 
     FTransform SpawnTM(FRotationMatrix::MakeFromX(AimDir).Rotator(), MuzzleLoc);
 
+    UE_LOG(LogTemp, Warning, TEXT("[Skirmisher] 발사체 스폰 시도 위치: %s"), *MuzzleLoc.ToString());
+
     FActorSpawnParameters P;
     P.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
     P.Owner = this;
     P.Instigator = this;
 
     AActor* Spawned = GetWorld()->SpawnActor<AActor>(ProjectileClass, SpawnTM, P);
+    
     if (Spawned)
     {
+        UE_LOG(LogTemp, Warning, TEXT("[Skirmisher]  발사체 스폰 성공! -> %s (위치: %s)"), 
+               *Spawned->GetName(), *Spawned->GetActorLocation().ToString());
+
         // 탄환 초기화(속도/데미지/슈터 지정) — CEnemyBullet에 구현
         if (UFunction* InitFn = Spawned->FindFunction(TEXT("InitBullet")))
         {
+            UE_LOG(LogTemp, Warning, TEXT("[Skirmisher] InitBullet 함수 찾음, 호출합니다."));
             struct FInitParams { AActor* Shooter; float Damage; float Speed; FVector Dir; };
             FInitParams Params{ this, BulletDamage, ProjectileSpeed, AimDir };
             Spawned->ProcessEvent(InitFn, &Params);
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("[Skirmisher] InitBullet 함수를 찾을 수 없습니다!"));
         }
 
         if (MuzzleFX)
@@ -184,9 +384,10 @@ void ACRangedSkirmisher::FireOnce()
             if (UAnimInstance* Anim = GetMesh() ? GetMesh()->GetAnimInstance() : nullptr)
                 Anim->Montage_Play(FireMontage, 1.0f);
     }
-
-    if (bDebugLog)
-        UE_LOG(LogTemp, Verbose, TEXT("[Skirmisher] FireOnce -> %s"), *Spawned->GetName());
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("[Skirmisher] 발사체 스폰 실패! ProjectileClass가 제대로 설정되었는지 확인하세요."));
+    }
 }
 
 FVector ACRangedSkirmisher::ComputeLeadAimDir(const FVector& From, const FVector& TargetPos, const FVector& TargetVel, float ProjSpeed) const

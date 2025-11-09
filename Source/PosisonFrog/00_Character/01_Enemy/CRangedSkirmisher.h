@@ -9,6 +9,7 @@ class UParticleSystem;
 class UCapsuleComponent;
 class UCharacterMovementComponent;
 class CEnemyBullet;
+struct FTimerHandle;
 
 UCLASS()
 class POSISONFROG_API ACRangedSkirmisher : public ACEnemyCharacterBase
@@ -21,13 +22,16 @@ protected:
     // AActor
     virtual void BeginPlay() override;
     virtual void Tick(float DeltaSeconds) override;
-
+    
+    virtual void OnDead() override;
     // FSM 확장
     virtual void DoChase() override;     // 거리 밴드 유지 + 전술 이동
     virtual void DoAttack() override;    // 사격 조건/쿨다운/회피
     virtual void ExitState(EEnemyState OldState) override;
 
     // ───── 사격 ─────
+    void StartBurst();
+    void FireBurstShot();
     void FireOnce();
     FVector ComputeLeadAimDir(const FVector& From, const FVector& TargetPos, const FVector& TargetVel, float ProjSpeed) const;
     FVector GetMuzzleLocation(FRotator& OutMuzzleRot) const;
@@ -43,8 +47,15 @@ protected:
 
 protected:
     // ───── 전투/사격 설정 ─────
-    UPROPERTY(EditAnywhere, Category="PF|Ranged|Combat", meta=(ClampMin="0.05"))
-    float FireInterval = 0.45f;          // 연사 딜레이
+
+    UPROPERTY(EditAnywhere, Category="PF|Ranged|Combat", meta=(ClampMin="0.0"))
+    float BurstShotInterval = 0.25f;     // 버스트 내 연속 발사 간격
+    
+    UPROPERTY(EditAnywhere, Category="PF|Ranged|Combat", meta=(ClampMin="0.0"))
+    float BurstCooldown = 3.0f;          // 버스트 종료 후 쿨다운
+    
+    UPROPERTY(EditAnywhere, Category="PF|Ranged|Combat", meta=(ClampMin="1", ClampMax="6"))
+    int32 ShotsPerBurst = 2;           // 연사 딜레이
 
     UPROPERTY(EditAnywhere, Category="PF|Ranged|Combat")
     float DesiredRangeMin = 597.f;
@@ -53,7 +64,7 @@ protected:
     float DesiredRangeMax = 897.f;
 
     UPROPERTY(EditAnywhere, Category="PF|Ranged|Combat")
-    float ProjectileSpeed = 2400.f;      // 리드샷 계산 및 탄환 초기속도
+    float ProjectileSpeed = 1100.f;      // 리드샷 계산 및 탄환 초기속도
 
     UPROPERTY(EditAnywhere, Category="PF|Ranged|Combat")
     TSubclassOf<AActor> ProjectileClass; // CEnemyBullet
@@ -106,8 +117,13 @@ protected:
     UPROPERTY(EditAnywhere, Category="PF|Ranged|Anim")
     UAnimMontage* FireMontage = nullptr;
 
+    UPROPERTY(EditAnywhere, Category="PF|Animation")
+    UAnimMontage* DeadMontage = nullptr;
+    
     // 내부
-    float LocalLastFireTime = -1000.f;
+    FTimerHandle BurstTimerHandle;
+    int32 ShotsFiredInBurst = 0;
+    float LastBurstTime = -1000.f;
 
     // 디버그
     UPROPERTY(EditAnywhere, Category="PF|Debug")

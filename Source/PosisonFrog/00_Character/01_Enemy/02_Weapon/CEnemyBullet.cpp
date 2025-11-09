@@ -56,7 +56,13 @@ void ACEnemyBullet::OnCompHit(UPrimitiveComponent* HitComp, AActor* Other, UPrim
 
     // 같은 팀(적) 무시
     if (Other && Other->IsA(ACEnemyCharacterBase::StaticClass()))
+    {
+        if (Sphere)
+        {
+            Sphere->IgnoreActorWhenMoving(Other, true);
+        }
         return;
+    }
 
     // 플레이어만 맞히고 싶다면 필터
     if (bHitOnlyPlayers && Other && !Other->IsA(ACPlayerCharacter::StaticClass()))
