@@ -107,17 +107,13 @@ void ACRangedSkirmisher::OnDead()
 // ───────────────── FSM 확장 ─────────────────
 void ACRangedSkirmisher::DoChase()
 {
-    UE_LOG(LogTemp, Log, TEXT("[Skirmisher] DoChase 호출됨"));
-
     if (!Target)
     {
-        UE_LOG(LogTemp, Warning, TEXT("[Skirmisher] DoChase: Target 없음, ReturnHome으로"));
         SetState(EEnemyState::ReturnHome);
         return;
     }
 
     const float D = DistToTarget();
-    UE_LOG(LogTemp, Log, TEXT("[Skirmisher] DoChase: 거리 = %.2f, AttackEnterDistance = %.2f"), D, AttackEnterDistance);
 
     // 사격 거리 안에 들어오면 Attack 상태로 전환
     if (D <= AttackEnterDistance)
@@ -167,23 +163,17 @@ void ACRangedSkirmisher::DoChase()
 
 void ACRangedSkirmisher::DoAttack()
 {
-    UE_LOG(LogTemp, Warning, TEXT("[Skirmisher] ========== DoAttack 호출됨 =========="));
-
     if (!Target)
     {
-        UE_LOG(LogTemp, Warning, TEXT("[Skirmisher] DoAttack: Target이 없어서 Chase로 전환"));
         SetState(EEnemyState::Chase);
         return;
     }
 
     const float D = DistToTarget();
-    UE_LOG(LogTemp, Warning, TEXT("[Skirmisher] DoAttack: 타겟까지 거리 = %.2f (범위: %.2f ~ %.2f)"), 
-           D, DesiredRangeMin, DesiredRangeMax);
 
     // 너무 멀어지면 다시 Chase로
     if (D > AttackExitDistance)
     {
-        UE_LOG(LogTemp, Warning, TEXT("[Skirmisher] DoAttack: 너무 멀어져서 Chase로 전환 (거리: %.2f > %.2f)"), D, AttackExitDistance);
         SetState(EEnemyState::Chase);
         return;
     }
@@ -200,17 +190,10 @@ void ACRangedSkirmisher::DoAttack()
     const bool bCooldownReady = (TimeSinceLastBurst >= BurstCooldown);
     const bool bBurstReady = (!bTimerActive && bCooldownReady);
     
-    UE_LOG(LogTemp, Warning, TEXT("[Skirmisher] DoAttack 조건 체크:"));
-    UE_LOG(LogTemp, Warning, TEXT("  - bRangeOK = %d"), bRangeOK);
-    UE_LOG(LogTemp, Warning, TEXT("  - bHasClearShot = %d"), bHasClearShot);
-    UE_LOG(LogTemp, Warning, TEXT("  - bTimerActive = %d"), bTimerActive);
-    UE_LOG(LogTemp, Warning, TEXT("  - TimeSinceLastBurst = %.2f (필요: %.2f)"), TimeSinceLastBurst, BurstCooldown);
-    UE_LOG(LogTemp, Warning, TEXT("  - bCooldownReady = %d"), bCooldownReady);
-    UE_LOG(LogTemp, Warning, TEXT("  - bBurstReady = %d"), bBurstReady);
+   
     
     if (bRangeOK && bHasClearShot && bBurstReady)
     {
-        UE_LOG(LogTemp, Warning, TEXT("[Skirmisher] DoAttack: 모든 조건 만족 -> StartBurst 호출"));
         StartBurst();
 
         // 버스트 동안 스트레이프로 움직임 유지       
@@ -222,15 +205,10 @@ void ACRangedSkirmisher::DoAttack()
         }
         return;
     }
-    else
-    {
-        UE_LOG(LogTemp, Warning, TEXT("[Skirmisher] DoAttack: 사격 조건 불충족"));
-    }
 
     // 너무 가까우면 추적으로 반환하여 거리 벌림
     if (D < DesiredRangeMin - 60.f)
     {
-        UE_LOG(LogTemp, Warning, TEXT("[Skirmisher] DoAttack: 너무 가까워서 Chase로 전환"));
         SetState(EEnemyState::Chase);
     }
 }
