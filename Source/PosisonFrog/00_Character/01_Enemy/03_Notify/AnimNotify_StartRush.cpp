@@ -2,9 +2,9 @@
 #include "00_Character/01_Enemy/CEnemyBossCharacter.h"
 #include "00_Character/02_Component/01_EnemyComponent/CBossPatternManager.h"
 
-void UAnimNotify_StartRush::Notify(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation)
+void UAnimNotify_StartRush::Notify(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, const FAnimNotifyEventReference& EventReference)
 {
-	Super::Notify(MeshComp, Animation);
+	Super::Notify(MeshComp, Animation, EventReference);
 
 	if (!MeshComp || !MeshComp->GetOwner())
 	{

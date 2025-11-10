@@ -56,6 +56,8 @@ protected:
     UFUNCTION()
     void HandleBossDeath(AActor* DeadActor);
 
+
+    
 protected:
 
     /** 레벨 시작 시 자동으로 전투를 시작할지 여부 */
@@ -91,4 +93,6 @@ protected:
     /** 보스 사망 시 재생할 몽타주 */
     UPROPERTY(EditAnywhere, Category="Boss|Animation")
     TObjectPtr<UAnimMontage> DeathMontage;
+
+    
 };

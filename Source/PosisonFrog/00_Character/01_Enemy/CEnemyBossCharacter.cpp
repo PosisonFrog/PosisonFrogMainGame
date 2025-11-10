@@ -7,9 +7,7 @@
 #include "00_Character/01_Enemy/01_AIController/BossAIController.h"
 #include "03_Combat/Boss/BossPhaseDataAsset.h"
 #include "AIController.h"
-#include "05_System/00_Stage/CStageManager.h"
 #include "GameFramework/CharacterMovementComponent.h"
-#include "Kismet/GameplayStatics.h"
 
 ACEnemyBossCharacter::ACEnemyBossCharacter()
 {
@@ -38,34 +36,53 @@ void ACEnemyBossCharacter::BeginPlay()
         if (Player)
         {
             UE_LOG(LogTemp, Error, TEXT("[Boss] AUTO START BATTLE TRIGGERED IN BEGINPLAY!"));
-            StartBossBattle(false); // bSkipIntro
+            StartBossBattle(false);
         }
     }
     
     bIsBossDead = false;
-    //InitializeBossBindings();
 
     if (IsValid(HealthComponent))
     {
         HealthComponent->OnDeath.AddDynamic(this, &ACEnemyBossCharacter::HandleBossDeath);
     }    
-    
 }
 
 void ACEnemyBossCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+    UE_LOG(LogTemp, Warning, TEXT("[Boss] EndPlay called"));
+    
+    // 패턴 매니저 클린업
+    if (IsValid(PatternManager))
+    {
+        PatternManager->CleanupAllPatterns();
+    }
+    
+    // 모든 타이머 정리
+    if (UWorld* World = GetWorld())
+    {
+        World->GetTimerManager().ClearAllTimersForObject(this);
+    }
+    
     if (IsValid(HealthComponent))
     {
         HealthComponent->OnDeath.RemoveDynamic(this, &ACEnemyBossCharacter::HandleBossDeath);
     }
+    
     Super::EndPlay(EndPlayReason);
 }
-
 
 float ACEnemyBossCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
 {
     UE_LOG(LogTemp, Warning, TEXT("[%s] TakeDamage 호출됨! 데미지: %.1f, 공격자: %s"), 
            *GetName(), DamageAmount, *GetNameSafe(DamageCauser));
+    
+    // 이미 죽었으면 데미지 무시
+    if (bIsBossDead)
+    {
+        UE_LOG(LogTemp, Log, TEXT("[Boss] Already dead, ignoring damage"));
+        return 0.0f;
+    }
     
     const float AppliedDamage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
     if (AppliedDamage <= 0.f)
@@ -91,12 +108,13 @@ float ACEnemyBossCharacter::TakeDamage(float DamageAmount, FDamageEvent const& D
     if (bIsDead)
     {
         bIsBossDead = true;
+        // HandleBossDeath가 델리게이트로 호출됨
+        return AppliedDamage;
     }
-
     
     if (BossPhaseComponent)
     {
-        if (bIsDead || BossPhaseComponent->GetCurrentState() == EBossBattleState::Dead)
+        if (BossPhaseComponent->GetCurrentState() == EBossBattleState::Dead)
         {
             return AppliedDamage;
         }
@@ -183,29 +201,6 @@ void ACEnemyBossCharacter::HandlePatternStarted(int32 PhaseIndex, FName PatternI
         UE_LOG(LogTemp, Verbose, TEXT("[Boss] Pattern %s ignored due to dead health state"), *PatternId.ToString());
         return;
     }
-
-    /*
-    if (!IsValid(WeaponComponent))
-    {
-        UE_LOG(LogTemp, Warning, TEXT("[Boss] WeaponComponent is missing - cannot play attack montage"));
-        return;
-    }
-    
-    int32 AttackIndex = DefaultAttackIndex;
-    if (const int32* FoundIndex = PatternAttackIndexMap.Find(PatternId))
-    {
-        AttackIndex = *FoundIndex;
-    }
-   
-    WeaponComponent->SetCurrentAttackIndex(AttackIndex);
-  
-    if (!WeaponComponent->IsAttackIndexValid(AttackIndex))
-    {
-        UE_LOG(LogTemp, Warning, TEXT("[Boss] No valid attack montage for pattern %s (index %d)"), *PatternId.ToString(), AttackIndex);
-        return;
-    }
-    
-    WeaponComponent->DoAttack();*/
 }
 
 void ACEnemyBossCharacter::HandlePatternFinished(int32 PhaseIndex, FName PatternId, const FBossPatternDefinition& PatternData, float RemainingPower)
@@ -223,7 +218,6 @@ void ACEnemyBossCharacter::HandleShoutFinished(int32 PhaseIndex, FName ShoutId, 
     UE_LOG(LogTemp, Warning, TEXT("[Boss] Shout %s finished (Phase %d)"), *ShoutId.ToString(), PhaseIndex);
 }
 
-
 void ACEnemyBossCharacter::HandleBossDeath(AActor* DeadActor)
 {
     if (DeadActor != this)
@@ -231,35 +225,15 @@ void ACEnemyBossCharacter::HandleBossDeath(AActor* DeadActor)
         return;
     }
   
-    UE_LOG(LogTemp, Error, TEXT("================================================================="));
-    UE_LOG(LogTemp, Error, TEXT("[Boss] HandleBossDeath 호출됨"));
-    UE_LOG(LogTemp, Error, TEXT("[Boss] 보스 이름: %s"), *GetName());
+    UE_LOG(LogTemp, Error, TEXT("[Boss] ========== BOSS DEATH =========="));
     
     bIsBossDead = true;
 
-    // StageManager에 보스 사망 알림
-    UE_LOG(LogTemp, Error, TEXT("[Boss] StageManager 검색"));
-    TArray<AActor*> FoundActors;
-    UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACStageManager::StaticClass(), FoundActors);
-    
-    if (FoundActors.Num() > 0)
+    // 패턴 매니저 클린업
+    if (IsValid(PatternManager))
     {
-        ACStageManager* StageManager = Cast<ACStageManager>(FoundActors[0]);
-        if (IsValid(StageManager))
-        {
-            UE_LOG(LogTemp, Error, TEXT("[Boss] StageManager 발견: %s"), *StageManager->GetName());
-            UE_LOG(LogTemp, Error, TEXT("[Boss] StageManager에 보스 사망 알림 전송 중..."));
-            StageManager->OnBossDefeated();
-            UE_LOG(LogTemp, Error, TEXT("[Boss] 알림 전송 완료"));
-        }
-        else
-        {
-            UE_LOG(LogTemp, Warning, TEXT("[Boss] StageManager 캐스팅 실패"));
-        }
-    }
-    else
-    {
-        UE_LOG(LogTemp, Warning, TEXT("[Boss] StageManager를 찾을 수 없음"));
+        UE_LOG(LogTemp, Warning, TEXT("[Boss] Cleaning up pattern manager"));
+        PatternManager->CleanupAllPatterns();
     }
 
     // AI 정지
@@ -274,14 +248,16 @@ void ACEnemyBossCharacter::HandleBossDeath(AActor* DeadActor)
         }
     }
     
+    // 이동 정지
     if (UCharacterMovementComponent* MovementComponent = GetCharacterMovement())
     {
         MovementComponent->StopMovementImmediately();
     }
     
+    // Tick 비활성화
     SetActorTickEnabled(false);
 
-    // 사망 애니메이션 재생
+    // 애니메이션 처리
     if (USkeletalMeshComponent* mesh = GetMesh())
     {
         if (UAnimInstance* AnimInst = mesh->GetAnimInstance())
@@ -291,14 +267,20 @@ void ACEnemyBossCharacter::HandleBossDeath(AActor* DeadActor)
             if (DeathMontage)
             {
                 AnimInst->Montage_Play(DeathMontage, 1.0f);
-                UE_LOG(LogTemp, Warning, TEXT("[Boss] 사망 몽타주 재생: %s"), *DeathMontage->GetName());
+                UE_LOG(LogTemp, Warning, TEXT("[Boss] Playing death montage: %s"), *DeathMontage->GetName());
             }
             else
             {
-                UE_LOG(LogTemp, Warning, TEXT("[Boss] 사망 몽타주가 할당되지 않음!"));
+                UE_LOG(LogTemp, Warning, TEXT("[Boss] No death montage assigned!"));
             }
         }
     }
     
-    UE_LOG(LogTemp, Error, TEXT("================================================================="));
+    // 모든 타이머 정리
+    if (UWorld* World = GetWorld())
+    {
+        World->GetTimerManager().ClearAllTimersForObject(this);
+    }
+    
+    UE_LOG(LogTemp, Error, TEXT("[Boss] ========== BOSS DEATH COMPLETE =========="));
 }
