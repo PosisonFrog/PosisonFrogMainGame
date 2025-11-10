@@ -519,6 +519,17 @@ void ACStageManager::ActivatePreloadedStage(int32 StageID)
 		if (!IsValid(Enemy))
 			continue;
 
+		FVector CurrentLocation = Enemy->GetActorLocation();
+		if (CurrentLocation.Z < 0.0f)
+		{
+			UE_LOG(LogTemp, Error, TEXT("[%s] Z가 너무 낮음! %.1f, 보정중"), 
+				*Enemy->GetName(), CurrentLocation.Z);
+        
+			CurrentLocation.Z = 100.0f;
+			Enemy->SetActorLocation(CurrentLocation);
+			Enemy->SaveInitialTransform();  // 다시 저장
+		}
+		
 		// 활성화
 		Enemy->SetActorHiddenInGame(false);
 		Enemy->SetActorEnableCollision(true);
@@ -767,6 +778,9 @@ void ACStageManager::OnEnemyDied(AActor* DeadActor)
 	if (FoundStage == -1)
 		return;
 
+	int32 RemainingBefore = GetRemainingEnemies(FoundStage);
+	CLog::Log(FString::Printf(TEXT("[StageManager] 적 사망: Stage %d, 남은 적: %d"), FoundStage, RemainingBefore));
+	
 	// 스테이지 클리어 확인
 	CheckStageComplete(FoundStage);
 	// 선제적 로딩 체크 (여기서만 해야함)

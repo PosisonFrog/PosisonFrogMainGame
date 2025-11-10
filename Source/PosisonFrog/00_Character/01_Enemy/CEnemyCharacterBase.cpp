@@ -1023,21 +1023,56 @@ void ACEnemyCharacterBase::ResetForRespawn()
 
 void ACEnemyCharacterBase::ForceRestartAI()
 {
-	if (AAIController* OldAI = Cast<AAIController>(GetController()))
+	AAIController* ExistingAI = Cast<AAIController>(GetController());
+    
+	if (ExistingAI)
 	{
-		OldAI->UnPossess();
-		OldAI->Destroy();
+		// Brain 로직 먼저 중단
+		if (UBrainComponent* Brain = ExistingAI->GetBrainComponent())
+		{
+			Brain->StopLogic(TEXT("AI Restart"));
+		}
+        
+		// 경로 추적 중단
+		if (UPathFollowingComponent* PathComp = ExistingAI->FindComponentByClass<UPathFollowingComponent>())
+		{
+			PathComp->AbortMove(*ExistingAI, FPathFollowingResultFlags::OwnerFinished);
+		}
+        
+		// UnPossess 전에 컨트롤러 참조 제거
+		ExistingAI->UnPossess();
 	}
-
+    
+	// 새 AI 컨트롤러 스폰 (UnPossess 후에는 자동으로 새로 생성됨)
 	SpawnDefaultController();
-
-	if (AAIController* NewAI = Cast<AAIController>(GetController()))
+    
+	// 새 AI가 제대로 생성되었는지 확인
+	AAIController* NewAI = Cast<AAIController>(GetController());
+	if (NewAI)
 	{
+		// Brain 컴포넌트 시작
 		if (UBrainComponent* Brain = NewAI->GetBrainComponent())
 		{
 			if (!Brain->IsRunning())
+			{
 				Brain->StartLogic();
+			}
 		}
+        
+		UE_LOG(LogTemp, Log, TEXT("[%s] AI Controller successfully restarted"), *GetName());
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("[%s] Failed to spawn AI Controller!"), *GetName());
+        
+		// 강제로 다시 시도
+		GetWorld()->GetTimerManager().SetTimerForNextTick([this]()
+		{
+			if (!GetController())
+			{
+				SpawnDefaultController();
+			}
+		});
 	}
 }
 
