@@ -5,6 +5,7 @@
 
 #include "AIController.h"
 #include "BrainComponent.h"
+#include "CBossStageBarrier.h"
 #include "CCheckPoint.h"
 #include "CEnemySpawnZone.h"
 #include "CStageBarrier.h"
@@ -12,7 +13,6 @@
 #include "00_Character/01_Enemy/CEnemyCharacterBase.h"
 #include "00_Character/02_Component/CBaseHealthComponent.h"
 #include "99_Util/CLog.h"
-#include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Navigation/PathFollowingComponent.h"
 
@@ -172,44 +172,63 @@ void ACStageManager::PrepareForRespawn(int32 TargetStageID)
 	}
 }
 
-/*void ACStageManager::RespawnStage(int32 StageID)
+void ACStageManager::RegisterBossBarrier(ACBossStageBarrier* Barrier)
 {
-	CLog::Log(FString::Printf(TEXT("[ACStageManager::RespawnStage] Stage %d 리스폰 요청 받음"), StageID));
-
-	// 해당 스테이지의 기본 적 제거
-	if (auto* Enemies = StageEnemies.Find(StageID))
+	if (!IsValid(Barrier))
 	{
-		for (ACEnemyCharacterBase* Enemy : *Enemies)
-		{
-			if (IsValid(Enemy))
-			{
-				if (UCBaseHealthComponent* HealthComp = Enemy->FindComponentByClass<UCBaseHealthComponent>())
-				{
-					HealthComp->OnDeath.RemoveAll(this);
-				}
-				
-				Enemy->Destroy();
-			}
-		}
-		Enemies->Empty();
+		CLog::Log(TEXT("[StageManager] RegisterBossBarrier: nullptr 전달됨"));
+		return;
 	}
 
-	// 선제 로딩된 적도 제거
-	if (auto* PreloadedArray = PreloadedEnemies.Find(StageID))
+	if (IsValid(BossBarrier))
 	{
-		for (ACEnemyCharacterBase* Enemy : *PreloadedArray)
-		{
-			if (IsValid(Enemy))
-			{
-				Enemy->Destroy();
-			}
-		}
-		PreloadedEnemies.Remove(StageID);
+		CLog::Log(FString::Printf(TEXT("[StageManager] BossBarrier 이미 등록됨: %s"), *BossBarrier->GetName()));
+		CLog::Log(FString::Printf(TEXT("[StageManager] 새로운 BossBarrier로 교체: %s"), *Barrier->GetName()));
 	}
 
-	PreloadedStages.Remove(StageID);
-	StartStageSpawn(StageID);
-}*/
+	BossBarrier = Barrier;
+	CLog::Log(TEXT("================================================================="));
+	CLog::Log(TEXT("[StageManager] BossBarrier 등록 완료"));
+	CLog::Log(FString::Printf(TEXT("[StageManager] Barrier 이름: %s"), *BossBarrier->GetName()));
+	CLog::Log(FString::Printf(TEXT("[StageManager] Trigger Stage ID: %d"), BossBarrier->TriggerStageID));
+	CLog::Log(TEXT("================================================================="));
+}
+
+void ACStageManager::OnBossBattleStartRequested()
+{
+	CLog::Log(TEXT("================================================================="));
+	CLog::Log(TEXT("[StageManager] 보스 전투 시작 요청 받음"));
+
+	if (!IsValid(BossBarrier))
+	{
+		CLog::Log(TEXT("[StageManager] BossBarrier가 등록되지 않음"));
+		CLog::Log(TEXT("================================================================="));
+		return;
+	}
+
+	CLog::Log(TEXT("[StageManager] BossBarrier 닫기 명령 전송"));
+	BossBarrier->OnBossBattleStart();
+	CLog::Log(TEXT("[StageManager] BossBarrier 닫기 완료"));
+	CLog::Log(TEXT("================================================================="));
+}
+
+void ACStageManager::OnBossDefeated()
+{
+	CLog::Log(TEXT("================================================================="));
+	CLog::Log(TEXT("[StageManager] 보스 사망 알림 받음"));
+
+	if (!IsValid(BossBarrier))
+	{
+		CLog::Log(TEXT("[StageManager] BossBarrier가 등록되지 않음"));
+		CLog::Log(TEXT("================================================================="));
+		return;
+	}
+
+	CLog::Log(TEXT("[StageManager] BossBarrier 열기 명령 전송"));
+	BossBarrier->OnBossBattleEnd();
+	CLog::Log(TEXT("[StageManager] BossBarrier 열기 완료 - 보스 구역 탈출 가능"));
+	CLog::Log(TEXT("================================================================="));
+}
 
 int32 ACStageManager::GetRemainingEnemies(int32 StageID) const
 {
@@ -531,26 +550,57 @@ void ACStageManager::ActivatePreloadedStage(int32 StageID)
 
 void ACStageManager::OnStageComplete(int32 StageID)
 {
+	CLog::Log(TEXT("================================================================="));
+	CLog::Log(TEXT("[StageManager] DEBUG - OnStageComplete 호출됨"));
+	CLog::Log(FString::Printf(TEXT("[StageManager] StageID: %d"), StageID));
+	CLog::Log(FString::Printf(TEXT("[StageManager] ClearedStages에 이미 포함? %s"), 
+		ClearedStages.Contains(StageID) ? TEXT("Yes - 무시됨") : TEXT("No - 진행")));
+	
+	// 중요: 중복 호출 방지
 	if (ClearedStages.Contains(StageID))
+	{
+		CLog::Log(TEXT("[StageManager] 이미 클리어된 스테이지 - 중복 호출 감지"));
+		CLog::Log(TEXT("================================================================="));
 		return;
+	}
 
+	CLog::Log(TEXT("[StageManager] 1단계: ClearedStages에 추가 중"));
 	ClearedStages.Add(StageID);
+	CLog::Log(TEXT("[StageManager] ClearedStages에 추가 완료"));
 
+	CLog::Log(TEXT("[StageManager] 2단계: ActivateStageCheckPoint 호출 중"));
 	ActivateStageCheckPoint(StageID);
+	
+	CLog::Log(TEXT("[StageManager] 3단계: OpenStageBarrier 호출 중 (일반 배리어)"));
 	OpenStageBarrier(StageID);
+	
+	// 핵심 변경: 보스 배리어 체크 추가
+	CLog::Log(TEXT("[StageManager] 4단계: OpenBossBarrier 호출 중 (보스 배리어)"));
+	OpenBossBarrier(StageID);
+	
+	CLog::Log(TEXT("[StageManager] 5단계: OnStageCleared 델리게이트 브로드캐스트 중"));
+	CLog::Log(FString::Printf(TEXT("[StageManager] OnStageCleared 구독자 있음? %s"), OnStageCleared.IsBound() ? TEXT("Yes") : TEXT("No")));
 	OnStageCleared.Broadcast(StageID);
+	CLog::Log(TEXT("[StageManager] OnStageCleared 브로드캐스트 완료"));
 
-	// 다음 스테이지가 이미 선제 로딩되었으면
+	// 다음 스테이지 처리
 	int32 NextStage = StageID + 1;
 	if (PreloadedStages.Contains(NextStage))
 	{
-		CLog::Log(FString::Printf(TEXT("[ACStageManager::OnStageComplete] 다음 스테이지 (%d) 이미 로딩되어 있음 준비 완료"), NextStage));
+		CLog::Log(FString::Printf(TEXT("[StageManager] 다음 스테이지 (%d) 이미 로딩되어 있음 - 활성화 중"), NextStage));
 		ActivatePreloadedStage(NextStage);
 	}
 	else if (StageSpawnZones.Contains(NextStage))
 	{
+		CLog::Log(FString::Printf(TEXT("[StageManager] 다음 스테이지 (%d) 스폰 시작"), NextStage));
 		StartStageSpawn(NextStage);
 	}
+	else
+	{
+		CLog::Log(FString::Printf(TEXT("[StageManager] 다음 스테이지 (%d) 없음 - 마지막 스테이지 또는 보스 스테이지"), NextStage));
+	}
+	
+	CLog::Log(TEXT("================================================================="));
 }
 
 void ACStageManager::OpenStageBarrier(int32 StageID)
@@ -590,6 +640,49 @@ void ACStageManager::ActivateStageCheckPoint(int32 StageID)
 	{
 		CLog::Log(FString::Printf(TEXT("[ACStageManager::ActivateStageCheckPoint] 스테이지 %d 체크포인트 없음"), StageID));
 	}
+}
+
+void ACStageManager::OpenBossBarrier(int32 StageID)
+{
+	CLog::Log(TEXT("================================================================="));
+	CLog::Log(TEXT("[StageManager] DEBUG - OpenBossBarrier 호출됨"));
+	CLog::Log(FString::Printf(TEXT("[StageManager] StageID: %d"), StageID));
+
+	if (!IsValid(BossBarrier))
+	{
+		CLog::Log(TEXT("[StageManager] BossBarrier가 등록되지 않음"));
+		CLog::Log(TEXT("[StageManager] 보스 스테이지가 없는 레벨이거나"));
+		CLog::Log(TEXT("[StageManager] BossBarrier가 RegisterBossBarrier()를 호출하지 않음"));
+		CLog::Log(TEXT("================================================================="));
+		return;
+	}
+
+	CLog::Log(FString::Printf(TEXT("[StageManager] BossBarrier TriggerStageID: %d"), BossBarrier->TriggerStageID));
+	CLog::Log(FString::Printf(TEXT("[StageManager] 일치 여부: %s"), 
+		StageID == BossBarrier->TriggerStageID ? TEXT("일치") : TEXT("불일치")));
+
+	if (StageID == BossBarrier->TriggerStageID)
+	{
+		CLog::Log(TEXT("[StageManager] ========================================"));
+		CLog::Log(FString::Printf(TEXT("[StageManager] 스테이지 %d 클리어! 보스 구역 오픈"), StageID));
+		
+		CLog::Log(TEXT("[StageManager] 1단계: BossBarrier 열기 명령 전송 중..."));
+		BossBarrier->OpenBarrier();
+		CLog::Log(TEXT("[StageManager] BossBarrier 열림"));
+		
+		CLog::Log(TEXT("[StageManager] 2단계: 이전 스테이지 정리 중..."));
+		ClearAllEnemies();
+		CLog::Log(TEXT("[StageManager] 이전 스테이지 정리 완료"));
+		
+		CLog::Log(TEXT("[StageManager] 보스 스테이지 진입 가능"));
+		CLog::Log(TEXT("[StageManager] ========================================"));
+	}
+	else
+	{
+		CLog::Log(FString::Printf(TEXT("[StageManager] 다른 스테이지(%d) 클리어 - 보스 배리어 무시"), StageID));
+	}
+	
+	CLog::Log(TEXT("================================================================="));
 }
 
 void ACStageManager::OnEnemyDied(AActor* DeadActor)
@@ -666,7 +759,7 @@ void ACStageManager::CheckPreloadTrigger()
 			if (SpawningStage == NextStage && bIsPreloading)
 				return;
 				
-			CLog::Log(FString::Printf(TEXT("[ACStageManager::CheckPreloadTrigger] 선제 로딩 (남은 적: %d) → 스테이지 %d"), Remaining, NextStage));
+			CLog::Log(FString::Printf(TEXT("[ACStageManager::CheckPreloadTrigger] 선제 로딩 (남은 적: %d), 해당 스테이지 %d"), Remaining, NextStage));
 				
 			if (IsSpawnInProgress())
 				QueueSpawnRequest(NextStage, true);
