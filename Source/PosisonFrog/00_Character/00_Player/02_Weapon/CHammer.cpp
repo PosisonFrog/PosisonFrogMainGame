@@ -18,6 +18,33 @@ ACHammer::ACHammer()
 	DamageBoxExtent = FVector(100.f, 100.f, 100.f);
 
 	Damage = 20.0f;
+
+	if (WeaponMesh)
+	{
+		WeaponMesh->SetGenerateOverlapEvents(false);
+		WeaponMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+		WeaponMesh->SetCollisionResponseToAllChannels(ECR_Block);
+		WeaponMesh->SetCollisionResponseToChannel(ECC_Visibility, ECR_Ignore);
+		WeaponMesh->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
+		WeaponMesh->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+		DamageBox->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Overlap);
+		DamageBox->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Overlap);
+		DamageBox->SetCollisionResponseToChannel(ECC_GameTraceChannel3, ECR_Overlap);
+	}
+
+	if (DamageBox)
+	{
+		DamageBox->SetGenerateOverlapEvents(false);
+		DamageBox->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+		DamageBox->SetCollisionObjectType(ECC_WorldDynamic);
+		DamageBox->SetCollisionResponseToAllChannels(ECR_Ignore);
+		DamageBox->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+		DamageBox->SetCollisionResponseToChannel(ECC_PhysicsBody, ECR_Overlap);
+		DamageBox->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Overlap);
+		DamageBox->SetCollisionResponseToChannel(ECC_GameTraceChannel3, ECR_Overlap);
+	}
 }
 
 /*void ACHammer::PlayAttackVFX(int32 ComboIndex)

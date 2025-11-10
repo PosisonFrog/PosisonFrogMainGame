@@ -52,6 +52,16 @@ ACRiotRobot::ACRiotRobot()
     AttackEnterDistance = 160.f;
     AttackExitDistance  = 220.f;
 
+    if (USkeletalMeshComponent* MeshComp = GetMesh())
+    {
+        MeshComp->SetGenerateOverlapEvents(false);
+        MeshComp->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+
+        MeshComp->SetCollisionResponseToAllChannels(ECR_Overlap);
+        MeshComp->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Ignore);
+        MeshComp->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Ignore);
+    }
+    
     PrimaryActorTick.bCanEverTick = true; // Base의 Tick을 그대로 사용(전술은 컨트롤러 Tick에서)
 }
 
@@ -93,15 +103,19 @@ void ACRiotRobot::BeginPlay()
 
 void ACRiotRobot::SetupCapsulePhysics()
 {
-    if (UCapsuleComponent* Capsule = GetCapsuleComponent())
+    if (UCapsuleComponent* CapsuleComp = GetCapsuleComponent())
     {
-        Capsule->SetCollisionObjectType(PF::Collision::RiotEnemy);
-        Capsule->SetLinearDamping(CapsuleLinearDamping);
-        Capsule->SetAngularDamping(CapsuleAngularDamping);
-        Capsule->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
-        Capsule->SetCollisionResponseToChannel(ECC_WorldStatic, ECR_Block);
-        Capsule->SetCollisionResponseToChannel(ECC_WorldDynamic, ECR_Block);
-        Capsule->SetCollisionResponseToChannel(PF::Collision::RiotEnemy, ECR_Block);
+        CapsuleComp->SetCollisionObjectType(PF::Collision::RiotEnemy);
+        CapsuleComp->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+
+        CapsuleComp->SetLinearDamping(CapsuleLinearDamping);
+        CapsuleComp->SetAngularDamping(CapsuleAngularDamping);
+        
+        CapsuleComp->SetCollisionResponseToAllChannels(ECR_Block);
+        CapsuleComp->SetCollisionResponseToChannel(ECC_Visibility, ECR_Ignore);
+        CapsuleComp->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
+        CapsuleComp->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Overlap);
+        CapsuleComp->SetCollisionResponseToChannel(ECC_GameTraceChannel3, ECR_Overlap);
         // 상세 마찰은 물리재질(Physical Material)에서 별도 관리 권장
     }
 }

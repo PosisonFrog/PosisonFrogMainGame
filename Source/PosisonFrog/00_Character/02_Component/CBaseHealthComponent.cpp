@@ -63,8 +63,17 @@ float UCBaseHealthComponent::Damage(float InAmount)
 
 void UCBaseHealthComponent::SetHealth(float NewHealth)
 {
+	const bool bWasDead = bIsDead;
+	
 	CurrentHealth = FMath::Clamp(NewHealth, 0.0f, MaxHealth);
+	bIsDead = (CurrentHealth <= 0.0f);
+	
 	OnHealthChanged.Broadcast(CurrentHealth, MaxHealth);
+	
+	if (!bWasDead && bIsDead)
+	{
+		OnDeath.Broadcast(GetOwner());
+	}
 }
 
 void UCBaseHealthComponent::SetMaxHealth(float NewMax, bool bClampCurrent, bool bResetToMax)
