@@ -30,6 +30,7 @@ void ACStageManager::BeginPlay()
 	CollectSpawnZones();
 	CollectBarriers();
 	CollectCheckpoints();
+	CollectBossBarrier();
 
 	if (StartStage > 0)
 	{
@@ -179,7 +180,13 @@ void ACStageManager::RegisterBossBarrier(ACBossStageBarrier* Barrier)
 		CLog::Log(TEXT("[StageManager] RegisterBossBarrier: nullptr 전달됨"));
 		return;
 	}
-
+	
+	if (BossBarrier == Barrier)
+	{
+		CLog::Log(FString::Printf(TEXT("[StageManager] BossBarrier 이미 동일한 인스턴스로 등록됨: %s"), *Barrier->GetName()));
+		return;
+	}
+	
 	if (IsValid(BossBarrier))
 	{
 		CLog::Log(FString::Printf(TEXT("[StageManager] BossBarrier 이미 등록됨: %s"), *BossBarrier->GetName()));
@@ -198,14 +205,17 @@ void ACStageManager::OnBossBattleStartRequested()
 {
 	CLog::Log(TEXT("================================================================="));
 	CLog::Log(TEXT("[StageManager] 보스 전투 시작 요청 받음"));
-
+ 
+	if (!IsValid(BossBarrier))
+		CollectBossBarrier();
+			
 	if (!IsValid(BossBarrier))
 	{
 		CLog::Log(TEXT("[StageManager] BossBarrier가 등록되지 않음"));
 		CLog::Log(TEXT("================================================================="));
 		return;
 	}
-
+ 
 	CLog::Log(TEXT("[StageManager] BossBarrier 닫기 명령 전송"));
 	BossBarrier->OnBossBattleStart();
 	CLog::Log(TEXT("[StageManager] BossBarrier 닫기 완료"));
@@ -216,14 +226,17 @@ void ACStageManager::OnBossDefeated()
 {
 	CLog::Log(TEXT("================================================================="));
 	CLog::Log(TEXT("[StageManager] 보스 사망 알림 받음"));
-
+ 
+	if (!IsValid(BossBarrier))
+		CollectBossBarrier();
+			
 	if (!IsValid(BossBarrier))
 	{
 		CLog::Log(TEXT("[StageManager] BossBarrier가 등록되지 않음"));
 		CLog::Log(TEXT("================================================================="));
 		return;
 	}
-
+ 
 	CLog::Log(TEXT("[StageManager] BossBarrier 열기 명령 전송"));
 	BossBarrier->OnBossBattleEnd();
 	CLog::Log(TEXT("[StageManager] BossBarrier 열기 완료 - 보스 구역 탈출 가능"));
@@ -649,6 +662,9 @@ void ACStageManager::OpenBossBarrier(int32 StageID)
 	CLog::Log(FString::Printf(TEXT("[StageManager] StageID: %d"), StageID));
 
 	if (!IsValid(BossBarrier))
+		CollectBossBarrier();
+
+	if (!IsValid(BossBarrier))
 	{
 		CLog::Log(TEXT("[StageManager] BossBarrier가 등록되지 않음"));
 		CLog::Log(TEXT("[StageManager] 보스 스테이지가 없는 레벨이거나"));
@@ -656,24 +672,24 @@ void ACStageManager::OpenBossBarrier(int32 StageID)
 		CLog::Log(TEXT("================================================================="));
 		return;
 	}
-
+ 
 	CLog::Log(FString::Printf(TEXT("[StageManager] BossBarrier TriggerStageID: %d"), BossBarrier->TriggerStageID));
 	CLog::Log(FString::Printf(TEXT("[StageManager] 일치 여부: %s"), 
 		StageID == BossBarrier->TriggerStageID ? TEXT("일치") : TEXT("불일치")));
-
+ 
 	if (StageID == BossBarrier->TriggerStageID)
 	{
 		CLog::Log(TEXT("[StageManager] ========================================"));
 		CLog::Log(FString::Printf(TEXT("[StageManager] 스테이지 %d 클리어! 보스 구역 오픈"), StageID));
-		
+ 		
 		CLog::Log(TEXT("[StageManager] 1단계: BossBarrier 열기 명령 전송 중..."));
 		BossBarrier->OpenBarrier();
 		CLog::Log(TEXT("[StageManager] BossBarrier 열림"));
-		
+ 		
 		CLog::Log(TEXT("[StageManager] 2단계: 이전 스테이지 정리 중..."));
 		ClearAllEnemies();
 		CLog::Log(TEXT("[StageManager] 이전 스테이지 정리 완료"));
-		
+ 		
 		CLog::Log(TEXT("[StageManager] 보스 스테이지 진입 가능"));
 		CLog::Log(TEXT("[StageManager] ========================================"));
 	}
@@ -681,8 +697,41 @@ void ACStageManager::OpenBossBarrier(int32 StageID)
 	{
 		CLog::Log(FString::Printf(TEXT("[StageManager] 다른 스테이지(%d) 클리어 - 보스 배리어 무시"), StageID));
 	}
-	
+ 	
 	CLog::Log(TEXT("================================================================="));
+}
+
+void ACStageManager::CollectBossBarrier()
+{
+	if (!GetWorld())
+		return;
+	
+	if (IsValid(BossBarrier))
+		return;
+	
+	TArray<AActor*> FoundActors;
+	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACBossStageBarrier::StaticClass(), FoundActors);
+	
+	if (FoundActors.Num() == 0)
+	{
+		if (bEnableDebugLogs)
+			CLog::Log(TEXT("[StageManager] CollectBossBarrier: 레벨에 BossBarrier가 존재하지 않음"));
+		return;
+	}
+	
+	if (FoundActors.Num() > 1)
+	{
+		CLog::Log(FString::Printf(TEXT("[StageManager] CollectBossBarrier: BossBarrier %d개 발견"), FoundActors.Num()));
+	}
+	
+	for (AActor* Actor : FoundActors)
+	{
+		if (ACBossStageBarrier* Barrier = Cast<ACBossStageBarrier>(Actor))
+		{
+			RegisterBossBarrier(Barrier);
+			break;
+		}
+	}
 }
 
 void ACStageManager::OnEnemyDied(AActor* DeadActor)

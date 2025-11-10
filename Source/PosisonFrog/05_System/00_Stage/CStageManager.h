@@ -63,6 +63,7 @@ private:
 	void CollectSpawnZones();
 	void CollectBarriers();
 	void CollectCheckpoints();
+	void CollectBossBarrier();
 
 	// ──────────── 스폰 로직 ────────────
 	// 분산 스폰 시작
