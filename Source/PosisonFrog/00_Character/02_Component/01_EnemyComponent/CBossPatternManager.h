@@ -198,13 +198,13 @@ protected:
 	TSubclassOf<AActor> ProjectileClass;
 
 	UPROPERTY(EditDefaultsOnly, Category="Pattern|Barrage")
-	float BarrageShotInterval = 0.3f;
+	float BarrageShotInterval = 0.2f;
 
 	UPROPERTY(EditDefaultsOnly, Category="Pattern|Barrage")
-	int32 MaxBarrageShots = 10;
+	int32 MaxBarrageShots = 20;
 
 	UPROPERTY(EditDefaultsOnly, Category="Pattern|Barrage")
-	float BarrageTotalDuration = 3.0f;
+	float BarrageTotalDuration = 2.0f;
 
 	/** 장판 데칼 클래스 (붉은 원형) */
 	UPROPERTY(EditDefaultsOnly, Category="Pattern|Barrage")
@@ -220,7 +220,7 @@ protected:
 
 	/** 플레이어 근처 랜덤 범위 */
 	UPROPERTY(EditDefaultsOnly, Category="Pattern|Barrage")
-	float RandomSpawnRadius = 1000.f;
+	float RandomSpawnRadius = 2000.f;
 
 	/** 장판 반경 */
 	UPROPERTY(EditDefaultsOnly, Category="Pattern|Barrage")
@@ -228,11 +228,11 @@ protected:
 
 	/** 코코넛을 위로 던지는 힘 (높을수록 빠름) */
 	UPROPERTY(EditDefaultsOnly, Category="Pattern|Barrage")
-	float ThrowUpwardForce = 4000.f;
+	float ThrowUpwardForce = 5000.f;
 
 	/** 코코넛이 떨어지는 속도 (높을수록 빠름) */
 	UPROPERTY(EditDefaultsOnly, Category="Pattern|Barrage")
-	float FallSpeed = 3500.f;
+	float FallSpeed = 5500.f;
 
 	/** 코코넛 떨어지기 시작하는 높이 */
 	UPROPERTY(EditDefaultsOnly, Category="Pattern|Barrage")
