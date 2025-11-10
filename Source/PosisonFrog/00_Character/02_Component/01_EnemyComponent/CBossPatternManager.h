@@ -11,48 +11,43 @@ class ACEnemyBossCharacter;
 class UCEnemyBossPhaseComponent;
 class UCEnemyWeaponComponent;
 class AAIController;
-
-
+class UCBossPatternBase;
 
 /**
  * 보스 패턴 실행을 전담하는 매니저 컴포넌트
- * BossPhaseComponent의 델리게이트를 바인딩하여 패턴별 로직을 C++에서 처리
+ * BossPhaseComponent의 델리게이트를 바인딩하여 패턴별 로직을 각 패턴 클래스에 위임
  */
 UCLASS(ClassGroup=(Boss), meta=(BlueprintSpawnableComponent))
 class POSISONFROG_API UCBossPatternManager : public UActorComponent
 {
 	GENERATED_BODY()
 
-
 public:
-
-	UFUNCTION(BlueprintCallable, Category="AI|Chase")
-	FORCEINLINE bool GetIsRushing() const { return bIsRushing; }
-	
 	UCBossPatternManager();
 
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
+	UFUNCTION(BlueprintCallable, Category = "Pattern")
+	void NotifyCurrentPatternEnd(bool bSuccess = true);
+
 	UFUNCTION(BlueprintCallable, Category = "Pattern|Rush")
 	void HandleRushMovementStart();
 
+	/** AnimNotify에서 호출 - Rush 이동 종료 */
 	UFUNCTION(BlueprintCallable, Category = "Pattern|Rush")
 	void HandleRushMovementStop();
-
-	/** AnimNotify에서 호출 - 현재 패턴 종료 알림 */
-	UFUNCTION(BlueprintCallable, Category = "Pattern")
-	void NotifyCurrentPatternEnd(bool bSuccess = true);
 	
+	UFUNCTION(BlueprintCallable, Category = "Pattern")
+	void CleanupAllPatterns();
+
 protected:
 	/**============ 델리게이트 ============**/
-	
 	void BindToBossPhaseComponent();
 	void UnbindFromBossPhaseComponent();
 
-	/**============  이벤트 핸들  ============**/
-	
+	/**============ 이벤트 핸들 ============**/
 	UFUNCTION()
 	void HandlePhaseChanged(int32 PhaseIndex, const FBossPhaseDefinition& PhaseData);
 
@@ -65,71 +60,42 @@ protected:
 	UFUNCTION()
 	void HandleShoutStarted(int32 PhaseIndex, FName ShoutId, float Duration);
 
+	/**============ 패턴 관리 ============**/
+	/** 패턴 ID로 패턴 객체 찾기 */
+	UCBossPatternBase* FindPattern(FName PatternId) const;
 
-	/**============ 패턴 실행 함수들 ============**/
-	
-	// 기본 공격
-	void ExecuteBasicAttack();
-
-	/** 돌진 공격 */
-	void ExecuteRushPattern();
-
-
-	/** 내려찍기 */
-	void ExecuteSlamPattern();
-
-	/** 원거리 난사 */
-	void ExecuteBarragePattern();
-	void FireBarrageShot();
-	void StopBarrage();
-	
-
+	void InitializePatterns();
 
 	/**============ 페이즈별 처리 ============**/
-	
 	/** 페이즈 전환 연출 */
 	void PlayPhaseTransition(int32 PhaseIndex);
 
 	/** 페이즈별 스탯 조정 */
 	void UpdatePhaseStats(int32 PhaseIndex);
 
-
-	
-	/**============ 유틸리티 ============**/
-
-	/** 몽타주 재생 및 완료 대기 */
-	void PlayMontageAndNotify(UAnimMontage* Montage, bool bAutoNotifyFinish = true);
-
-	/** 몽타주 완료 콜백 */
-	UFUNCTION()
-	void OnMontageCompleted(UAnimMontage* Montage, bool bInterrupted);
-
-	/** 플레이어 타겟 가져오기 */
 	AActor* GetPlayerTarget() const;
-
-	/** AI 컨트롤러 가져오기 */
 	AAIController* GetBossAI() const;
 
-
+	/**============ 스폰 시스템 ============**/
 	struct FBossSpawnedActorEntry
 	{
 		TWeakObjectPtr<AActor> Actor;
 		bool bDestroyOnPatternEnd = false;
 	};
-	
+
 	struct FBossSpawnedMinionEntry
 	{
 		TWeakObjectPtr<APawn> Pawn;
 		bool bDestroyOnPatternEnd = false;
 	};
-	
+
 	struct FBossUtilitySpawnRuntime
 	{
 		FBossPatternUtilitySpawnDefinition Definition;
 		int32 SpawnedCount = 0;
 		FTimerHandle TimerHandle;
 	};
-	
+
 	struct FBossMinionSpawnRuntime
 	{
 		FBossPatternMinionSpawnDefinition Definition;
@@ -144,7 +110,9 @@ protected:
 	void CleanupPatternActors();
 	void CleanupUtilitySpawnTimers();
 	void CleanupMinionSpawnTimers();
+	
 	FTransform ResolveSpawnTransform(const FBossPatternSpawnTransform& SpawnTransform) const;
+	
 	void RegisterSpawnedActor(AActor* Actor, bool bDestroyOnPatternEnd, TArray<FBossSpawnedActorEntry>& Container);
 	void RegisterSpawnedMinion(APawn* Pawn, bool bDestroyOnPatternEnd);
 	void ApplyInitialVelocity(AActor* SpawnedActor, const FVector& InitialVelocity) const;
@@ -156,9 +124,7 @@ protected:
 	void HandleProjectileRainTick();
 	void StopProjectileRain(bool bNotifyPatternEnd = false);
 	void SpawnProjectileRainWave();
- 
 
-	
 	/**============ 오너 & 컴포넌트 ============**/
 	UPROPERTY()
 	TObjectPtr<ACEnemyBossCharacter> OwnerBoss;
@@ -169,75 +135,22 @@ protected:
 	UPROPERTY()
 	TObjectPtr<UCEnemyWeaponComponent> WeaponComponent;
 
-
+	/**============ 패턴 객체들 ============**/
+	UPROPERTY(EditDefaultsOnly, Instanced, Category="Patterns")
+	TMap<FName, TObjectPtr<UCBossPatternBase>> PatternMap;
 	
+	// 서브오브젝트로 생성하기 위한 포인터들
+	UPROPERTY()
+	TObjectPtr<UCBossPatternBase> BasicAttackPattern;
+	UPROPERTY()
+	TObjectPtr<UCBossPatternBase> BarragePattern;
+	UPROPERTY()
+	TObjectPtr<UCBossPatternBase> RushPattern;
+	UPROPERTY()
+	TObjectPtr<UCBossPatternBase> SlamPattern;
+
+
 	/**============ 세팅 ============**/
-
-	/** 패턴 ID와 공격 인덱스 매핑 */
-	UPROPERTY(EditDefaultsOnly, Category="Pattern|Mapping")
-	TMap<FName, int32> PatternAttackIndexMap;
-
-	/** 기본 공격 인덱스 */
-	UPROPERTY(EditDefaultsOnly, Category="Pattern|Mapping")
-	int32 DefaultAttackIndex = 0;
-
-	// Rush 설정
-	UPROPERTY(EditDefaultsOnly, Category="Pattern|Rush")
-	float RushTelegraphDuration = 1.0f;
-
-	UPROPERTY(EditDefaultsOnly, Category="Pattern|Rush")
-	float RushSpeed = 1000.f;
-
-	UPROPERTY(EditDefaultsOnly, Category="Pattern|Rush")
-	float RushAcceptanceRadius = 150.f;
-
-
-	
-	// Barrage 설정
-	UPROPERTY(EditDefaultsOnly, Category="Pattern|Barrage")
-	TSubclassOf<AActor> ProjectileClass;
-
-	UPROPERTY(EditDefaultsOnly, Category="Pattern|Barrage")
-	float BarrageShotInterval = 0.2f;
-
-	UPROPERTY(EditDefaultsOnly, Category="Pattern|Barrage")
-	int32 MaxBarrageShots = 20;
-
-	UPROPERTY(EditDefaultsOnly, Category="Pattern|Barrage")
-	float BarrageTotalDuration = 2.0f;
-
-	/** 장판 데칼 클래스 (붉은 원형) */
-	UPROPERTY(EditDefaultsOnly, Category="Pattern|Barrage")
-	TSubclassOf<AActor> WarningDecalClass;
-
-	/** 장판 표시 후 코코넛 떨어지는 시간 (1.5초) */
-	UPROPERTY(EditDefaultsOnly, Category="Pattern|Barrage")
-	float CoconutFallDelay = 3.0f;
-
-	/** 데칼 미리 표시 시간 (떨어지기 1초 전) */
-	UPROPERTY(EditDefaultsOnly, Category="Pattern|Barrage")
-	float DecalPreviewTime = 1.0f;
-
-	/** 플레이어 근처 랜덤 범위 */
-	UPROPERTY(EditDefaultsOnly, Category="Pattern|Barrage")
-	float RandomSpawnRadius = 2000.f;
-
-	/** 장판 반경 */
-	UPROPERTY(EditDefaultsOnly, Category="Pattern|Barrage")
-	float WarningDecalRadius = 200.f;
-
-	/** 코코넛을 위로 던지는 힘 (높을수록 빠름) */
-	UPROPERTY(EditDefaultsOnly, Category="Pattern|Barrage")
-	float ThrowUpwardForce = 5000.f;
-
-	/** 코코넛이 떨어지는 속도 (높을수록 빠름) */
-	UPROPERTY(EditDefaultsOnly, Category="Pattern|Barrage")
-	float FallSpeed = 5500.f;
-
-	/** 코코넛 떨어지기 시작하는 높이 */
-	UPROPERTY(EditDefaultsOnly, Category="Pattern|Barrage")
-	float DropHeight = 2500.f;
-
 	// Phase 설정
 	UPROPERTY(EditDefaultsOnly, Category="Phase")
 	TArray<float> PhaseWalkSpeeds = {400.f, 500.f, 600.f};
@@ -245,58 +158,33 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category="Phase")
 	float PhaseTransitionInvulnerabilityDuration = 2.0f;
 
-	
-
 	/**============ 이펙트 사운드 ============**/
-
 	UPROPERTY(EditDefaultsOnly, Category="Effects")
 	TObjectPtr<UParticleSystem> PhaseChangeEffect;
 
 	UPROPERTY(EditDefaultsOnly, Category="Effects")
 	TObjectPtr<USoundBase> PhaseChangeSound;
 
-	UPROPERTY(EditDefaultsOnly, Category="Effects")
-	TObjectPtr<UParticleSystem> GroundImpactEffect;
-
-	UPROPERTY(EditDefaultsOnly, Category="Effects")
-	TSubclassOf<UCameraShakeBase> GroundImpactShake;
-
-	
-
+	/**============ 런타임 변수 ============**/
 	FName CurrentPatternId;
-	FVector RushTargetLocation;
-	int32 BarrageShotCount;
 	bool bIsPatternActive;
-	bool bIsRushing;
-
-	// Barrage 런타임
-	TArray<FVector> PrePlannedDropLocations;  // 미리 계획된 낙하 위치들
 
 	// 타이머 핸들
-	FTimerHandle RushDelayTimer;
-	FTimerHandle RushMoveTimer;
-	FTimerHandle BarrageLoopTimer;
-	FTimerHandle BarrageStopTimer;
-	FTimerHandle GroundCheckTimer;
 	FTimerHandle PhaseTransitionTimer;
 
-
+	// 스폰 시스템
 	TArray<FBossSpawnedActorEntry> ActiveWeaponActors;
 	TArray<FBossSpawnedActorEntry> ActiveUtilityActors;
 	TArray<FBossSpawnedMinionEntry> ActiveMinions;
-	
+
 	TMap<int32, FBossUtilitySpawnRuntime> ActiveUtilitySpawnRuntimes;
 	int32 UtilitySpawnRuntimeIdCounter = 0;
-	
+
 	TMap<int32, FBossMinionSpawnRuntime> ActiveMinionSpawnRuntimes;
 	int32 MinionSpawnRuntimeIdCounter = 0;
-	
+
 	FBossPatternProjectileRainSettings ActiveProjectileRainSettings;
 	bool bProjectileRainActive = false;
 	int32 ProjectileRainWaveCounter = 0;
 	FTimerHandle ProjectileRainTimerHandle;
-	
-	// 몽타주 종료 델리게이트
-	FOnMontageEnded MontageEndDelegate;
-	bool bShouldNotifyOnMontageEnd;
 };

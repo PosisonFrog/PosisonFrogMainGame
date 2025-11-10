@@ -36,34 +36,53 @@ void ACEnemyBossCharacter::BeginPlay()
         if (Player)
         {
             UE_LOG(LogTemp, Error, TEXT("[Boss] AUTO START BATTLE TRIGGERED IN BEGINPLAY!"));
-            StartBossBattle(false); // bSkipIntro
+            StartBossBattle(false);
         }
     }
     
     bIsBossDead = false;
-    //InitializeBossBindings();
 
     if (IsValid(HealthComponent))
     {
         HealthComponent->OnDeath.AddDynamic(this, &ACEnemyBossCharacter::HandleBossDeath);
     }    
-    
 }
 
 void ACEnemyBossCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+    UE_LOG(LogTemp, Warning, TEXT("[Boss] EndPlay called"));
+    
+    // 패턴 매니저 클린업
+    if (IsValid(PatternManager))
+    {
+        PatternManager->CleanupAllPatterns();
+    }
+    
+    // 모든 타이머 정리
+    if (UWorld* World = GetWorld())
+    {
+        World->GetTimerManager().ClearAllTimersForObject(this);
+    }
+    
     if (IsValid(HealthComponent))
     {
         HealthComponent->OnDeath.RemoveDynamic(this, &ACEnemyBossCharacter::HandleBossDeath);
     }
+    
     Super::EndPlay(EndPlayReason);
 }
-
 
 float ACEnemyBossCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
 {
     UE_LOG(LogTemp, Warning, TEXT("[%s] TakeDamage 호출됨! 데미지: %.1f, 공격자: %s"), 
            *GetName(), DamageAmount, *GetNameSafe(DamageCauser));
+    
+    // 이미 죽었으면 데미지 무시
+    if (bIsBossDead)
+    {
+        UE_LOG(LogTemp, Log, TEXT("[Boss] Already dead, ignoring damage"));
+        return 0.0f;
+    }
     
     const float AppliedDamage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
     if (AppliedDamage <= 0.f)
@@ -89,12 +108,13 @@ float ACEnemyBossCharacter::TakeDamage(float DamageAmount, FDamageEvent const& D
     if (bIsDead)
     {
         bIsBossDead = true;
+        // HandleBossDeath가 델리게이트로 호출됨
+        return AppliedDamage;
     }
-
     
     if (BossPhaseComponent)
     {
-        if (bIsDead || BossPhaseComponent->GetCurrentState() == EBossBattleState::Dead)
+        if (BossPhaseComponent->GetCurrentState() == EBossBattleState::Dead)
         {
             return AppliedDamage;
         }
@@ -181,29 +201,6 @@ void ACEnemyBossCharacter::HandlePatternStarted(int32 PhaseIndex, FName PatternI
         UE_LOG(LogTemp, Verbose, TEXT("[Boss] Pattern %s ignored due to dead health state"), *PatternId.ToString());
         return;
     }
-
-    /*
-    if (!IsValid(WeaponComponent))
-    {
-        UE_LOG(LogTemp, Warning, TEXT("[Boss] WeaponComponent is missing - cannot play attack montage"));
-        return;
-    }
-    
-    int32 AttackIndex = DefaultAttackIndex;
-    if (const int32* FoundIndex = PatternAttackIndexMap.Find(PatternId))
-    {
-        AttackIndex = *FoundIndex;
-    }
-   
-    WeaponComponent->SetCurrentAttackIndex(AttackIndex);
-  
-    if (!WeaponComponent->IsAttackIndexValid(AttackIndex))
-    {
-        UE_LOG(LogTemp, Warning, TEXT("[Boss] No valid attack montage for pattern %s (index %d)"), *PatternId.ToString(), AttackIndex);
-        return;
-    }
-    
-    WeaponComponent->DoAttack();*/
 }
 
 void ACEnemyBossCharacter::HandlePatternFinished(int32 PhaseIndex, FName PatternId, const FBossPatternDefinition& PatternData, float RemainingPower)
@@ -221,7 +218,6 @@ void ACEnemyBossCharacter::HandleShoutFinished(int32 PhaseIndex, FName ShoutId, 
     UE_LOG(LogTemp, Warning, TEXT("[Boss] Shout %s finished (Phase %d)"), *ShoutId.ToString(), PhaseIndex);
 }
 
-
 void ACEnemyBossCharacter::HandleBossDeath(AActor* DeadActor)
 {
     if (DeadActor != this)
@@ -229,10 +225,18 @@ void ACEnemyBossCharacter::HandleBossDeath(AActor* DeadActor)
         return;
     }
   
+    UE_LOG(LogTemp, Error, TEXT("[Boss] ========== BOSS DEATH =========="));
+    
     bIsBossDead = true;
 
-    
+    // 패턴 매니저 클린업
+    if (IsValid(PatternManager))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[Boss] Cleaning up pattern manager"));
+        PatternManager->CleanupAllPatterns();
+    }
 
+    // AI 정지
     if (AAIController* AIController = Cast<AAIController>(GetController()))
     {
         AIController->StopMovement();
@@ -244,14 +248,16 @@ void ACEnemyBossCharacter::HandleBossDeath(AActor* DeadActor)
         }
     }
     
+    // 이동 정지
     if (UCharacterMovementComponent* MovementComponent = GetCharacterMovement())
     {
         MovementComponent->StopMovementImmediately();
     }
     
+    // Tick 비활성화
     SetActorTickEnabled(false);
 
-   
+    // 애니메이션 처리
     if (USkeletalMeshComponent* mesh = GetMesh())
     {
         if (UAnimInstance* AnimInst = mesh->GetAnimInstance())
@@ -269,4 +275,12 @@ void ACEnemyBossCharacter::HandleBossDeath(AActor* DeadActor)
             }
         }
     }
+    
+    // 모든 타이머 정리
+    if (UWorld* World = GetWorld())
+    {
+        World->GetTimerManager().ClearAllTimersForObject(this);
+    }
+    
+    UE_LOG(LogTemp, Error, TEXT("[Boss] ========== BOSS DEATH COMPLETE =========="));
 }

@@ -1,48 +1,58 @@
 #include "CBossPatternManager.h"
-
 #include "00_Character/01_Enemy/CEnemyBossCharacter.h"
 #include "00_Character/02_Component/01_EnemyComponent/CEnemyBossPhaseComponent.h"
 #include "00_Character/02_Component/01_EnemyComponent/CEnemyWeaponComponent.h"
-#include "AIController.h"
-#include "NavigationSystem.h"
 #include "00_Character/01_Enemy/01_AIController/BossAIController.h"
-#include "Navigation/PathFollowingComponent.h"
+
+// 패턴 클래스 인클루드
+#include "CBossPatternBase.h"
+#include "00_BossPattern/CBossPattern_BasicAttack.h"
+#include "00_BossPattern/CBossPattern_Rush.h"
+#include "00_BossPattern/CBossPattern_Slam.h"
+#include "00_BossPattern/CBossPattern_Barrage.h"
+
+#include "AIController.h"
 #include "Camera/CameraShakeBase.h"
-#include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/ProjectileMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Components/PrimitiveComponent.h"
-#include "Components/SkeletalMeshComponent.h"
-#include "Components/SceneComponent.h"
-#include "Engine/World.h"
-#include "Particles/ParticleSystem.h"
 #include "Sound/SoundBase.h"
 
 UCBossPatternManager::UCBossPatternManager()
 {
-	PrimaryComponentTick.bCanEverTick = true;  // Tick 활성화 (Rush 이동에 필요)
+	PrimaryComponentTick.bCanEverTick = true;
 	bIsPatternActive = false;
-	bShouldNotifyOnMontageEnd = false;
-	bIsRushing = false;
+
+	// 각 패턴을 Default Subobject로 생성->에디터 편집 가능함.
+	BasicAttackPattern = CreateDefaultSubobject<UCBossPattern_BasicAttack>(TEXT("BasicAttackPattern"));
+	BarragePattern = CreateDefaultSubobject<UCBossPattern_Barrage>(TEXT("BarragePattern"));
+	RushPattern = CreateDefaultSubobject<UCBossPattern_Rush>(TEXT("RushPattern"));
+	SlamPattern = CreateDefaultSubobject<UCBossPattern_Slam>(TEXT("SlamPattern"));
+	
+	// 패턴들 생성된거 Map에 추가.
+	PatternMap.Add(FName("BasicAttack"), BasicAttackPattern);
+	PatternMap.Add(FName("Barrage"), BarragePattern);
+	PatternMap.Add(FName("Rush"), RushPattern);
+	PatternMap.Add(FName("Slam"), SlamPattern);
 }
 
 void UCBossPatternManager::BeginPlay()
 {
 	Super::BeginPlay();
-	
+
 	OwnerBoss = Cast<ACEnemyBossCharacter>(GetOwner());
 	if (!OwnerBoss)
 	{
 		UE_LOG(LogTemp, Error, TEXT("[PatternManager] Owner is not CEnemyBossCharacter!"));
-		PrimaryComponentTick.SetTickFunctionEnable(false); 
+		PrimaryComponentTick.SetTickFunctionEnable(false);
 		return;
 	}
-	
-	PhaseComponent = OwnerBoss->GetBossPhaseComponent();
-	WeaponComponent = OwnerBoss->FindComponentByClass<UCEnemyWeaponComponent>();
 
+	PhaseComponent = OwnerBoss->FindComponentByClass<UCEnemyBossPhaseComponent>();
+	WeaponComponent = OwnerBoss->FindComponentByClass<UCEnemyWeaponComponent>();
+	
 	if (!PhaseComponent)
 	{
 		UE_LOG(LogTemp, Error, TEXT("[PatternManager] BossPhaseComponent not found!"));
@@ -51,34 +61,51 @@ void UCBossPatternManager::BeginPlay()
 
 	if (!WeaponComponent)
 	{
-		UE_LOG(LogTemp, Error, TEXT("[PatternManager] WeaponComponent not found!"));
+		UE_LOG(LogTemp, Warning, TEXT("[PatternManager] WeaponComponent not found!"));
 	}
 
+	// 패턴 초기화
+	InitializePatterns();
 
 	BindToBossPhaseComponent();
-	// 몽타주 완료 델리게이트 초기화
-	MontageEndDelegate.BindUObject(this, &UCBossPatternManager::OnMontageCompleted);
+}
+
+void UCBossPatternManager::InitializePatterns()
+{
+	if (!OwnerBoss)
+	{
+		return;
+	}
+    
+	for (auto& Pair : PatternMap)
+	{
+		if (Pair.Value)
+		{
+			Pair.Value->Initialize(OwnerBoss, WeaponComponent);
+		}
+	}
 }
 
 void UCBossPatternManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	UnbindFromBossPhaseComponent();
-
-	if (UWorld* World = GetWorld())
-	{
-		FTimerManager& TimerManager = World->GetTimerManager();
-		TimerManager.ClearTimer(RushDelayTimer);
-		TimerManager.ClearTimer(RushMoveTimer);
-		TimerManager.ClearTimer(BarrageLoopTimer);
-		TimerManager.ClearTimer(BarrageStopTimer);
-		TimerManager.ClearTimer(GroundCheckTimer);
-		TimerManager.ClearTimer(PhaseTransitionTimer);
-	}
+	CleanupAllPatterns();
 	CleanupUtilitySpawnTimers();
 	CleanupMinionSpawnTimers();
 	CleanupPatternActors();
-	StopProjectileRain(false);
+
+	if (bProjectileRainActive)
+	{
+		StopProjectileRain(false);
+	}
+
+	UnbindFromBossPhaseComponent();
+
 	
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(PhaseTransitionTimer);
+	}
+
 	Super::EndPlay(EndPlayReason);
 }
 
@@ -87,12 +114,15 @@ void UCBossPatternManager::TickComponent(float DeltaTime, ELevelTick TickType,
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
-	if (bIsRushing && OwnerBoss)
+	// Rush 패턴의 Tick 처리
+	if (UCBossPattern_Rush* LocalRushPattern  = Cast<UCBossPattern_Rush>(FindPattern(FName("Rush"))))
 	{
-		OwnerBoss->AddMovementInput(OwnerBoss->GetActorForwardVector(), 1.0f); // RushSpeed는 CharacterMovement에서 제어하도록 1.0f로 설정하거나, 여기서 직접 속도를 곱해줄 수 있습니다.
+		if (LocalRushPattern ->IsRushing())
+		{
+			LocalRushPattern ->TickRushMovement(DeltaTime);
+		}
 	}
 }
-
 
 // ========================================
 // 델리게이트 바인딩
@@ -132,771 +162,90 @@ void UCBossPatternManager::UnbindFromBossPhaseComponent()
 
 void UCBossPatternManager::HandlePhaseChanged(int32 PhaseIndex, const FBossPhaseDefinition& PhaseData)
 {
-	UE_LOG(LogTemp, Warning, TEXT("[PatternManager] ===== PHASE %d: %s ====="), 
-	       PhaseIndex + 1, *PhaseData.PhaseName.ToString());
+	UE_LOG(LogTemp, Warning, TEXT("[PatternManager] ===== PHASE %d: %s ====="),
+		PhaseIndex + 1, *PhaseData.PhaseName.ToString());
 
 	PlayPhaseTransition(PhaseIndex);
 	UpdatePhaseStats(PhaseIndex);
+
+	// 모든 패턴의 페이즈 설정 업데이트
+	for (const auto& Pair : PatternMap)
+	{
+		if (UCBossPatternBase* Pattern = Pair.Value)
+		{
+			Pattern->UpdatePhaseSettings(PhaseIndex);
+		}
+	}
 }
 
-void UCBossPatternManager::HandlePatternStarted(int32 PhaseIndex, FName PatternId, 
-												const FBossPatternDefinition& PatternData, float RemainingPower)
+void UCBossPatternManager::HandlePatternStarted(int32 PhaseIndex, FName PatternId,
+	const FBossPatternDefinition& PatternData, float RemainingPower)
 {
-	UE_LOG(LogTemp, Warning, TEXT("[PatternManager] Pattern Started: %s (Phase %d, Power: %.1f)"), 
-		   *PatternId.ToString(), PhaseIndex, RemainingPower);
+	UE_LOG(LogTemp, Warning, TEXT("[PatternManager] Pattern Started: %s (Phase %d, Power: %.1f)"),
+		*PatternId.ToString(), PhaseIndex, RemainingPower);
 
-	// ===== 전투 시작 여부 체크 =====
 	if (!PhaseComponent || !PhaseComponent->IsBattleStarted())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[PatternManager] Pattern %s ignored - Battle not started"), 
-			   *PatternId.ToString());
+		UE_LOG(LogTemp, Warning, TEXT("[PatternManager] Pattern %s ignored - Battle not started"),
+			*PatternId.ToString());
 		return;
 	}
 
 	CurrentPatternId = PatternId;
 	bIsPatternActive = true;
-	bIsRushing = false;
 
 	CleanupPatternActors();
 	CleanupUtilitySpawnTimers();
 	CleanupMinionSpawnTimers();
 	StopProjectileRain(false);
-	
-	// ===== 특수 이동이 있는 패턴만 Chase 비활성화 =====
-	if (PatternId == FName("Barrage"))
+
+	SpawnPatternActors(PatternData);
+
+	// 패턴 실행 위임
+	if (UCBossPatternBase* Pattern = FindPattern(PatternId))
 	{
-		if (ABossAIController* BossAI = Cast<ABossAIController>(GetBossAI()))
+		Pattern->ExecutePattern(PhaseIndex);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[PatternManager] Unknown pattern: %s, using basic attack"),
+			*PatternId.ToString());
+		
+		if (UCBossPatternBase* BasicAttack = FindPattern(FName("BasicAttack")))
 		{
-			BossAI->SetChaseEnabled(false);
-			UE_LOG(LogTemp, Warning, TEXT("[PatternManager] Disabled chase for %s"), *PatternId.ToString());
+			BasicAttack->ExecutePattern(PhaseIndex);
 		}
 	}
-	// RUsh, BasicAttack, Slam은 Chase 유지 → 계속 플레이어 추적
-	else
-	{
-		UE_LOG(LogTemp, Log, TEXT("[PatternManager] Chase maintained for %s"), *PatternId.ToString());
-	}
-	
-	SpawnPatternActors(PatternData);
-	
-	// 패턴별 분기
-	if (PatternId == FName("BasicAttack"))
-	{
-		ExecuteBasicAttack();
-	}
-	else if (PatternId == FName("Rush"))
-	{
-		ExecuteRushPattern();
-	}
-	else if (PatternId == FName("Slam"))
-	{
-		ExecuteSlamPattern();
-	}
-	else if (PatternId == FName("Barrage"))
-	{
-		ExecuteBarragePattern();
-	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[PatternManager] Unknown pattern: %s, using basic attack"), 
-			   *PatternId.ToString());
-		ExecuteBasicAttack();
-	}
 }
-void UCBossPatternManager::HandlePatternFinished(int32 PhaseIndex, FName PatternId, 
-                                                 const FBossPatternDefinition& PatternData, float RemainingPower)
+
+void UCBossPatternManager::HandlePatternFinished(int32 PhaseIndex, FName PatternId,
+	const FBossPatternDefinition& PatternData, float RemainingPower)
 {
 	UE_LOG(LogTemp, Log, TEXT("[PatternManager] Pattern Finished: %s"), *PatternId.ToString());
 
 	bIsPatternActive = false;
 	CleanupUtilitySpawnTimers();
-		CleanupMinionSpawnTimers();
-		CleanupPatternActors();
-	if (PatternId == FName("Rush") || PatternId == FName("Barrage"))
-	{
-		if (ABossAIController* BossAI = Cast<ABossAIController>(GetBossAI()))
-		{
-			BossAI->SetChaseEnabled(true);
-			UE_LOG(LogTemp, Warning, TEXT("[PatternManager] Re-enabled chase after %s"), 
-				   *PatternId.ToString());
-		}
-	}
+	CleanupMinionSpawnTimers();
+	CleanupPatternActors();
 
-	// 패턴별 정리 작업
-	if (PatternId == FName("Rush"))
+	if (UCBossPatternBase* Pattern = FindPattern(PatternId))
 	{
-		bIsRushing = false;
-		GetWorld()->GetTimerManager().ClearTimer(RushMoveTimer);
-		
-		// 속도 원복
-		if (OwnerBoss && OwnerBoss->GetCharacterMovement() && PhaseComponent)
-		{
-			int32 CurrentPhase = PhaseComponent->GetCurrentPhaseIndex();
-			if (PhaseWalkSpeeds.IsValidIndex(CurrentPhase))
-			{
-				OwnerBoss->GetCharacterMovement()->MaxWalkSpeed = PhaseWalkSpeeds[CurrentPhase];
-			}
-		}
-	}
-	else if (PatternId == FName("Barrage"))
-	{
-		StopBarrage();
+		Pattern->OnPatternEnd();
 	}
 }
 
 void UCBossPatternManager::HandleShoutStarted(int32 PhaseIndex, FName ShoutId, float Duration)
 {
-	UE_LOG(LogTemp, Warning, TEXT("[PatternManager] SHOUT: %s (Duration: %.2fs)"), 
-	       *ShoutId.ToString(), Duration);
+	UE_LOG(LogTemp, Warning, TEXT("[PatternManager] SHOUT: %s (Duration: %.2fs)"),
+		*ShoutId.ToString(), Duration);
 
 	// 샤우트 연출 (카메라 흔들림, 이펙트 등)
-	if (GroundImpactShake)
-	{
-		UGameplayStatics::PlayWorldCameraShake(
-			GetWorld(),
-			GroundImpactShake,
-			OwnerBoss->GetActorLocation(),
-			0.f,
-			5000.f
-		);
-	}
-
-	// AOE 데미지
-	TArray<FHitResult> HitResults;
-	FCollisionQueryParams QueryParams;
-	QueryParams.AddIgnoredActor(OwnerBoss);
-
-	GetWorld()->SweepMultiByChannel(
-		HitResults,
-		OwnerBoss->GetActorLocation(),
-		OwnerBoss->GetActorLocation(),
-		FQuat::Identity,
-		ECC_Pawn,
-		FCollisionShape::MakeSphere(500.f),
-		QueryParams
-	);
-
-	for (const FHitResult& Hit : HitResults)
-	{
-		if (AActor* HitActor = Hit.GetActor())
-		{
-			if (HitActor->ActorHasTag("Player"))
-			{
-				UGameplayStatics::ApplyDamage(
-					HitActor,
-					30.f,
-					GetBossAI(),
-					OwnerBoss,
-					UDamageType::StaticClass()
-				);
-			}
-		}
-	}
 }
 
 // ========================================
-// 패턴 실행: Basic Attack
+// 패턴 관리
 // ========================================
 
-void UCBossPatternManager::ExecuteBasicAttack()
-{
-	UE_LOG(LogTemp, Log, TEXT("[PatternManager] Executing Basic Attack"));
-
-	if (!WeaponComponent)
-	{
-		PhaseComponent->NotifyPatternFinished(false);
-		return;
-	}
-
-	int32 AttackIndex = DefaultAttackIndex;
-	if (const int32* MappedIndex = PatternAttackIndexMap.Find(CurrentPatternId))
-	{
-		AttackIndex = *MappedIndex;
-	}
-
-	WeaponComponent->SetCurrentAttackIndex(AttackIndex);
-	WeaponComponent->DoAttack();
-
-	// 몽타주 완료 시 자동 알림
-	PlayMontageAndNotify(nullptr, true);
-}
-
-// ========================================
-// 패턴 실행: Rush
-// ========================================
-
-void UCBossPatternManager::ExecuteRushPattern()
-{
-	UE_LOG(LogTemp, Warning, TEXT("[PatternManager] ===== RUSH PATTERN START ====="));
-
-	if (!OwnerBoss)
-	{
-		NotifyCurrentPatternEnd(false);
-		return;
-	}
-
-	// 1. 타겟 위치 설정
-	AActor* Target = GetPlayerTarget();
-	if (!Target)
-	{
-		UE_LOG(LogTemp, Error, TEXT("[PatternManager] No target found for Rush!"));
-		NotifyCurrentPatternEnd(false);
-		return;
-	}
-	
-	RushTargetLocation = Target->GetActorLocation();
-	UE_LOG(LogTemp, Warning, TEXT("[PatternManager] Rush target: %s"), *RushTargetLocation.ToString());
-
-	// 2. 이동 속도 설정
-	if (OwnerBoss->GetCharacterMovement())
-	{
-		OwnerBoss->GetCharacterMovement()->MaxWalkSpeed = RushSpeed;
-		UE_LOG(LogTemp, Log, TEXT("[PatternManager] Rush speed set to: %.1f"), RushSpeed);
-	}
-	
-	UE_LOG(LogTemp, Log, TEXT("[PatternManager] Waiting for AnimNotify_StartRush..."));
-}
-
-void UCBossPatternManager::HandleRushMovementStart()
-{
-	if (!OwnerBoss || RushTargetLocation.IsZero())  // 수정: 타겟 위치가 0이면 return
-	{
-		UE_LOG(LogTemp, Error, TEXT("[PatternManager] Cannot start rush - invalid owner or target location"));
-		return;
-	}
-
-	AAIController* AIController = GetBossAI();
-	if (!AIController)
-	{
-		UE_LOG(LogTemp, Error, TEXT("[PatternManager] Cannot start rush - no AI controller"));
-		return;
-	}
-
-	bIsRushing = true;
-	if (OwnerBoss)
-	{
-		OwnerBoss->SetIsBossRushing(true);
-	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("[PatternManager] OwnerBoss is null in HandleRushMovementStart"));
-	}
-    
-	UE_LOG(LogTemp, Warning, TEXT("[PatternManager] Starting MoveTo: %s"), *RushTargetLocation.ToString());
-	
-	// AI MoveTo 실행
-	FAIMoveRequest MoveRequest(RushTargetLocation);
-	MoveRequest.SetAcceptanceRadius(RushAcceptanceRadius);
-	MoveRequest.SetUsePathfinding(false); // 직선 돌진
-    
-	FNavPathSharedPtr NavPath;
-	EPathFollowingRequestResult::Type Result = AIController->MoveTo(MoveRequest, &NavPath);
-	
-	// 결과 로그
-	switch(Result)
-	{
-		case EPathFollowingRequestResult::Failed:
-			UE_LOG(LogTemp, Error, TEXT("[PatternManager] MoveTo FAILED!"));
-			bIsRushing = false;
-			if (OwnerBoss) {OwnerBoss->SetIsBossRushing(false);}
-			break;
-		case EPathFollowingRequestResult::AlreadyAtGoal:
-			UE_LOG(LogTemp, Warning, TEXT("[PatternManager] Already at goal"));
-			break;
-		case EPathFollowingRequestResult::RequestSuccessful:
-			UE_LOG(LogTemp, Log, TEXT("[PatternManager] MoveTo started successfully"));
-			break;
-	}
-}
-
-void UCBossPatternManager::HandleRushMovementStop()
-{
-	UE_LOG(LogTemp, Log, TEXT("[PatternManager] AnimNotify: StopRushMovement received!"));
-	bIsRushing = false;
-	if (OwnerBoss)
-	{
-		OwnerBoss->SetIsBossRushing(false);
-	}
-
-	// 관성을 제거하고 원래 속도로 복귀
-	if (OwnerBoss && OwnerBoss->GetCharacterMovement())
-	{
-		OwnerBoss->GetCharacterMovement()->StopMovementImmediately();
-		// 원래 걷기 속도로 되돌릴 수 있습니다. (예: PhaseWalkSpeeds 값 사용)
-		if (PhaseComponent && PhaseWalkSpeeds.IsValidIndex(PhaseComponent->GetCurrentPhaseIndex()))
-		{
-			OwnerBoss->GetCharacterMovement()->MaxWalkSpeed = PhaseWalkSpeeds[PhaseComponent->GetCurrentPhaseIndex()];
-		}
-	}
-}
-
-/*
-void UCBossPatternManager::DoRushMovement()
-{
-	AAIController* AI = GetBossAI();
-	if (!AI)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[PatternManager] No AI Controller for Rush!"));
-		PhaseComponent->NotifyPatternFinished(false);
-		return;
-	}
-
-	AActor* Target = GetPlayerTarget();
-	if (!Target)
-	{
-		PhaseComponent->NotifyPatternFinished(false);
-		return;
-	}
-
-	// MoveToActor 실행 (단순 버전)
-	EPathFollowingRequestResult::Type MoveResult = AI->MoveToActor(
-		Target,
-		RushAcceptanceRadius,
-		true,  // bStopOnOverlap
-		true,  // bUsePathfinding
-		true,  // bCanStrafe
-		nullptr,  // FilterClass
-		true  // bAllowPartialPath
-	);
-
-	if (MoveResult == EPathFollowingRequestResult::Failed)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[PatternManager] Rush MoveTo failed!"));
-		PhaseComponent->NotifyPatternFinished(false);
-		return;
-	}
-
-	// 타임아웃 타이머 (3초 후 강제 완료)
-	GetWorld()->GetTimerManager().SetTimer(
-		RushMoveTimer,
-		this,
-		&UCBossPatternManager::OnRushCompleted,
-		3.0f,
-		false
-
-		
-	);
-	
-
-	// PathFollowingComponent에서 이동 완료 감지
-	if (UPathFollowingComponent* PFC = AI->GetPathFollowingComponent())
-	{
-		FTimerHandle CheckTimer;
-		GetWorld()->GetTimerManager().SetTimer(
-			CheckTimer,
-			[this, PFC]()
-			{
-				if (PFC->GetStatus() == EPathFollowingStatus::Idle ||
-					PFC->GetStatus() == EPathFollowingStatus::Waiting)
-				{
-					OnRushCompleted();
-				}
-			},
-			0.1f,
-			true
-		);
-	}
-}
-
-void UCBossPatternManager::OnRushCompleted()
-{
-	UE_LOG(LogTemp, Log, TEXT("[PatternManager] Rush Completed"));
-	GetWorld()->GetTimerManager().ClearTimer(RushMoveTimer);
-
-	if (PhaseComponent)
-	{
-		PhaseComponent->NotifyPatternFinished(true);
-	}
-}*/
-
-// ========================================
-// 패턴 실행: Slam
-// ========================================
-
-void UCBossPatternManager::ExecuteSlamPattern()
-{
-	UE_LOG(LogTemp, Warning, TEXT("[PatternManager] SLAM ATTACK!"));
-
-	if (!WeaponComponent)
-	{
-		PhaseComponent->NotifyPatternFinished(false);
-		return;
-	}
-
-	if (const int32* AttackIndex = PatternAttackIndexMap.Find(FName("Slam")))
-	{
-		WeaponComponent->SetCurrentAttackIndex(*AttackIndex);
-		WeaponComponent->DoAttack();
-	}
-	else
-	{
-		WeaponComponent->SetCurrentAttackIndex(DefaultAttackIndex);
-		WeaponComponent->DoAttack();
-	}
-
-	// 몽타주 완료 시 자동 알림
-	PlayMontageAndNotify(nullptr, true);
-}
-
-// ========================================
-// 패턴 실행: Barrage
-// ========================================
-
-void UCBossPatternManager::ExecuteBarragePattern()
-{
-	UE_LOG(LogTemp, Warning, TEXT("[PatternManager] BARRAGE PATTERN START!"));
-
-	if (!ProjectileClass)
-	{
-		UE_LOG(LogTemp, Error, TEXT("[PatternManager] ProjectileClass not set!"));
-		PhaseComponent->NotifyPatternFinished(false);
-		return;
-	}
-	
-
-	// 모든 낙하 위치를 미리 계획
-	PrePlannedDropLocations.Empty();
-
-	AActor* Target = GetPlayerTarget();
-	if (!Target)
-	{
-		UE_LOG(LogTemp, Error, TEXT("[PatternManager] No player target!"));
-		PhaseComponent->NotifyPatternFinished(false);
-		return;
-	}
-
-	FVector PlayerLocation = Target->GetActorLocation();
-
-	// LineTrace로 바닥 찾기
-	FVector TraceStart = PlayerLocation + FVector(0, 0, 500.f);  
-	FVector TraceEnd = PlayerLocation - FVector(0, 0, 1000.f);  
-
-	FHitResult HitResult;
-	FCollisionQueryParams QueryParams;
-	QueryParams.AddIgnoredActor(OwnerBoss);
-	QueryParams.AddIgnoredActor(Target);
-
-	float GroundZ = PlayerLocation.Z;
-
-	if (GetWorld()->LineTraceSingleByChannel(HitResult, TraceStart, TraceEnd, ECC_Visibility, QueryParams))
-	{
-		GroundZ = HitResult.Location.Z;
-		UE_LOG(LogTemp, Log, TEXT("[PatternManager] Ground found at Z=%.1f"), GroundZ);
-	}
-	else
-	{
-		// 못 찾으면 보스 높이 사용
-		GroundZ = OwnerBoss->GetActorLocation().Z;
-		UE_LOG(LogTemp, Warning, TEXT("[PatternManager] Ground not found, using Boss Z=%.1f"), GroundZ);
-	}
-
-	PlayerLocation.Z = GroundZ;  
-
-	// 첫 번째는 무조건 플레이어 현재 위치
-	PrePlannedDropLocations.Add(PlayerLocation);
-
-	// 나머지는 플레이어 근처 랜덤
-	for (int32 i = 1; i < MaxBarrageShots; ++i)
-	{
-		FVector2D RandomCircle = FMath::RandPointInCircle(RandomSpawnRadius);
-		FVector RandomLocation = PlayerLocation + FVector(RandomCircle.X, RandomCircle.Y, 0.f);
-    
-		PrePlannedDropLocations.Add(RandomLocation);
-	}
-
-	// 모든 위치에 데칼 미리 생성
-	if (WarningDecalClass)
-	{
-		for (int32 i = 0; i < PrePlannedDropLocations.Num(); ++i)
-		{
-			const FVector& DropLocation = PrePlannedDropLocations[i];
-			
-			FTimerHandle DecalTimerHandle;
-			GetWorld()->GetTimerManager().SetTimer(
-				DecalTimerHandle,
-				[this, DropLocation, i]()
-				{
-					FActorSpawnParameters DecalSpawnParams;
-					DecalSpawnParams.Owner = OwnerBoss;
-					DecalSpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-
-					AActor* Decal = GetWorld()->SpawnActor<AActor>(
-						WarningDecalClass,
-						DropLocation,
-						FRotator::ZeroRotator,
-						DecalSpawnParams
-					);
-
-					if (Decal)
-					{
-						Decal->SetLifeSpan(DecalPreviewTime + 0.5f);
-						
-						UE_LOG(LogTemp, Warning, TEXT("[PatternManager] Decal[%d] spawned at (%.1f, %.1f)"), 
-						       i, DropLocation.X, DropLocation.Y);
-					}
-				},
-				CoconutFallDelay - DecalPreviewTime, 
-				false
-			);
-		}
-	}
-
-
-	BarrageShotCount = 0;
-	GetWorld()->GetTimerManager().SetTimer(
-		BarrageLoopTimer,
-		this,
-		&UCBossPatternManager::FireBarrageShot,
-		BarrageShotInterval,
-		true,
-		0.f
-	);
-	
-	GetWorld()->GetTimerManager().SetTimer(
-		BarrageStopTimer,
-		this,
-		&UCBossPatternManager::StopBarrage,
-		BarrageTotalDuration,
-		false
-	);
-
-	UE_LOG(LogTemp, Log, TEXT("[PatternManager] Barrage: %d locations planned, decals at %.1fs, drops at %.1fs"), 
-	       PrePlannedDropLocations.Num(), 
-	       CoconutFallDelay - DecalPreviewTime,
-	       CoconutFallDelay);
-}
-
-void UCBossPatternManager::FireBarrageShot()
-{
-	BarrageShotCount++;
-
-	if (WeaponComponent)
-	{
-		const int32 BarrageAttackIndex = 3;
-		
-		WeaponComponent->SetCurrentAttackIndex(BarrageAttackIndex);
-		
-		if (WeaponComponent->IsAttackIndexValid(BarrageAttackIndex))
-		{
-			WeaponComponent->DoAttack();
-			UE_LOG(LogTemp, Log, TEXT("[PatternManager] Playing Barrage montage"));
-		}
-	}
-
-	if (BarrageShotCount > MaxBarrageShots)
-	{
-		GetWorld()->GetTimerManager().ClearTimer(BarrageLoopTimer);
-		return;
-	}
-
-	int32 Index = BarrageShotCount - 1;
-	if (!PrePlannedDropLocations.IsValidIndex(Index))
-	{
-		UE_LOG(LogTemp, Error, TEXT("[PatternManager] Invalid drop location index: %d"), Index);
-		return;
-	}
-
-	const FVector& TargetLocation = PrePlannedDropLocations[Index];
-
-	UE_LOG(LogTemp, Warning, TEXT("[PatternManager] Throwing coconut %d/%d"), BarrageShotCount, MaxBarrageShots);
-	
-	FVector BossLocation = OwnerBoss->GetActorLocation();
-	FVector ThrowLocation = BossLocation + FVector(0, 0, 100.f);
-
-	FActorSpawnParameters ThrowSpawnParams;
-	ThrowSpawnParams.Owner = OwnerBoss;
-	ThrowSpawnParams.Instigator = OwnerBoss;
-	ThrowSpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-
-	AActor* ThrownProjectile = GetWorld()->SpawnActor<AActor>(
-		ProjectileClass,
-		ThrowLocation,
-		FRotator::ZeroRotator,
-		ThrowSpawnParams
-	);
-
-	if (ThrownProjectile)
-	{
-		// 위로 던지기
-		if (UPrimitiveComponent* PrimComp = ThrownProjectile->FindComponentByClass<UPrimitiveComponent>())
-		{
-			PrimComp->SetSimulatePhysics(true);
-			PrimComp->SetEnableGravity(true);
-			
-			FVector UpwardForce = FVector(0, 0, ThrowUpwardForce);
-			PrimComp->AddImpulse(UpwardForce, NAME_None, true);
-		}
-
-		ThrownProjectile->SetLifeSpan(CoconutFallDelay);
-	}
-
-	// 계획된 위치에 코코넛 떨어뜨림
-	FTimerHandle DropTimerHandle;
-	GetWorld()->GetTimerManager().SetTimer(
-		DropTimerHandle,
-		[this, TargetLocation, Index]()
-		{
-			FVector DropLocation = TargetLocation + FVector(0, 0, DropHeight);
-
-			FActorSpawnParameters DropSpawnParams;
-			DropSpawnParams.Owner = OwnerBoss;
-			DropSpawnParams.Instigator = OwnerBoss;
-			DropSpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-
-			AActor* FallingProjectile = GetWorld()->SpawnActor<AActor>(
-				ProjectileClass,
-				DropLocation,
-				FRotator::ZeroRotator,
-				DropSpawnParams
-			);
-
-			if (FallingProjectile)
-			{
-				if (UFunction* InitFunc = FallingProjectile->FindFunction(TEXT("InitProjectile")))
-				{
-					struct FInitProjectileParams
-					{
-						AActor* Shooter;
-						float Damage;
-						float Speed;
-						FVector Direction;
-					};
-
-					FInitProjectileParams Params;
-					Params.Shooter = OwnerBoss;
-					Params.Damage = 25.f;
-					Params.Speed = FallSpeed;
-					Params.Direction = FVector(0, 0, -1);
-
-					FallingProjectile->ProcessEvent(InitFunc, &Params);
-
-					UE_LOG(LogTemp, Warning, TEXT("[PatternManager] Coconut[%d] DROPPED at (%.1f, %.1f)!"), 
-					       Index, TargetLocation.X, TargetLocation.Y);
-				}
-
-				FallingProjectile->SetLifeSpan(2.f);
-			}
-		},
-		CoconutFallDelay,
-		false
-	);
-}
-
-void UCBossPatternManager::StopBarrage()
-{
-	GetWorld()->GetTimerManager().ClearTimer(BarrageLoopTimer);
-	GetWorld()->GetTimerManager().ClearTimer(BarrageStopTimer);
-
-	UE_LOG(LogTemp, Log, TEXT("[PatternManager] Barrage Stopped - Threw %d projectiles"), BarrageShotCount);
-	StopProjectileRain(false);
-	
-	if (PhaseComponent)
-	{
-		PhaseComponent->NotifyPatternFinished(true);
-	}
-}
-
-
-// ========================================
-// 페이즈 처리
-// ========================================
-
-void UCBossPatternManager::PlayPhaseTransition(int32 PhaseIndex)
-{
-	// 이펙트
-	if (PhaseChangeEffect)
-	{
-		UGameplayStatics::SpawnEmitterAtLocation(
-			GetWorld(),
-			PhaseChangeEffect,
-			OwnerBoss->GetActorLocation(),
-			FRotator::ZeroRotator,
-			FVector(3.f)
-		);
-	}
-
-	// 사운드
-	if (PhaseChangeSound)
-	{
-		UGameplayStatics::PlaySoundAtLocation(GetWorld(), PhaseChangeSound, OwnerBoss->GetActorLocation());
-	}
-
-	// 카메라 흔들림 (페이즈별 강도)
-	if (GroundImpactShake)
-	{
-		float ShakeScale = 1.f + (PhaseIndex * 0.5f); // 페이즈마다 강해짐
-		UGameplayStatics::PlayWorldCameraShake(
-			GetWorld(),
-			GroundImpactShake,
-			OwnerBoss->GetActorLocation(),
-			0.f,
-			2000.f,
-			ShakeScale
-		);
-	}
-}
-
-void UCBossPatternManager::UpdatePhaseStats(int32 PhaseIndex)
-{
-	ACharacter* BossChar = Cast<ACharacter>(OwnerBoss);
-	if (!BossChar || !BossChar->GetCharacterMovement())
-	{
-		return;
-	}
-	
-	if (PhaseWalkSpeeds.IsValidIndex(PhaseIndex))
-	{
-		float NewSpeed = PhaseWalkSpeeds[PhaseIndex];
-		BossChar->GetCharacterMovement()->MaxWalkSpeed = NewSpeed;
-
-		UE_LOG(LogTemp, Log, TEXT("[PatternManager] Phase %d: Walk Speed = %.1f"), 
-		       PhaseIndex, NewSpeed);
-	}
-}
-
-// ========================================
-// 유틸리티
-// ========================================
-
-void UCBossPatternManager::PlayMontageAndNotify(UAnimMontage* Montage, bool bAutoNotifyFinish)
-{
-	bShouldNotifyOnMontageEnd = bAutoNotifyFinish;
-
-	if (!OwnerBoss || !Montage)
-	{
-		if (bAutoNotifyFinish && PhaseComponent)
-		{
-			GetWorld()->GetTimerManager().SetTimerForNextTick([this]()
-			{
-				FTimerHandle DelayTimer;
-				GetWorld()->GetTimerManager().SetTimer(
-					DelayTimer,
-					[this]()
-					{
-						PhaseComponent->NotifyPatternFinished(true);
-					},
-					1.5f,
-					false
-				);
-			});
-		}
-		return;
-	}
-	
-	if (UAnimInstance* AnimInst = OwnerBoss->GetMesh()->GetAnimInstance())
-	{
-		AnimInst->Montage_Play(Montage);
-		AnimInst->Montage_SetEndDelegate(MontageEndDelegate, Montage);
-	}
-}
-
-void UCBossPatternManager::OnMontageCompleted(UAnimMontage* Montage, bool bInterrupted)
-{
-	if (bShouldNotifyOnMontageEnd && PhaseComponent)
-	{
-		PhaseComponent->NotifyPatternFinished(!bInterrupted);
-	}
-}
 
 AActor* UCBossPatternManager::GetPlayerTarget() const
 {
@@ -912,591 +261,643 @@ AAIController* UCBossPatternManager::GetBossAI() const
 	return Cast<AAIController>(OwnerBoss->GetController());
 }
 
-// ========================================
-// 패턴 종료 알림 (AnimNotify에서 호출)
-// ========================================
+
+UCBossPatternBase* UCBossPatternManager::FindPattern(FName PatternId) const
+{
+	if (const TObjectPtr<UCBossPatternBase>* Found = PatternMap.Find(PatternId))
+	{
+		return *Found;
+	}
+	return nullptr;
+}
+
+void UCBossPatternManager::CleanupAllPatterns()
+{
+	for (const auto& Pair : PatternMap)
+	{
+		if (UCBossPatternBase* Pattern = Pair.Value)
+		{
+			Pattern->Cleanup();
+		}
+	}
+
+	CurrentPatternId = NAME_None;
+	bIsPatternActive = false;
+}
 
 void UCBossPatternManager::NotifyCurrentPatternEnd(bool bSuccess)
 {
-	UE_LOG(LogTemp, Warning, TEXT("[PatternManager] ===== PATTERN END: %s ====="), 
-		   bSuccess ? TEXT("SUCCESS") : TEXT("FAILED"));
-	
-	bIsPatternActive = false;
-	bIsRushing = false;
-	if (OwnerBoss)
+	if (!PhaseComponent)
 	{
-		OwnerBoss->SetIsBossRushing(false);
+		return;
 	}
-	
-	CleanupUtilitySpawnTimers();
-		CleanupMinionSpawnTimers();
-		CleanupPatternActors();
-	
-	// 타이머 정리
-	if (UWorld* World = GetWorld())
+
+	PhaseComponent->NotifyPatternFinished(bSuccess);
+	UE_LOG(LogTemp, Log, TEXT("[PatternManager] Notified pattern end: %s"), bSuccess ? TEXT("Success") : TEXT("Failed"));
+}
+
+// ========================================
+// 페이즈 처리
+// ========================================
+
+void UCBossPatternManager::PlayPhaseTransition(int32 PhaseIndex)
+{
+	if (!OwnerBoss)
 	{
-		FTimerManager& TimerManager = World->GetTimerManager();
-		TimerManager.ClearTimer(RushDelayTimer);
-		TimerManager.ClearTimer(RushMoveTimer);
+		return;
 	}
-	
-	// ===== Rush/Barrage만 Chase 재활성화 =====
-	if (CurrentPatternId == FName("Rush") || CurrentPatternId == FName("Barrage"))
+
+	const FVector BossLocation = OwnerBoss->GetActorLocation();
+	UWorld* World = GetWorld();
+
+	if (PhaseChangeEffect)
 	{
-		if (ABossAIController* BossAI = Cast<ABossAIController>(GetBossAI()))
-		{
-			BossAI->SetChaseEnabled(true);
-			UE_LOG(LogTemp, Warning, TEXT("[PatternManager]  Re-enabled chase after %s in NotifyCurrentPatternEnd"), 
-				   *CurrentPatternId.ToString());
-		}
+		UGameplayStatics::SpawnEmitterAtLocation(World, PhaseChangeEffect, BossLocation);
 	}
-	
-	if (PhaseComponent)
+
+	if (PhaseChangeSound)
 	{
-		PhaseComponent->NotifyPatternFinished(bSuccess);
+		UGameplayStatics::PlaySoundAtLocation(World, PhaseChangeSound, BossLocation);
 	}
-	else
+
+	UE_LOG(LogTemp, Log, TEXT("[PatternManager] Phase transition effects played"));
+}
+
+void UCBossPatternManager::UpdatePhaseStats(int32 PhaseIndex)
+{
+	if (!OwnerBoss || !OwnerBoss->GetCharacterMovement())
 	{
-		UE_LOG(LogTemp, Error, TEXT("[PatternManager] PhaseComponent is null!"));
+		return;
+	}
+
+	if (PhaseWalkSpeeds.IsValidIndex(PhaseIndex))
+	{
+		const float NewSpeed = PhaseWalkSpeeds[PhaseIndex];
+		OwnerBoss->GetCharacterMovement()->MaxWalkSpeed = NewSpeed;
+		UE_LOG(LogTemp, Log, TEXT("[PatternManager] Updated walk speed to %.1f"), NewSpeed);
+	}
+}
+
+// ========================================
+// 스폰 시스템
+// ========================================
+
+void UCBossPatternManager::HandleRushMovementStart()
+{
+	UCBossPattern_Rush* LocalRushPattern  = Cast<UCBossPattern_Rush>(FindPattern(FName("Rush")));
+	if (LocalRushPattern )
+	{
+		LocalRushPattern ->HandleRushMovementStart();
+		UE_LOG(LogTemp, Log, TEXT("[PatternManager] Rush movement started"));
+	}
+}
+
+void UCBossPatternManager::HandleRushMovementStop()
+{
+	UCBossPattern_Rush* LocalRushPattern  = Cast<UCBossPattern_Rush>(FindPattern(FName("Rush")));
+	if (LocalRushPattern )
+	{
+		LocalRushPattern ->HandleRushMovementStop();
+		UE_LOG(LogTemp, Log, TEXT("[PatternManager] Rush movement stopped"));
 	}
 }
 
 void UCBossPatternManager::SpawnPatternActors(const FBossPatternDefinition& PatternData)
 {
-    SpawnPatternWeapons(PatternData);
-    SpawnPatternUtilities(PatternData);
-    SpawnPatternMinions(PatternData);
-    StartProjectileRain(PatternData.ProjectileRain);
+	SpawnPatternWeapons(PatternData);
+	SpawnPatternUtilities(PatternData);
+	SpawnPatternMinions(PatternData);
+	StartProjectileRain(PatternData.ProjectileRain);
 }
 
 void UCBossPatternManager::SpawnPatternWeapons(const FBossPatternDefinition& PatternData)
 {
-    if (!GetWorld())
-    {
-        return;
-    }
+	if (!GetWorld())
+	{
+		return;
+	}
 
-    for (const FBossPatternWeaponSpawnDefinition& Definition : PatternData.WeaponSpawns)
-    {
-        if (!Definition.WeaponClass)
-        {
-            continue;
-       }
+	for (const FBossPatternWeaponSpawnDefinition& Definition : PatternData.WeaponSpawns)
+	{
+		if (!Definition.WeaponClass)
+		{
+			continue;
+		}
 
-        const FTransform SpawnTransform = ResolveSpawnTransform(Definition.SpawnTransform);
-        FActorSpawnParameters SpawnParams;
-        SpawnParams.Owner = OwnerBoss;
-        SpawnParams.Instigator = OwnerBoss;
+		const FTransform SpawnTransform = ResolveSpawnTransform(Definition.SpawnTransform);
+		FActorSpawnParameters SpawnParams;
+		SpawnParams.Owner = OwnerBoss;
+		SpawnParams.Instigator = OwnerBoss;
 
-        AActor* SpawnedActor = GetWorld()->SpawnActor<AActor>(Definition.WeaponClass, SpawnTransform, SpawnParams);
-        if (!SpawnedActor)
-        {
-            continue;
-        }
+		AActor* SpawnedActor = GetWorld()->SpawnActor<AActor>(Definition.WeaponClass, SpawnTransform, SpawnParams);
+		if (!SpawnedActor)
+		{
+			continue;
+		}
 
-        if (Definition.bAttachToSpawnAnchor)
-        {
-            switch (Definition.SpawnTransform.Anchor)
-            {
-            case EBossPatternSpawnAnchor::BossSocket:
-                if (OwnerBoss && OwnerBoss->GetMesh())
-                {
-                    SpawnedActor->AttachToComponent(OwnerBoss->GetMesh(), FAttachmentTransformRules::KeepWorldTransform, Definition.SpawnTransform.SocketName);
-                }
-                break;
-            case EBossPatternSpawnAnchor::BossRoot:
-                if (OwnerBoss)
-                {
-                    SpawnedActor->AttachToActor(OwnerBoss, FAttachmentTransformRules::KeepWorldTransform);
-                }
-                break;
-            case EBossPatternSpawnAnchor::CustomActor:
-                if (AActor* AnchorActor = Definition.SpawnTransform.SpawnAnchor.Get())
-                {
-                    if (USceneComponent* AnchorRoot = AnchorActor->GetRootComponent())
-                    {
-                        SpawnedActor->AttachToComponent(AnchorRoot, FAttachmentTransformRules::KeepWorldTransform);
-                    }
-                    else
-                    {
-                        SpawnedActor->AttachToActor(AnchorActor, FAttachmentTransformRules::KeepWorldTransform);
-                    }
-                }
-                break;
-            default:
-                break;
-            }
-        }
+		if (Definition.bAttachToSpawnAnchor)
+		{
+			switch (Definition.SpawnTransform.Anchor)
+			{
+			case EBossPatternSpawnAnchor::BossSocket:
+				if (OwnerBoss && OwnerBoss->GetMesh())
+				{
+					SpawnedActor->AttachToComponent(OwnerBoss->GetMesh(), FAttachmentTransformRules::KeepWorldTransform, Definition.SpawnTransform.SocketName);
+				}
+				break;
+			case EBossPatternSpawnAnchor::BossRoot:
+				if (OwnerBoss)
+				{
+					SpawnedActor->AttachToActor(OwnerBoss, FAttachmentTransformRules::KeepWorldTransform);
+				}
+				break;
+			case EBossPatternSpawnAnchor::CustomActor:
+				if (AActor* AnchorActor = Definition.SpawnTransform.SpawnAnchor.Get())
+				{
+					if (USceneComponent* AnchorRoot = AnchorActor->GetRootComponent())
+					{
+						SpawnedActor->AttachToComponent(AnchorRoot, FAttachmentTransformRules::KeepWorldTransform);
+					}
+					else
+					{
+						SpawnedActor->AttachToActor(AnchorActor, FAttachmentTransformRules::KeepWorldTransform);
+					}
+				}
+				break;
+			default:
+				break;
+			}
+		}
 
-        RegisterSpawnedActor(SpawnedActor, Definition.bDestroyOnPatternEnd, ActiveWeaponActors);
-        ApplyInitialVelocity(SpawnedActor, Definition.InitialVelocity);
-    }
+		RegisterSpawnedActor(SpawnedActor, Definition.bDestroyOnPatternEnd, ActiveWeaponActors);
+		ApplyInitialVelocity(SpawnedActor, Definition.InitialVelocity);
+	}
 }
 
 void UCBossPatternManager::SpawnPatternUtilities(const FBossPatternDefinition& PatternData)
 {
-    if (!GetWorld())
-    {
-        return;
-    }
+	if (!GetWorld())
+	{
+		return;
+	}
 
-    for (const FBossPatternUtilitySpawnDefinition& Definition : PatternData.UtilitySpawns)
-    {
-        if (!Definition.ActorClass)
-        {
-            continue;
-        }
+	for (const FBossPatternUtilitySpawnDefinition& Definition : PatternData.UtilitySpawns)
+	{
+		if (!Definition.ActorClass)
+		{
+			continue;
+		}
 
-        const int32 DesiredCount = FMath::Max(Definition.SpawnCount, 1);
-        if (Definition.SpawnInterval > KINDA_SMALL_NUMBER && DesiredCount > 1)
-        {
-            FBossUtilitySpawnRuntime Runtime;
-            Runtime.Definition = Definition;
+		const int32 DesiredCount = FMath::Max(Definition.SpawnCount, 1);
+		if (Definition.SpawnInterval > KINDA_SMALL_NUMBER && DesiredCount > 1)
+		{
+			FBossUtilitySpawnRuntime Runtime;
+			Runtime.Definition = Definition;
 
-            const int32 RuntimeId = ++UtilitySpawnRuntimeIdCounter;
-            ActiveUtilitySpawnRuntimes.Add(RuntimeId, Runtime);
+			const int32 RuntimeId = ++UtilitySpawnRuntimeIdCounter;
+			ActiveUtilitySpawnRuntimes.Add(RuntimeId, Runtime);
 
-           // 첫 번째 스폰 즉시 처리
-           HandleUtilitySpawnTimer(RuntimeId);
+			// 첫 번째 스폰 즉시 처리
+			HandleUtilitySpawnTimer(RuntimeId);
 
-            if (UWorld* World = GetWorld())
-            {
-                FTimerDelegate Delegate = FTimerDelegate::CreateUObject(this, &UCBossPatternManager::HandleUtilitySpawnTimer, RuntimeId);
-                World->GetTimerManager().SetTimer(ActiveUtilitySpawnRuntimes[RuntimeId].TimerHandle, Delegate, Definition.SpawnInterval, true);
-            }
-        }
-        else
-        {
-            for (int32 Index = 0; Index < DesiredCount; ++Index)
-            {
-                SpawnUtilityActorImmediate(Definition);
-            }
-        }
-    }
+			if (UWorld* World = GetWorld())
+			{
+				FTimerDelegate Delegate = FTimerDelegate::CreateUObject(this, &UCBossPatternManager::HandleUtilitySpawnTimer, RuntimeId);
+				World->GetTimerManager().SetTimer(ActiveUtilitySpawnRuntimes[RuntimeId].TimerHandle, Delegate, Definition.SpawnInterval, true);
+			}
+		}
+		else
+		{
+			for (int32 Index = 0; Index < DesiredCount; ++Index)
+			{
+				SpawnUtilityActorImmediate(Definition);
+			}
+		}
+	}
 }
 
 void UCBossPatternManager::SpawnPatternMinions(const FBossPatternDefinition& PatternData)
 {
-    if (!GetWorld())
-    {
-        return;
-    }
+	if (!GetWorld())
+	{
+		return;
+	}
 
-    for (const FBossPatternMinionSpawnDefinition& Definition : PatternData.MinionSpawns)
-    {
-        if (!Definition.MinionClass)
-        {
-            continue;
-        }
+	for (const FBossPatternMinionSpawnDefinition& Definition : PatternData.MinionSpawns)
+	{
+		if (!Definition.MinionClass)
+		{
+			continue;
+		}
 
-        if (Definition.SpawnDelay > KINDA_SMALL_NUMBER)
-        {
-            FBossMinionSpawnRuntime Runtime;
-            Runtime.Definition = Definition;
+		if (Definition.SpawnDelay > KINDA_SMALL_NUMBER)
+		{
+			FBossMinionSpawnRuntime Runtime;
+			Runtime.Definition = Definition;
 
-            const int32 RuntimeId = ++MinionSpawnRuntimeIdCounter;
-            ActiveMinionSpawnRuntimes.Add(RuntimeId, Runtime);
+			const int32 RuntimeId = ++MinionSpawnRuntimeIdCounter;
+			ActiveMinionSpawnRuntimes.Add(RuntimeId, Runtime);
 
-            if (UWorld* World = GetWorld())
-            {
-                FTimerDelegate Delegate = FTimerDelegate::CreateUObject(this, &UCBossPatternManager::HandleMinionSpawnTimer, RuntimeId);
-                World->GetTimerManager().SetTimer(ActiveMinionSpawnRuntimes[RuntimeId].TimerHandle, Delegate, Definition.SpawnDelay, false);
-            }
-        }
-        else
-        {
-            SpawnMinionBatch(Definition);
-        }
-    }
+			if (UWorld* World = GetWorld())
+			{
+				FTimerDelegate Delegate = FTimerDelegate::CreateUObject(this, &UCBossPatternManager::HandleMinionSpawnTimer, RuntimeId);
+				World->GetTimerManager().SetTimer(ActiveMinionSpawnRuntimes[RuntimeId].TimerHandle, Delegate, Definition.SpawnDelay, false);
+			}
+		}
+		else
+		{
+			SpawnMinionBatch(Definition);
+		}
+	}
 }
 
 void UCBossPatternManager::CleanupPatternActors()
 {
-    StopProjectileRain(false);
+	StopProjectileRain(false);
 
-    auto CleanupActorArray = [](TArray<FBossSpawnedActorEntry>& Entries)
-    {
-        for (FBossSpawnedActorEntry& Entry : Entries)
-        {
-            if (Entry.bDestroyOnPatternEnd && Entry.Actor.IsValid())
-            {
-                Entry.Actor->Destroy();
-            }
-        }
-        Entries.Reset();
-    };
+	auto CleanupActorArray = [](TArray<FBossSpawnedActorEntry>& Entries)
+	{
+		for (FBossSpawnedActorEntry& Entry : Entries)
+		{
+			if (Entry.bDestroyOnPatternEnd && Entry.Actor.IsValid())
+			{
+				Entry.Actor->Destroy();
+			}
+		}
+		Entries.Reset();
+	};
 
-    CleanupActorArray(ActiveWeaponActors);
-    CleanupActorArray(ActiveUtilityActors);
+	CleanupActorArray(ActiveWeaponActors);
+	CleanupActorArray(ActiveUtilityActors);
 
-    for (FBossSpawnedMinionEntry& Entry : ActiveMinions)
-    {
-        if (Entry.bDestroyOnPatternEnd && Entry.Pawn.IsValid())
-        {
-            Entry.Pawn->Destroy();
-        }
-    }
-    ActiveMinions.Reset();
+	for (FBossSpawnedMinionEntry& Entry : ActiveMinions)
+	{
+		if (Entry.bDestroyOnPatternEnd && Entry.Pawn.IsValid())
+		{
+			Entry.Pawn->Destroy();
+		}
+	}
+	ActiveMinions.Reset();
 }
 
 void UCBossPatternManager::CleanupUtilitySpawnTimers()
 {
-    if (UWorld* World = GetWorld())
-    {
-        for (auto& Pair : ActiveUtilitySpawnRuntimes)
-        {
-            World->GetTimerManager().ClearTimer(Pair.Value.TimerHandle);
-        }
-    }
-    ActiveUtilitySpawnRuntimes.Empty();
+	if (UWorld* World = GetWorld())
+	{
+		for (auto& Pair : ActiveUtilitySpawnRuntimes)
+		{
+			World->GetTimerManager().ClearTimer(Pair.Value.TimerHandle);
+		}
+	}
+	ActiveUtilitySpawnRuntimes.Empty();
 }
 
 void UCBossPatternManager::CleanupMinionSpawnTimers()
 {
-    if (UWorld* World = GetWorld())
-    {
-        for (auto& Pair : ActiveMinionSpawnRuntimes)
-        {
-            World->GetTimerManager().ClearTimer(Pair.Value.TimerHandle);
-        }
-    }
-    ActiveMinionSpawnRuntimes.Empty();
+	if (UWorld* World = GetWorld())
+	{
+		for (auto& Pair : ActiveMinionSpawnRuntimes)
+		{
+			World->GetTimerManager().ClearTimer(Pair.Value.TimerHandle);
+		}
+	}
+	ActiveMinionSpawnRuntimes.Empty();
 }
 
 FTransform UCBossPatternManager::ResolveSpawnTransform(const FBossPatternSpawnTransform& SpawnTransform) const
 {
-    FVector BaseLocation = FVector::ZeroVector;
-    FRotator BaseRotation = FRotator::ZeroRotator;
+	FVector BaseLocation = FVector::ZeroVector;
+	FRotator BaseRotation = FRotator::ZeroRotator;
 
-    switch (SpawnTransform.Anchor)
-    {
-    case EBossPatternSpawnAnchor::BossRoot:
-        if (OwnerBoss)
-        {
-            BaseLocation = OwnerBoss->GetActorLocation();
-            BaseRotation = OwnerBoss->GetActorRotation();
-        }
-        break;
-    case EBossPatternSpawnAnchor::BossSocket:
-        if (OwnerBoss && OwnerBoss->GetMesh())
-        {
-            if (SpawnTransform.SocketName != NAME_None && OwnerBoss->GetMesh()->DoesSocketExist(SpawnTransform.SocketName))
-            {
-                const FTransform SocketTransform = OwnerBoss->GetMesh()->GetSocketTransform(SpawnTransform.SocketName);
-                BaseLocation = SocketTransform.GetLocation();
-                BaseRotation = SocketTransform.Rotator();
-            }
-            else
-            {
-                BaseLocation = OwnerBoss->GetActorLocation();
-                BaseRotation = OwnerBoss->GetActorRotation();
-            }
-        }
-        break;
-    case EBossPatternSpawnAnchor::PlayerLocation:
-        if (AActor* Target = GetPlayerTarget())
-        {
-            BaseLocation = Target->GetActorLocation();
-            BaseRotation = Target->GetActorRotation();
-        }
-        break;
-    case EBossPatternSpawnAnchor::CustomActor:
-        if (!SpawnTransform.SpawnAnchor.IsNull())
-        {
-            AActor* AnchorActor = SpawnTransform.SpawnAnchor.Get();
-            if (!AnchorActor)
-            {
-                AnchorActor = SpawnTransform.SpawnAnchor.LoadSynchronous();
-            }
-            if (AnchorActor)
-            {
-                BaseLocation = AnchorActor->GetActorLocation();
-                BaseRotation = AnchorActor->GetActorRotation();
-            }
-        }
-        break;
-    default:
-        break;
-    }
+	switch (SpawnTransform.Anchor)
+	{
+	case EBossPatternSpawnAnchor::BossRoot:
+		if (OwnerBoss)
+		{
+			BaseLocation = OwnerBoss->GetActorLocation();
+			BaseRotation = OwnerBoss->GetActorRotation();
+		}
+		break;
+	case EBossPatternSpawnAnchor::BossSocket:
+		if (OwnerBoss && OwnerBoss->GetMesh())
+		{
+			if (SpawnTransform.SocketName != NAME_None && OwnerBoss->GetMesh()->DoesSocketExist(SpawnTransform.SocketName))
+			{
+				const FTransform SocketTransform = OwnerBoss->GetMesh()->GetSocketTransform(SpawnTransform.SocketName);
+				BaseLocation = SocketTransform.GetLocation();
+				BaseRotation = SocketTransform.Rotator();
+			}
+			else
+			{
+				BaseLocation = OwnerBoss->GetActorLocation();
+				BaseRotation = OwnerBoss->GetActorRotation();
+			}
+		}
+		break;
+	case EBossPatternSpawnAnchor::PlayerLocation:
+		if (AActor* Target = GetPlayerTarget())
+		{
+			BaseLocation = Target->GetActorLocation();
+			BaseRotation = Target->GetActorRotation();
+		}
+		break;
+	case EBossPatternSpawnAnchor::CustomActor:
+		if (!SpawnTransform.SpawnAnchor.IsNull())
+		{
+			AActor* AnchorActor = SpawnTransform.SpawnAnchor.Get();
+			if (!AnchorActor)
+			{
+				AnchorActor = SpawnTransform.SpawnAnchor.LoadSynchronous();
+			}
+			if (AnchorActor)
+			{
+				BaseLocation = AnchorActor->GetActorLocation();
+				BaseRotation = AnchorActor->GetActorRotation();
+			}
+		}
+		break;
+	default:
+		break;
+	}
 
-    if (!SpawnTransform.bUseAnchorRotation)
-    {
-        BaseRotation = FRotator::ZeroRotator;
-    }
+	if (!SpawnTransform.bUseAnchorRotation)
+	{
+		BaseRotation = FRotator::ZeroRotator;
+	}
 
-    const FQuat BaseQuat = BaseRotation.Quaternion();
-    FVector Location = BaseLocation + (SpawnTransform.bUseAnchorRotation ? BaseQuat.RotateVector(SpawnTransform.LocationOffset) : SpawnTransform.LocationOffset);
-    FRotator Rotation = SpawnTransform.bUseAnchorRotation ? (BaseRotation + SpawnTransform.RotationOffset) : SpawnTransform.RotationOffset;
+	const FQuat BaseQuat = BaseRotation.Quaternion();
+	FVector Location = BaseLocation + (SpawnTransform.bUseAnchorRotation ? BaseQuat.RotateVector(SpawnTransform.LocationOffset) : SpawnTransform.LocationOffset);
+	FRotator Rotation = SpawnTransform.bUseAnchorRotation ? (BaseRotation + SpawnTransform.RotationOffset) : SpawnTransform.RotationOffset;
 
-    if (SpawnTransform.bProjectToGround && GetWorld())
-    {
-        FHitResult HitResult;
-        const FVector Start = Location;
-        const FVector End = Start - FVector::UpVector * SpawnTransform.GroundTraceDistance;
+	if (SpawnTransform.bProjectToGround && GetWorld())
+	{
+		FHitResult HitResult;
+		const FVector Start = Location;
+		const FVector End = Start - FVector::UpVector * SpawnTransform.GroundTraceDistance;
 
-        FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(BossPatternGroundTrace), false, OwnerBoss);
-        if (!SpawnTransform.SpawnAnchor.IsNull())
-        {
-            if (AActor* AnchorActor = SpawnTransform.SpawnAnchor.Get())
-            {
-                QueryParams.AddIgnoredActor(AnchorActor);
-            }
-        }
+		FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(BossPatternGroundTrace), false, OwnerBoss);
+		if (!SpawnTransform.SpawnAnchor.IsNull())
+		{
+			if (AActor* AnchorActor = SpawnTransform.SpawnAnchor.Get())
+			{
+				QueryParams.AddIgnoredActor(AnchorActor);
+			}
+		}
 
-        if (GetWorld()->LineTraceSingleByChannel(HitResult, Start, End, SpawnTransform.GroundTraceChannel, QueryParams))
-        {
-            Location = HitResult.Location;
-            if (SpawnTransform.bAlignToGroundNormal)
-            {
-                Rotation = HitResult.Normal.Rotation();
-            }
-        }
-    }
+		if (GetWorld()->LineTraceSingleByChannel(HitResult, Start, End, SpawnTransform.GroundTraceChannel, QueryParams))
+		{
+			Location = HitResult.Location;
+			if (SpawnTransform.bAlignToGroundNormal)
+			{
+				Rotation = HitResult.Normal.Rotation();
+			}
+		}
+	}
 
-    return FTransform(Rotation, Location);
+	return FTransform(Rotation, Location);
 }
 
 void UCBossPatternManager::RegisterSpawnedActor(AActor* Actor, bool bDestroyOnPatternEnd, TArray<FBossSpawnedActorEntry>& Container)
 {
-    if (!Actor)
-    {
-        return;
-    }
+	if (!Actor)
+	{
+		return;
+	}
 
-    FBossSpawnedActorEntry Entry;
-    Entry.Actor = Actor;
-    Entry.bDestroyOnPatternEnd = bDestroyOnPatternEnd;
-    Container.Add(Entry);
+	FBossSpawnedActorEntry Entry;
+	Entry.Actor = Actor;
+	Entry.bDestroyOnPatternEnd = bDestroyOnPatternEnd;
+	Container.Add(Entry);
 }
 
 void UCBossPatternManager::RegisterSpawnedMinion(APawn* Pawn, bool bDestroyOnPatternEnd)
 {
-    if (!Pawn)
-    {
-        return;
-    }
-	
-    FBossSpawnedMinionEntry Entry;
-    Entry.Pawn = Pawn;
-    Entry.bDestroyOnPatternEnd = bDestroyOnPatternEnd;
-    ActiveMinions.Add(Entry);
+	if (!Pawn)
+	{
+		return;
+	}
+
+	FBossSpawnedMinionEntry Entry;
+	Entry.Pawn = Pawn;
+	Entry.bDestroyOnPatternEnd = bDestroyOnPatternEnd;
+	ActiveMinions.Add(Entry);
 }
 
 void UCBossPatternManager::ApplyInitialVelocity(AActor* SpawnedActor, const FVector& InitialVelocity) const
 {
 	if (!SpawnedActor || InitialVelocity.IsNearlyZero()){
-        return;
-    }
+		return;
+	}
 
-    if (UProjectileMovementComponent* ProjectileMovement = SpawnedActor->FindComponentByClass<UProjectileMovementComponent>())
-    {
-        ProjectileMovement->Velocity = InitialVelocity;
-        return;
-    }
+	if (UProjectileMovementComponent* ProjectileMovement = SpawnedActor->FindComponentByClass<UProjectileMovementComponent>())
+	{
+		ProjectileMovement->Velocity = InitialVelocity;
+		return;
+	}
 
-    if (UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(SpawnedActor->GetRootComponent()))
-    {
-        if (PrimitiveComponent->IsSimulatingPhysics())
-        {
-            PrimitiveComponent->SetPhysicsLinearVelocity(InitialVelocity);
-        }
-    }
+	if (UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(SpawnedActor->GetRootComponent()))
+	{
+		if (PrimitiveComponent->IsSimulatingPhysics())
+		{
+			PrimitiveComponent->SetPhysicsLinearVelocity(InitialVelocity);
+		}
+	}
 }
 
 void UCBossPatternManager::SpawnUtilityActorImmediate(const FBossPatternUtilitySpawnDefinition& Definition)
 {
-    if (!GetWorld() || !Definition.ActorClass)
-    {
-        return;
-    }
+	if (!GetWorld() || !Definition.ActorClass)
+	{
+		return;
+	}
 
-    FTransform SpawnTransform = ResolveSpawnTransform(Definition.SpawnTransform);
-    if (Definition.SpawnRadius > 0.f)
-    {
-        const FVector2D RandomOffset = FMath::RandPointInCircle(Definition.SpawnRadius);
-        SpawnTransform.AddToTranslation(FVector(RandomOffset.X, RandomOffset.Y, 0.f));
-    }
+	FTransform SpawnTransform = ResolveSpawnTransform(Definition.SpawnTransform);
+	if (Definition.SpawnRadius > 0.f)
+	{
+		const FVector2D RandomOffset = FMath::RandPointInCircle(Definition.SpawnRadius);
+		SpawnTransform.AddToTranslation(FVector(RandomOffset.X, RandomOffset.Y, 0.f));
+	}
 
-    FActorSpawnParameters SpawnParams;
-    SpawnParams.Owner = OwnerBoss;
-    SpawnParams.Instigator = OwnerBoss;
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.Owner = OwnerBoss;
+	SpawnParams.Instigator = OwnerBoss;
 
-    if (AActor* SpawnedActor = GetWorld()->SpawnActor<AActor>(Definition.ActorClass, SpawnTransform, SpawnParams))
-    {
-        RegisterSpawnedActor(SpawnedActor, Definition.bDestroyOnPatternEnd, ActiveUtilityActors);
-    }
+	if (AActor* SpawnedActor = GetWorld()->SpawnActor<AActor>(Definition.ActorClass, SpawnTransform, SpawnParams))
+	{
+		RegisterSpawnedActor(SpawnedActor, Definition.bDestroyOnPatternEnd, ActiveUtilityActors);
+	}
 }
 
 void UCBossPatternManager::SpawnMinionBatch(const FBossPatternMinionSpawnDefinition& Definition)
 {
-    if (!GetWorld() || !Definition.MinionClass)
-    {
-        return;
-    }
+	if (!GetWorld() || !Definition.MinionClass)
+	{
+		return;
+	}
 
-    const int32 DesiredCount = FMath::Max(Definition.SpawnCount, 1);
-    for (int32 Index = 0; Index < DesiredCount; ++Index)
-    {
-        FTransform SpawnTransform = ResolveSpawnTransform(Definition.SpawnTransform);
-        if (Definition.SpawnRadius > 0.f)
-        {
-            const FVector2D RandomOffset = FMath::RandPointInCircle(Definition.SpawnRadius);
-            SpawnTransform.AddToTranslation(FVector(RandomOffset.X, RandomOffset.Y, 0.f));
-        }
+	const int32 DesiredCount = FMath::Max(Definition.SpawnCount, 1);
+	for (int32 Index = 0; Index < DesiredCount; ++Index)
+	{
+		FTransform SpawnTransform = ResolveSpawnTransform(Definition.SpawnTransform);
+		if (Definition.SpawnRadius > 0.f)
+		{
+			const FVector2D RandomOffset = FMath::RandPointInCircle(Definition.SpawnRadius);
+			SpawnTransform.AddToTranslation(FVector(RandomOffset.X, RandomOffset.Y, 0.f));
+		}
 
-        FActorSpawnParameters SpawnParams;
-        SpawnParams.Owner = OwnerBoss;
-        SpawnParams.Instigator = OwnerBoss;
+		FActorSpawnParameters SpawnParams;
+		SpawnParams.Owner = OwnerBoss;
+		SpawnParams.Instigator = OwnerBoss;
 
-        if (APawn* SpawnedPawn = GetWorld()->SpawnActor<APawn>(Definition.MinionClass, SpawnTransform, SpawnParams))
-        {
-            if (Definition.bSpawnDefaultController && !SpawnedPawn->GetController())
-            {
-                SpawnedPawn->SpawnDefaultController();
-            }
+		if (APawn* SpawnedPawn = GetWorld()->SpawnActor<APawn>(Definition.MinionClass, SpawnTransform, SpawnParams))
+		{
+			if (Definition.bSpawnDefaultController && !SpawnedPawn->GetController())
+			{
+				SpawnedPawn->SpawnDefaultController();
+			}
 
-            RegisterSpawnedMinion(SpawnedPawn, Definition.bDestroyOnPatternEnd);
-        }
-    }
+			RegisterSpawnedMinion(SpawnedPawn, Definition.bDestroyOnPatternEnd);
+		}
+	}
 }
 
 void UCBossPatternManager::HandleUtilitySpawnTimer(int32 RuntimeId)
 {
-    FBossUtilitySpawnRuntime* Runtime = ActiveUtilitySpawnRuntimes.Find(RuntimeId);
-    if (!Runtime)
-    {
-        return;
-    }
+	FBossUtilitySpawnRuntime* Runtime = ActiveUtilitySpawnRuntimes.Find(RuntimeId);
+	if (!Runtime)
+	{
+		return;
+	}
 
-    SpawnUtilityActorImmediate(Runtime->Definition);
-    Runtime->SpawnedCount++;
+	SpawnUtilityActorImmediate(Runtime->Definition);
+	Runtime->SpawnedCount++;
 
-    const int32 DesiredCount = FMath::Max(Runtime->Definition.SpawnCount, 1);
-    if (Runtime->SpawnedCount >= DesiredCount)
-    {
-        if (UWorld* World = GetWorld())
-        {
-            World->GetTimerManager().ClearTimer(Runtime->TimerHandle);
-        }
-        ActiveUtilitySpawnRuntimes.Remove(RuntimeId);
-    }
+	const int32 DesiredCount = FMath::Max(Runtime->Definition.SpawnCount, 1);
+	if (Runtime->SpawnedCount >= DesiredCount)
+	{
+		if (UWorld* World = GetWorld())
+		{
+			World->GetTimerManager().ClearTimer(Runtime->TimerHandle);
+		}
+		ActiveUtilitySpawnRuntimes.Remove(RuntimeId);
+	}
 }
 
 void UCBossPatternManager::HandleMinionSpawnTimer(int32 RuntimeId)
 {
-    FBossMinionSpawnRuntime* Runtime = ActiveMinionSpawnRuntimes.Find(RuntimeId);
-    if (!Runtime)
-    {
-        return;
-    }
+	FBossMinionSpawnRuntime* Runtime = ActiveMinionSpawnRuntimes.Find(RuntimeId);
+	if (!Runtime)
+	{
+		return;
+	}
 
-    SpawnMinionBatch(Runtime->Definition);
+	SpawnMinionBatch(Runtime->Definition);
 
-    if (UWorld* World = GetWorld())
-    {
-        World->GetTimerManager().ClearTimer(Runtime->TimerHandle);
-    }
-    ActiveMinionSpawnRuntimes.Remove(RuntimeId);
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(Runtime->TimerHandle);
+	}
+	ActiveMinionSpawnRuntimes.Remove(RuntimeId);
 }
 
 void UCBossPatternManager::StartProjectileRain(const FBossPatternProjectileRainSettings& RainSettings)
 {
-    if (!RainSettings.bEnableRain || !RainSettings.ProjectileClass)
-    {
-        return;
-    }
+	if (!RainSettings.bEnableRain || !RainSettings.ProjectileClass)
+	{
+		return;
+	}
 
-    if (!GetWorld())
-    {
-        return;
-    }
+	if (!GetWorld())
+	{
+		return;
+	}
 
-    StopProjectileRain(false);
+	StopProjectileRain(false);
 
-    ActiveProjectileRainSettings = RainSettings;
-    bProjectileRainActive = true;
-    ProjectileRainWaveCounter = 0;
+	ActiveProjectileRainSettings = RainSettings;
+	bProjectileRainActive = true;
+	ProjectileRainWaveCounter = 0;
 
-    // 즉시 첫 웨이브 실행
-    HandleProjectileRainTick();
+	// 즉시 첫 웨이브 실행
+	HandleProjectileRainTick();
 
-    if (!bProjectileRainActive)
-    {
-        return;
-    }
+	if (!bProjectileRainActive)
+	{
+		return;
+	}
 
-    const float Interval = FMath::Max(RainSettings.SpawnInterval, 0.01f);
-    if (RainSettings.Waves == 0 || ProjectileRainWaveCounter < RainSettings.Waves)
-    {
-        FTimerDelegate Delegate = FTimerDelegate::CreateUObject(this, &UCBossPatternManager::HandleProjectileRainTick);
-        GetWorld()->GetTimerManager().SetTimer(ProjectileRainTimerHandle, Delegate, Interval, true);
-    }
+	const float Interval = FMath::Max(RainSettings.SpawnInterval, 0.01f);
+	if (RainSettings.Waves == 0 || ProjectileRainWaveCounter < RainSettings.Waves)
+	{
+		FTimerDelegate Delegate = FTimerDelegate::CreateUObject(this, &UCBossPatternManager::HandleProjectileRainTick);
+		GetWorld()->GetTimerManager().SetTimer(ProjectileRainTimerHandle, Delegate, Interval, true);
+	}
 }
 
 void UCBossPatternManager::HandleProjectileRainTick()
 {
-    if (!bProjectileRainActive || !GetWorld() || !ActiveProjectileRainSettings.ProjectileClass)
-    {
-        StopProjectileRain(false);
-        return;
-   }
+	if (!bProjectileRainActive || !GetWorld() || !ActiveProjectileRainSettings.ProjectileClass)
+	{
+		StopProjectileRain(false);
+		return;
+	}
 
-    if (ActiveProjectileRainSettings.Waves > 0 && ProjectileRainWaveCounter >= ActiveProjectileRainSettings.Waves)
-    {
-        StopProjectileRain(false);
-        return;
-    }
+	if (ActiveProjectileRainSettings.Waves > 0 && ProjectileRainWaveCounter >= ActiveProjectileRainSettings.Waves)
+	{
+		StopProjectileRain(false);
+		return;
+	}
 
-    SpawnProjectileRainWave();
-    ++ProjectileRainWaveCounter;
+	SpawnProjectileRainWave();
+	++ProjectileRainWaveCounter;
 
-    if (ActiveProjectileRainSettings.Waves > 0 && ProjectileRainWaveCounter >= ActiveProjectileRainSettings.Waves)
-    {
-        StopProjectileRain(false);
-    }
+	if (ActiveProjectileRainSettings.Waves > 0 && ProjectileRainWaveCounter >= ActiveProjectileRainSettings.Waves)
+	{
+		StopProjectileRain(false);
+	}
 }
 
-void UCBossPatternManager::StopProjectileRain(bool /*bNotifyPatternEnd*/)
+void UCBossPatternManager::StopProjectileRain(bool bNotifyPatternEnd)
 {
-    if (UWorld* World = GetWorld())
-    {
-        World->GetTimerManager().ClearTimer(ProjectileRainTimerHandle);
-    }
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(ProjectileRainTimerHandle);
+	}
 
-    bProjectileRainActive = false;
-    ProjectileRainWaveCounter = 0;
-    ActiveProjectileRainSettings = FBossPatternProjectileRainSettings();
+	bProjectileRainActive = false;
+	ProjectileRainWaveCounter = 0;
+	ActiveProjectileRainSettings = FBossPatternProjectileRainSettings();
 }
 
 void UCBossPatternManager::SpawnProjectileRainWave()
 {
-    if (!GetWorld() || !ActiveProjectileRainSettings.ProjectileClass)
-    {
-        return;
-    }
+	if (!GetWorld() || !ActiveProjectileRainSettings.ProjectileClass)
+	{
+		return;
+	}
 
-    FTransform CenterTransform = ResolveSpawnTransform(ActiveProjectileRainSettings.SpawnTransform);
-    CenterTransform.AddToTranslation(FVector(0.f, 0.f, ActiveProjectileRainSettings.SpawnHeight));
+	FTransform CenterTransform = ResolveSpawnTransform(ActiveProjectileRainSettings.SpawnTransform);
+	CenterTransform.AddToTranslation(FVector(0.f, 0.f, ActiveProjectileRainSettings.SpawnHeight));
 
-    for (int32 Index = 0; Index < FMath::Max(ActiveProjectileRainSettings.ProjectilesPerWave, 1); ++Index)
-    {
-        FTransform SpawnTransform = CenterTransform;
-        if (ActiveProjectileRainSettings.SpawnRadius > 0.f)
-        {
-            const FVector2D RandomOffset = FMath::RandPointInCircle(ActiveProjectileRainSettings.SpawnRadius);
-            SpawnTransform.AddToTranslation(FVector(RandomOffset.X, RandomOffset.Y, 0.f));
-        }
-    	FRotator SpawnRotation = ActiveProjectileRainSettings.InitialVelocity.IsNearlyZero() ? FRotator(-90.f, 0.f, 0.f) : ActiveProjectileRainSettings.InitialVelocity.GetSafeNormal().Rotation();
-        SpawnTransform.SetRotation(SpawnRotation.Quaternion());
+	for (int32 Index = 0; Index < FMath::Max(ActiveProjectileRainSettings.ProjectilesPerWave, 1); ++Index)
+	{
+		FTransform SpawnTransform = CenterTransform;
+		if (ActiveProjectileRainSettings.SpawnRadius > 0.f)
+		{
+			const FVector2D RandomOffset = FMath::RandPointInCircle(ActiveProjectileRainSettings.SpawnRadius);
+			SpawnTransform.AddToTranslation(FVector(RandomOffset.X, RandomOffset.Y, 0.f));
+		}
+		FRotator SpawnRotation = ActiveProjectileRainSettings.InitialVelocity.IsNearlyZero() ? FRotator(-90.f, 0.f, 0.f) : ActiveProjectileRainSettings.InitialVelocity.GetSafeNormal().Rotation();
+		SpawnTransform.SetRotation(SpawnRotation.Quaternion());
 
-        FActorSpawnParameters SpawnParams;
-        SpawnParams.Owner = OwnerBoss;
-        SpawnParams.Instigator = OwnerBoss;
+		FActorSpawnParameters SpawnParams;
+		SpawnParams.Owner = OwnerBoss;
+		SpawnParams.Instigator = OwnerBoss;
 
-        if (AActor* Projectile = GetWorld()->SpawnActor<AActor>(ActiveProjectileRainSettings.ProjectileClass, SpawnTransform, SpawnParams))
-        {
-            RegisterSpawnedActor(Projectile, ActiveProjectileRainSettings.bDestroyOnPatternEnd, ActiveUtilityActors);
-            ApplyInitialVelocity(Projectile, ActiveProjectileRainSettings.InitialVelocity);
-        }
-    }
+		if (AActor* Projectile = GetWorld()->SpawnActor<AActor>(ActiveProjectileRainSettings.ProjectileClass, SpawnTransform, SpawnParams))
+		{
+			RegisterSpawnedActor(Projectile, ActiveProjectileRainSettings.bDestroyOnPatternEnd, ActiveUtilityActors);
+			ApplyInitialVelocity(Projectile, ActiveProjectileRainSettings.InitialVelocity);
+		}
+	}
 }
