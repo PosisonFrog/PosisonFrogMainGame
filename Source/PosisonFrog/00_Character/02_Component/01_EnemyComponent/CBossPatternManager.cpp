@@ -544,7 +544,7 @@ void UCBossPatternManager::ExecuteSlamPattern()
 
 void UCBossPatternManager::ExecuteBarragePattern()
 {
-	UE_LOG(LogTemp, Warning, TEXT("[PatternManager] ★ BARRAGE PATTERN START!"));
+	UE_LOG(LogTemp, Warning, TEXT("[PatternManager] BARRAGE PATTERN START!"));
 
 	if (!ProjectileClass)
 	{
@@ -553,18 +553,6 @@ void UCBossPatternManager::ExecuteBarragePattern()
 		return;
 	}
 	
-	if (WeaponComponent)
-	{
-		const int32 BarrageAttackIndex = 3;
-		
-		WeaponComponent->SetCurrentAttackIndex(BarrageAttackIndex);
-		
-		if (WeaponComponent->IsAttackIndexValid(BarrageAttackIndex))
-		{
-			WeaponComponent->DoAttack();
-			UE_LOG(LogTemp, Log, TEXT("[PatternManager] Playing Barrage montage"));
-		}
-	}
 
 	// 모든 낙하 위치를 미리 계획
 	PrePlannedDropLocations.Empty();
@@ -643,7 +631,7 @@ void UCBossPatternManager::ExecuteBarragePattern()
 					{
 						Decal->SetLifeSpan(DecalPreviewTime + 0.5f);
 						
-						UE_LOG(LogTemp, Warning, TEXT("[PatternManager] ★ Decal[%d] spawned at (%.1f, %.1f)"), 
+						UE_LOG(LogTemp, Warning, TEXT("[PatternManager] Decal[%d] spawned at (%.1f, %.1f)"), 
 						       i, DropLocation.X, DropLocation.Y);
 					}
 				},
@@ -682,6 +670,19 @@ void UCBossPatternManager::FireBarrageShot()
 {
 	BarrageShotCount++;
 
+	if (WeaponComponent)
+	{
+		const int32 BarrageAttackIndex = 3;
+		
+		WeaponComponent->SetCurrentAttackIndex(BarrageAttackIndex);
+		
+		if (WeaponComponent->IsAttackIndexValid(BarrageAttackIndex))
+		{
+			WeaponComponent->DoAttack();
+			UE_LOG(LogTemp, Log, TEXT("[PatternManager] Playing Barrage montage"));
+		}
+	}
+
 	if (BarrageShotCount > MaxBarrageShots)
 	{
 		GetWorld()->GetTimerManager().ClearTimer(BarrageLoopTimer);
@@ -697,7 +698,7 @@ void UCBossPatternManager::FireBarrageShot()
 
 	const FVector& TargetLocation = PrePlannedDropLocations[Index];
 
-	UE_LOG(LogTemp, Warning, TEXT("[PatternManager] ★ Throwing coconut %d/%d"), BarrageShotCount, MaxBarrageShots);
+	UE_LOG(LogTemp, Warning, TEXT("[PatternManager] Throwing coconut %d/%d"), BarrageShotCount, MaxBarrageShots);
 	
 	FVector BossLocation = OwnerBoss->GetActorLocation();
 	FVector ThrowLocation = BossLocation + FVector(0, 0, 100.f);
@@ -769,7 +770,7 @@ void UCBossPatternManager::FireBarrageShot()
 
 					FallingProjectile->ProcessEvent(InitFunc, &Params);
 
-					UE_LOG(LogTemp, Warning, TEXT("[PatternManager] ★★★ Coconut[%d] DROPPED at (%.1f, %.1f)!"), 
+					UE_LOG(LogTemp, Warning, TEXT("[PatternManager] Coconut[%d] DROPPED at (%.1f, %.1f)!"), 
 					       Index, TargetLocation.X, TargetLocation.Y);
 				}
 

@@ -4,7 +4,8 @@
 #include "Components/StaticMeshComponent.h"
 #include "Engine/DamageEvents.h"
 #include "GameFramework/ProjectileMovementComponent.h"
-#include "Particles/ParticleSystemComponent.h"
+#include "NiagaraComponent.h"
+#include "NiagaraFunctionLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/DamageType.h"
 
@@ -30,10 +31,10 @@ ACBossProjectile::ACBossProjectile()
 	MeshComp->SetCastShadow(false);
 
 	// 트레일 파티클
-	TrailEffect = CreateDefaultSubobject<UParticleSystemComponent>(TEXT("TrailEffect"));
+	TrailEffect = CreateDefaultSubobject<UNiagaraComponent>(TEXT("TrailEffect"));
 	TrailEffect->SetupAttachment(RootComponent);
 	TrailEffect->bAutoActivate = false;
-
+	
 	// 발사체 이동 컴포넌트
 	ProjectileMovement = CreateDefaultSubobject<UProjectileMovementComponent>(TEXT("ProjectileComp"));
 	ProjectileMovement->UpdatedComponent = CollisionComp;
@@ -57,7 +58,7 @@ void ACBossProjectile::BeginPlay()
 	// 트레일 이펙트 시작
 	if (TrailParticle && TrailEffect)
 	{
-		TrailEffect->SetTemplate(TrailParticle);
+		TrailEffect->SetAsset(TrailParticle);
 		TrailEffect->Activate();
 	}
 
@@ -157,7 +158,8 @@ void ACBossProjectile::ExplodeAndDestroy(const FVector& Location)
 	// 폭발 이펙트 생성
 	if (ExplosionEffect)
 	{
-		UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), ExplosionEffect, Location);
+		UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, ExplosionEffect, Location, GetActorRotation());
+
 	}
 
 	// 폭발 사운드 재생

@@ -212,7 +212,7 @@ protected:
 
 	/** 장판 표시 후 코코넛 떨어지는 시간 (1.5초) */
 	UPROPERTY(EditDefaultsOnly, Category="Pattern|Barrage")
-	float CoconutFallDelay = 1.5f;
+	float CoconutFallDelay = 3.0f;
 
 	/** 데칼 미리 표시 시간 (떨어지기 1초 전) */
 	UPROPERTY(EditDefaultsOnly, Category="Pattern|Barrage")
@@ -220,7 +220,7 @@ protected:
 
 	/** 플레이어 근처 랜덤 범위 */
 	UPROPERTY(EditDefaultsOnly, Category="Pattern|Barrage")
-	float RandomSpawnRadius = 500.f;
+	float RandomSpawnRadius = 1000.f;
 
 	/** 장판 반경 */
 	UPROPERTY(EditDefaultsOnly, Category="Pattern|Barrage")

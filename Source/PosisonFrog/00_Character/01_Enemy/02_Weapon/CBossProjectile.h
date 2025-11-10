@@ -7,7 +7,8 @@
 class USphereComponent;
 class UProjectileMovementComponent;
 class UStaticMeshComponent;
-class UParticleSystem;
+class UNiagaraSystem;
+class UNiagaraComponent;
 class UParticleSystemComponent;
 class USoundBase;
 
@@ -56,7 +57,7 @@ protected:
 	TObjectPtr<UStaticMeshComponent> MeshComp;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components")
-	TObjectPtr<UParticleSystemComponent> TrailEffect;
+	TObjectPtr<UNiagaraComponent> TrailEffect;
 
 	// ───────── 설정 ─────────
 	
@@ -84,11 +85,11 @@ protected:
 	
 	/** 발사 시 재생할 파티클 */
 	UPROPERTY(EditAnywhere, Category="Projectile|Effects")
-	TObjectPtr<UParticleSystem> TrailParticle;
+	TObjectPtr<UNiagaraSystem> TrailParticle;
 
 	/** 충돌/폭발 파티클 */
 	UPROPERTY(EditAnywhere, Category="Projectile|Effects")
-	TObjectPtr<UParticleSystem> ExplosionEffect;
+	TObjectPtr<UNiagaraSystem> ExplosionEffect;
 
 	/** 발사 사운드 */
 	UPROPERTY(EditAnywhere, Category="Projectile|Sound")
