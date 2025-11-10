@@ -7,7 +7,9 @@
 #include "00_Character/01_Enemy/01_AIController/BossAIController.h"
 #include "03_Combat/Boss/BossPhaseDataAsset.h"
 #include "AIController.h"
+#include "05_System/00_Stage/CStageManager.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Kismet/GameplayStatics.h"
 
 ACEnemyBossCharacter::ACEnemyBossCharacter()
 {
@@ -229,10 +231,38 @@ void ACEnemyBossCharacter::HandleBossDeath(AActor* DeadActor)
         return;
     }
   
+    UE_LOG(LogTemp, Error, TEXT("================================================================="));
+    UE_LOG(LogTemp, Error, TEXT("[Boss] HandleBossDeath 호출됨"));
+    UE_LOG(LogTemp, Error, TEXT("[Boss] 보스 이름: %s"), *GetName());
+    
     bIsBossDead = true;
 
+    // StageManager에 보스 사망 알림
+    UE_LOG(LogTemp, Error, TEXT("[Boss] StageManager 검색"));
+    TArray<AActor*> FoundActors;
+    UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACStageManager::StaticClass(), FoundActors);
     
+    if (FoundActors.Num() > 0)
+    {
+        ACStageManager* StageManager = Cast<ACStageManager>(FoundActors[0]);
+        if (IsValid(StageManager))
+        {
+            UE_LOG(LogTemp, Error, TEXT("[Boss] StageManager 발견: %s"), *StageManager->GetName());
+            UE_LOG(LogTemp, Error, TEXT("[Boss] StageManager에 보스 사망 알림 전송 중..."));
+            StageManager->OnBossDefeated();
+            UE_LOG(LogTemp, Error, TEXT("[Boss] 알림 전송 완료"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("[Boss] StageManager 캐스팅 실패"));
+        }
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[Boss] StageManager를 찾을 수 없음"));
+    }
 
+    // AI 정지
     if (AAIController* AIController = Cast<AAIController>(GetController()))
     {
         AIController->StopMovement();
@@ -251,7 +281,7 @@ void ACEnemyBossCharacter::HandleBossDeath(AActor* DeadActor)
     
     SetActorTickEnabled(false);
 
-   
+    // 사망 애니메이션 재생
     if (USkeletalMeshComponent* mesh = GetMesh())
     {
         if (UAnimInstance* AnimInst = mesh->GetAnimInstance())
@@ -261,12 +291,14 @@ void ACEnemyBossCharacter::HandleBossDeath(AActor* DeadActor)
             if (DeathMontage)
             {
                 AnimInst->Montage_Play(DeathMontage, 1.0f);
-                UE_LOG(LogTemp, Warning, TEXT("[Boss] Playing death montage: %s"), *DeathMontage->GetName());
+                UE_LOG(LogTemp, Warning, TEXT("[Boss] 사망 몽타주 재생: %s"), *DeathMontage->GetName());
             }
             else
             {
-                UE_LOG(LogTemp, Warning, TEXT("[Boss] No death montage assigned!"));
+                UE_LOG(LogTemp, Warning, TEXT("[Boss] 사망 몽타주가 할당되지 않음!"));
             }
         }
     }
+    
+    UE_LOG(LogTemp, Error, TEXT("================================================================="));
 }

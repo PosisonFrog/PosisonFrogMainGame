@@ -6,6 +6,7 @@
 
 class UBoxComponent;
 class ACEnemyBossCharacter;
+class ACBossStageBarrier;
 
 /**
  * 플레이어가 진입하면 보스 전투를 시작하는 트리거 볼륨
@@ -37,12 +38,11 @@ private:
     /** 시작할 보스 캐릭터 레퍼런스 (레벨에서 설정) */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Boss Battle", meta = (AllowPrivateAccess = "true"))
     TObjectPtr<ACEnemyBossCharacter> TargetBoss;
-
+    
     /** 인트로를 스킵할지 여부 */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Boss Battle", meta = (AllowPrivateAccess = "true"))
     bool bSkipIntro = false;
-
-
+    
     /** 에디터/디버그용: 수동으로 트리거 발동 */
     UFUNCTION(BlueprintCallable, Category = "Boss Battle", meta = (DevelopmentOnly))
     void ManualTrigger();

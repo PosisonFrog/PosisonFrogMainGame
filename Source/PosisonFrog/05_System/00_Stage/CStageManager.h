@@ -12,6 +12,7 @@ class ACEnemySpawnZone;
 class ACStageBarrier;
 class ACCheckPoint;
 class ACEnemyCharacterBase;
+class ACBossStageBarrier;
 
 struct FStageSpawnRequest
 {
@@ -42,8 +43,12 @@ public:
 	void StartStageSpawn(int32 StageID);
 	void CheckStageComplete(int32 StageID);
 	void PrepareForRespawn(int32 TargetStageID);
-	//UFUNCTION() void RespawnStage(int32 StageID);
 
+	// ──────────── 보스 배리어 중앙 제어 ────────────
+	void RegisterBossBarrier(ACBossStageBarrier* Barrier);
+	void OnBossBattleStartRequested();
+	void OnBossDefeated();
+	
 	// ──────────── 상태 조회 ────────────
 	int32 GetRemainingEnemies(int32 StageID) const;
 	int32 GetCurrentStage() const { return CurrentStage; }
@@ -76,6 +81,9 @@ private:
 	void OnStageComplete(int32 StageID);
 	void OpenStageBarrier(int32 StageID);
 	void ActivateStageCheckPoint(int32 StageID);
+
+	// 보스 배리어 제어
+	void OpenBossBarrier(int32 StageID);
 
 	// ──────────── 적 추적 ────────────
 	// 적 사망 콜백
@@ -111,6 +119,9 @@ private:
 
 	UPROPERTY(VisibleAnywhere, Category = "Stage|Info")
 	int32 CurrentStage = 1;
+
+	UPROPERTY(VisibleAnywhere, Category = "Stage|Info")
+	TObjectPtr<ACBossStageBarrier> BossBarrier;
 	
 	// ──────────── 분산 스폰 상태 ────────────
 	int32 SpawningStage = -1;
