@@ -13,6 +13,7 @@ class ACStageBarrier;
 class ACCheckPoint;
 class ACEnemyCharacterBase;
 class ACBossStageBarrier;
+class ACEnemyDirector;
 
 struct FStageSpawnRequest
 {
@@ -94,7 +95,18 @@ private:
 	// 선제적 로딩 트리거 체크
 	void CheckPreloadTrigger();
 
-	void ResetEnemy(ACEnemyCharacterBase* Enemy);
+	void ResetEnemy(ACEnemyCharacterBase* Enemy, int32 StageID);
+
+
+public:
+	void HandleEnemySpawnedFromDirector(ACEnemyCharacterBase* Enemy, int32 StageID, bool bWasExistingActor);
+	
+private:
+	void RegisterDirector();
+	bool RequestSpawnThroughDirector(const FSpawnTransformInfo& SpawnInfo, int32 StageID);
+	bool RequestExistingActivationThroughDirector(ACEnemyCharacterBase* Enemy, int32 StageID);
+	void ReleaseEnemyFromDirector(ACEnemyCharacterBase* Enemy);
+	void CancelDirectorRequests(int32 StageID);
 	
 	// ──────────── 메모리 정리 ────────────
 	bool IsSpawnInProgress() const;
@@ -108,7 +120,7 @@ private:
 	// ──────────── 데이터 저장 ────────────
 	TMap<int32, TArray<TObjectPtr<ACEnemySpawnZone>>> StageSpawnZones;
 	TMap<int32, TArray<TObjectPtr<ACEnemyCharacterBase>>> StageEnemies;
-
+	
 	UPROPERTY(VisibleAnywhere, Category = "Stage|Info")
 	TMap<int32, TObjectPtr<ACStageBarrier>> StageBarriers;
 	
@@ -160,10 +172,15 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Stage|Debug")
 	bool bEnableDebugLogs = false;
 
+	bool bIsClearingEnemies = false;
+	
+	UPROPERTY()
+	TObjectPtr<ACEnemyDirector> EnemyDirector;
+
 private:
 	// 핫픽스 변수
 	UPROPERTY(EditAnywhere, Category = "Stage|Hotfix")
 	float DeathHideDelay = 1.2f;
 
-	bool bIsClearingEnemies = false;
+	TMap<int32, TArray<TWeakObjectPtr<ACEnemyCharacterBase>>> PendingBudgetActivations;
 };

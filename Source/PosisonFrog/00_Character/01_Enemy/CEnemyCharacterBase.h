@@ -194,6 +194,13 @@ public:
     UPROPERTY(EditAnywhere, Category="PF|AI|Perf")
     float RichThinkInterval   = 0.05f;
 
+    // ───────── 예산/타입 태그 ─────────
+    UPROPERTY(EditAnywhere, Category="PF|AI|Budget")
+    FName EnemyTypeTag = TEXT("Normal");
+    
+    UFUNCTION(BlueprintPure, Category="PF|AI|Budget")
+    FORCEINLINE FName GetEnemyTypeTag() const { return EnemyTypeTag; }
+
     UPROPERTY(EditAnywhere, Category="PF|Drop", meta=(ClampMin="0", ClampMax="1"))
     float HealPackDropChance = 0.3f;
 

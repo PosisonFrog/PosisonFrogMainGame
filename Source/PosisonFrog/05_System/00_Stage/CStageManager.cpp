@@ -8,6 +8,7 @@
 #include "CBossStageBarrier.h"
 #include "CCheckPoint.h"
 #include "CEnemySpawnZone.h"
+#include "00_Character/01_Enemy/CEnemyDirector.h"
 #include "CStageBarrier.h"
 #include "00_Character/00_Player/CPlayerCharacter.h"
 #include "00_Character/01_Enemy/CEnemyCharacterBase.h"
@@ -31,6 +32,7 @@ void ACStageManager::BeginPlay()
 	CollectBarriers();
 	CollectCheckpoints();
 	CollectBossBarrier();
+	RegisterDirector();
 
 	if (StartStage > 0)
 	{
@@ -107,16 +109,21 @@ void ACStageManager::PrepareForRespawn(int32 TargetStageID)
 		const int32 StageID = StageIterator.Key();
 		if (StageID >= TargetStageID)
 			continue;
-
+			
 		for (ACEnemyCharacterBase* Enemy : StageIterator.Value())
 		{
 			if (IsValid(Enemy))
+			{
+				ReleaseEnemyFromDirector(Enemy);
 				Enemy->Destroy();
+			}
 		}
-
+			
+		CancelDirectorRequests(StageID);
+		PendingBudgetActivations.Remove(StageID);
 		StageIterator.RemoveCurrent();
 	}
-
+	
 	for (auto PreloadIterator = PreloadedEnemies.CreateIterator(); PreloadIterator; ++PreloadIterator)
 	{
 		const int32 StageID = PreloadIterator.Key();
@@ -126,10 +133,14 @@ void ACStageManager::PrepareForRespawn(int32 TargetStageID)
 		for (ACEnemyCharacterBase* Enemy : PreloadIterator.Value())
 		{
 			if (IsValid(Enemy))
+			{
+				ReleaseEnemyFromDirector(Enemy);
 				Enemy->Destroy();
+			}
 		}
 
 		PreloadIterator.RemoveCurrent();
+		PendingBudgetActivations.Remove(StageID);
 	}
 
 	for (auto FlagIterator = PreloadedStages.CreateIterator(); FlagIterator; ++FlagIterator)
@@ -147,7 +158,10 @@ void ACStageManager::PrepareForRespawn(int32 TargetStageID)
 			for (ACEnemyCharacterBase* Enemy : *ActiveArray)
 			{
 				if (IsValid(Enemy))
-					ResetEnemy(Enemy);
+				{
+					ReleaseEnemyFromDirector(Enemy);
+					ResetEnemy(Enemy, TargetStageID);
+				}
 			}
 			bReactivated = true;
 		}
@@ -397,53 +411,52 @@ void ACStageManager::ProcessSpawnBatch()
 			break;
 
 		const FSpawnTransformInfo& SpawnInfo = CurrentSpawnQueue[i];
-		// 타입 정보가 이미 포함되어 있음!
+		
 		if (!SpawnInfo.EnemyClass)
 		{
 			CLog::Log(TEXT("[ACStageManager::ProcessSpawnBatch] 경고: 스폰 큐에 null 클래스가 있음!"));
 			continue;
 		}
-
+		
+		if (!bIsPreloading && RequestSpawnThroughDirector(SpawnInfo, SpawningStage))
+		{
+			continue;
+		}
+		
 		FActorSpawnParameters SpawnParams;
 		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
-
-		// SpawnInfo에서 Transform과 EnemyClass 모두 사용
+		
 		ACEnemyCharacterBase* Enemy = GetWorld()->SpawnActor<ACEnemyCharacterBase>(
-			SpawnInfo.EnemyClass,      // 각 적마다 다른 타입
-			SpawnInfo.Transform,
-			SpawnParams);
-
-		if (Enemy)
+				 SpawnInfo.EnemyClass,
+				 SpawnInfo.Transform,
+				 SpawnParams);
+		
+		if (!Enemy)
+			continue;
+		
+		Enemy->SaveInitialTransform();
+		
+		if (bIsPreloading)
 		{
-			Enemy->SaveInitialTransform();
-			
-			if (bIsPreloading)
+			// 비활성화 (선제 로딩)
+			Enemy->SetActorHiddenInGame(true);
+			Enemy->SetActorEnableCollision(false);
+			Enemy->SetActorTickEnabled(false);
+				
+			if (AAIController* AI = Cast<AAIController>(Enemy->GetController()))
 			{
-				// 비활성화 (선제 로딩)
-				Enemy->SetActorHiddenInGame(true);
-				Enemy->SetActorEnableCollision(false);
-				Enemy->SetActorTickEnabled(false);
-
-				if (AAIController* AI = Cast<AAIController>(Enemy->GetController()))
+				AI->StopMovement();
+						
+				if (UBrainComponent* Brain = AI->GetBrainComponent())
 				{
-					AI->StopMovement();
-					
-					if (UBrainComponent* Brain = AI->GetBrainComponent())
-					{
-						Brain->PauseLogic(TEXT("Preload"));
-					}
+					Brain->PauseLogic(TEXT("Preload"));
 				}
-
-				PreloadedEnemies.FindOrAdd(SpawningStage).Add(Enemy);
 			}
-			else
-			{
-				if (UCBaseHealthComponent* HealthComp = Enemy->FindComponentByClass<UCBaseHealthComponent>())
-				{
-					HealthComp->OnDeath.AddDynamic(this, &ACStageManager::OnEnemyDied);
-				}
-				StageEnemies.FindOrAdd(SpawningStage).Add(Enemy);
-			}
+			PreloadedEnemies.FindOrAdd(SpawningStage).Add(Enemy);
+		}
+		else
+		{
+			HandleEnemySpawnedFromDirector(Enemy, SpawningStage, false);
 		}
 	}
 
@@ -512,7 +525,11 @@ void ACStageManager::ActivatePreloadedStage(int32 StageID)
 	EnemyArray.Empty();
 	EnemyArray.Reserve(PreloadArray->Num());
 
+
 	int32 ActivatedCount = 0;
+
+	RegisterDirector();
+	const bool bDirectorAvailable = IsValid(EnemyDirector);
 
 	for (ACEnemyCharacterBase* Enemy : *PreloadArray)
 	{
@@ -530,40 +547,30 @@ void ACStageManager::ActivatePreloadedStage(int32 StageID)
 			Enemy->SaveInitialTransform();  // 다시 저장
 		}
 		
-		// 활성화
-		Enemy->SetActorHiddenInGame(false);
-		Enemy->SetActorEnableCollision(true);
-		Enemy->SetActorTickEnabled(true);
-
-		if (AAIController* AI = Cast<AAIController>(Enemy->GetController()))
+		Enemy->SetActorHiddenInGame(true);
+		Enemy->SetActorEnableCollision(false);
+		Enemy->SetActorTickEnabled(false);
+		
+		if (UCBaseHealthComponent* HealthComp = Enemy->FindComponentByClass<UCBaseHealthComponent>())
 		{
-			if (UPathFollowingComponent* PathComp = AI->FindComponentByClass<UPathFollowingComponent>())
-			{
-				PathComp->AbortMove(*AI, FPathFollowingResultFlags::OwnerFinished);
-				PathComp->OnRequestFinished.Clear();
-			}
-
-			if (UBrainComponent* Brain = AI->GetBrainComponent())
-			{
-				Brain->StopLogic(TEXT("Activate"));
-				Brain->RestartLogic();
-			}
-
-			AI->UnPossess();
-			AI->Possess(Enemy);
+			HealthComp->OnDeath.RemoveDynamic(this, &ACStageManager::OnEnemyDied);
+		}
+	
+		if (!bDirectorAvailable)
+		{
+			HandleEnemySpawnedFromDirector(Enemy, StageID, true);
+			ActivatedCount++;
+			continue;
+		}
+	
+		if (RequestExistingActivationThroughDirector(Enemy, StageID))
+		{
+			ActivatedCount++;
 		}
 		else
 		{
-			if (UWorld* World = Enemy->GetWorld())
-				Enemy->SpawnDefaultController();
+			PendingBudgetActivations.FindOrAdd(StageID).AddUnique(Enemy);
 		}
-
-		if (UCBaseHealthComponent* HealthComp = Enemy->FindComponentByClass<UCBaseHealthComponent>())
-		{
-			HealthComp->OnDeath.AddDynamic(this, &ACStageManager::OnEnemyDied);
-		}
-		EnemyArray.Add(Enemy);
-		ActivatedCount++;
 	}
 
 	PreloadedEnemies.Remove(StageID);
@@ -832,7 +839,7 @@ void ACStageManager::CheckPreloadTrigger()
 	}
 }
 
-void ACStageManager::ResetEnemy(ACEnemyCharacterBase* Enemy)
+void ACStageManager::ResetEnemy(ACEnemyCharacterBase* Enemy, int32 StageID)
 {
 	if (!IsValid(Enemy) || Enemy->IsPendingKillPending())
 		return;
@@ -840,22 +847,147 @@ void ACStageManager::ResetEnemy(ACEnemyCharacterBase* Enemy)
 	Enemy->SetLifeSpan(0.0f);
 	Enemy->ResetForRespawn();
 	Enemy->ResetToInitialTransform();
-
+	
+	Enemy->SetActorHiddenInGame(true);
+	Enemy->SetActorEnableCollision(false);
+	Enemy->SetActorTickEnabled(false);
+	
 	if (UCBaseHealthComponent* HealthComp = Enemy->FindComponentByClass<UCBaseHealthComponent>())
 	{
-		HealthComp->OnDeath.RemoveAll(this);
-		HealthComp->OnDeath.AddDynamic(this, &ACStageManager::OnEnemyDied);
+		HealthComp->OnDeath.RemoveDynamic(this, &ACStageManager::OnEnemyDied);
 	}
-
-	Enemy->ForceRestartAI();
-
-	Enemy->SetActorHiddenInGame(false);
-	Enemy->SetActorTickEnabled(true);
+	
+	RegisterDirector();
+	
+	if (!IsValid(EnemyDirector))
+	{
+		HandleEnemySpawnedFromDirector(Enemy, StageID, true);
+		return;
+	}
+	
+	if (!RequestExistingActivationThroughDirector(Enemy, StageID))
+	{
+		PendingBudgetActivations.FindOrAdd(StageID).AddUnique(Enemy);
+	}
 }
 
 bool ACStageManager::IsSpawnInProgress() const
 {
-	return SpawnTimer.IsValid() && SpawningStage != -1 && CurrentSpawnQueue.Num() > 0;
+        return SpawnTimer.IsValid() && SpawningStage != -1 && CurrentSpawnQueue.Num() > 0;
+}
+
+void ACStageManager::RegisterDirector()
+{
+	if (IsValid(EnemyDirector))
+		return;
+
+	if (!GetWorld())
+		return;
+
+	AActor* DirectorActor = UGameplayStatics::GetActorOfClass(GetWorld(), ACEnemyDirector::StaticClass());
+	if (DirectorActor)
+	{
+		EnemyDirector = Cast<ACEnemyDirector>(DirectorActor);
+	}
+}
+
+bool ACStageManager::RequestSpawnThroughDirector(const FSpawnTransformInfo& SpawnInfo, int32 StageID)
+{
+	RegisterDirector();
+	
+	if (!IsValid(EnemyDirector))
+		return false;
+	
+	EnemyDirector->RequestSpawn(this, StageID, SpawnInfo);
+	return true;
+}
+
+bool ACStageManager::RequestExistingActivationThroughDirector(ACEnemyCharacterBase* Enemy, int32 StageID)
+{
+	RegisterDirector();
+	
+	if (!IsValid(EnemyDirector))
+		return false;
+	
+	return EnemyDirector->RequestExistingActivation(this, StageID, Enemy);
+}
+
+void ACStageManager::ReleaseEnemyFromDirector(ACEnemyCharacterBase* Enemy)
+{
+	if (IsValid(EnemyDirector) && IsValid(Enemy))
+	{
+		EnemyDirector->ForceReleaseEnemy(Enemy);
+	}
+}
+
+void ACStageManager::CancelDirectorRequests(int32 StageID)
+{
+	if (IsValid(EnemyDirector))
+	{
+		EnemyDirector->CancelRequestsForStage(this, StageID);
+	}
+}
+
+
+void ACStageManager::HandleEnemySpawnedFromDirector(ACEnemyCharacterBase* Enemy, int32 StageID, bool bWasExistingActor)
+{
+	if (!IsValid(Enemy))
+		return;
+
+	if (bWasExistingActor)
+	{
+		Enemy->SetActorHiddenInGame(false);
+		Enemy->SetActorEnableCollision(true);
+		Enemy->SetActorTickEnabled(true);
+
+		if (AAIController* AI = Cast<AAIController>(Enemy->GetController()))
+		{
+			if (UPathFollowingComponent* PathComp = AI->FindComponentByClass<UPathFollowingComponent>())
+			{
+				PathComp->AbortMove(*AI, FPathFollowingResultFlags::OwnerFinished);
+				PathComp->OnRequestFinished.Clear();
+			}
+
+			if (UBrainComponent* Brain = AI->GetBrainComponent())
+			{
+				Brain->StopLogic(TEXT("DirectorActivate"));
+				Brain->RestartLogic();
+			}
+
+			AI->UnPossess();
+			AI->Possess(Enemy);
+		}
+		else if (UWorld* World = Enemy->GetWorld())
+		{
+			Enemy->SpawnDefaultController();
+		}
+
+		Enemy->ForceRestartAI();
+	}
+
+	if (UCBaseHealthComponent* HealthComp = Enemy->FindComponentByClass<UCBaseHealthComponent>())
+	{
+		HealthComp->OnDeath.RemoveDynamic(this, &ACStageManager::OnEnemyDied);
+		HealthComp->OnDeath.AddDynamic(this, &ACStageManager::OnEnemyDied);
+	}
+
+	TArray<TObjectPtr<ACEnemyCharacterBase>>& EnemyArray = StageEnemies.FindOrAdd(StageID);
+	EnemyArray.AddUnique(Enemy);
+
+	if (bWasExistingActor)
+	{
+		if (TArray<TWeakObjectPtr<ACEnemyCharacterBase>>* PendingList = PendingBudgetActivations.Find(StageID))
+		{
+			PendingList->RemoveAll([Enemy](const TWeakObjectPtr<ACEnemyCharacterBase>& PendingEnemy)
+			{
+					return PendingEnemy.Get() == Enemy;
+			});
+			if (PendingList->Num() == 0)
+			{
+				PendingBudgetActivations.Remove(StageID);
+			}
+		}
+	}
 }
 
 void ACStageManager::QueueSpawnRequest(int32 StageID, bool bIsPreload)
@@ -917,10 +1049,12 @@ void ACStageManager::ClearAllEnemies()
 					HealthComp->OnDeath.RemoveDynamic(this, &ACStageManager::OnEnemyDied);
 				}
 						
+				
+				ReleaseEnemyFromDirector(Enemy);
 				Enemy->Destroy();
 				TotalCleared++;
 			}
-				
+
 			Pair.Value.Empty();
 		}
 	};
@@ -930,4 +1064,7 @@ void ACStageManager::ClearAllEnemies()
 	
 	StageEnemies.Empty();
 	PreloadedEnemies.Empty();
+	PendingBudgetActivations.Empty();
+	
+	CancelDirectorRequests(INDEX_NONE);
 }
