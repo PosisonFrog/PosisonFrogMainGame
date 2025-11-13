@@ -7,6 +7,7 @@
 #include "01_Item/CHealOrbPoolSubsystem.h"
 #include "02_Component/00_PlayerComponent/CFuryGaugeComponent.h"
 #include "02_Component/00_PlayerComponent/CPlayerHealthComponent.h"
+#include "05_System/CBossBattleStartTrigger.h"
 #include "05_System/00_Stage/CCheckPoint.h"
 #include "05_System/00_Stage/CStageManager.h"
 #include "99_Util/CLog.h"
@@ -213,6 +214,7 @@ void ACMainGameModeBase::RespawnPlayerAtCheckPoint(ACPlayerController* PlayerCon
 		RestorePlayerState(NewPlayer);
 		NewPlayer->EnableInput(PlayerController);
 		RequestStageRespawn();
+		ResetBossBattleState();
 
 		if (APlayerCameraManager* CameraManager = PlayerController->PlayerCameraManager)
 		{
@@ -281,7 +283,7 @@ void ACMainGameModeBase::RequestStageRespawn()
 {
 	TArray<AActor*> FoundActors;
 	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACStageManager::StaticClass(), FoundActors);
-
+	
 	if (FoundActors.Num() > 0)
 	{
 		if (ACStageManager* StageManager = Cast<ACStageManager>(FoundActors[0]))
@@ -289,6 +291,33 @@ void ACMainGameModeBase::RequestStageRespawn()
 			const int32 TargetStageID = StageManager->GetCurrentStage();
 			StageManager->PrepareForRespawn(TargetStageID);
 			CLog::Log(FString::Printf(TEXT("[ACMainGameModeBase::RequestStageRespawn] Stage %d 리스폰 요청"), StageSnapshot.ActivateStage));
+		}
+	}
+}
+
+void ACMainGameModeBase::ResetBossBattleState()
+{
+	UWorld* World = GetWorld();
+	if (!World)
+		return;
+	
+	TArray<AActor*> StageManagers;
+	UGameplayStatics::GetAllActorsOfClass(World, ACStageManager::StaticClass(), StageManagers);
+	for (AActor* Actor : StageManagers)
+	{
+		if (ACStageManager* StageManager = Cast<ACStageManager>(Actor))
+		{
+			StageManager->ResetBossBattleForRespawn();
+		}
+	}
+	
+	TArray<AActor*> BossTriggers;
+	UGameplayStatics::GetAllActorsOfClass(World, ACBossBattleStartTrigger::StaticClass(), BossTriggers);
+	for (AActor* Actor : BossTriggers)
+	{
+		if (ACBossBattleStartTrigger* Trigger = Cast<ACBossBattleStartTrigger>(Actor))
+		{
+			Trigger->ResetTrigger();
 		}
 	}
 }

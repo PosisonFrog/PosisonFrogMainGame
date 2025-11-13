@@ -190,3 +190,17 @@ void ACBossBattleStartTrigger::SetTriggerEnabled(bool bEnabled)
         TriggerBox->SetGenerateOverlapEvents(true);
     }
 }
+
+void ACBossBattleStartTrigger::ResetTrigger()
+{
+    bHasTriggered = false;
+    bIsEnabled = true;
+    
+    if (IsValid(TriggerBox))
+    {
+        TriggerBox->SetGenerateOverlapEvents(true);
+        TriggerBox->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+    }
+    
+    UE_LOG(LogTemp, Log, TEXT("[BossTrigger] 리스폰으로 트리거 초기화"));
+}

@@ -50,7 +50,7 @@ private:
     /** 트리거 활성화/비활성화 */
     UFUNCTION(BlueprintCallable, Category = "Boss Battle")
     void SetTriggerEnabled(bool bEnabled);
-
+    
     /** 한 번만 트리거되도록 설정 */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Boss Battle", meta = (AllowPrivateAccess = "true"))
     bool bTriggerOnce = true;
@@ -62,4 +62,9 @@ private:
     /** 트리거 활성화 여부 */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Boss Battle", meta = (AllowPrivateAccess = "true"))
     bool bIsEnabled = true;
+
+public :
+    /** 리스폰 시 트리거 상태 초기화 */
+    UFUNCTION(BlueprintCallable, Category = "Boss Battle")
+    void ResetTrigger();
 };
