@@ -9,6 +9,9 @@
 #include "Kismet/GameplayStatics.h"
 #include "DrawDebugHelpers.h"
 #include "NiagaraFunctionLibrary.h"
+#include "05_System/01_Sound/CSoundManagerSubsystem.h"
+#include "05_System/01_Sound//CSoundDataAsset.h"
+#include "00_Character/CMainGameModeBase.h"
 
 // ─────────────────────────────────────────────────────
 ACRangedSkirmisher::ACRangedSkirmisher()
@@ -357,11 +360,21 @@ void ACRangedSkirmisher::FireOnce()
 
         if (MuzzleFX)
             UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, MuzzleFX, MuzzleLoc, GetActorRotation());
-        if (FireSFX)
-            UGameplayStatics::PlaySoundAtLocation(this, FireSFX, MuzzleLoc);
+        //if (FireSFX)
+          //  UGameplayStatics::PlaySoundAtLocation(this, FireSFX, MuzzleLoc);
         if (FireMontage)
             if (UAnimInstance* Anim = GetMesh() ? GetMesh()->GetAnimInstance() : nullptr)
                 Anim->Montage_Play(FireMontage, 1.0f);
+
+        FVector MuzzlePos = GetMuzzleLocation(MuzzleRot);
+    
+        if (UGameInstance* GI = GetGameInstance())
+        {
+            if (UCSoundManagerSubsystem* SoundMgr = GI->GetSubsystem<UCSoundManagerSubsystem>())
+            {
+                SoundMgr->PlaySFX3D(CachedAttackSound.Get(), MuzzlePos, 0.7f);
+            }
+        }
     }
     else
     {
@@ -473,4 +486,22 @@ bool ACRangedSkirmisher::HasClearShot() const
     FCollisionQueryParams Q(SCENE_QUERY_STAT(PF_Ranged_Shot), false, this);
     const bool bHit = GetWorld()->LineTraceSingleByChannel(Hit, S, E, SightTraceChannel, Q);
     return (!bHit || Hit.GetActor() == Target);
+}
+
+// ─────────────────사운드────────────────────────
+void ACRangedSkirmisher::CacheSoundsFromDataAsset()
+{
+    if (ACMainGameModeBase* GM = Cast<ACMainGameModeBase>(GetWorld()->GetAuthGameMode()))
+    {
+        if (UCSoundDataAsset* SoundData = GM->GetSoundDataAsset())
+        {
+            const FCharacterSoundCollection* Sounds = SoundData->GetCharacterSounds(TEXT("RangedSkirmisher"));
+            if (Sounds)
+            {
+                CachedAttackSound = Sounds->AttackSound; // 발사 사운드
+                CachedHitSound = Sounds->HitSound;
+                CachedDeathSound = Sounds->DeathSound;
+            }
+        }
+    }
 }

@@ -13,6 +13,8 @@
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "05_System/01_Sound/CSoundDataAsset.h"
+#include "05_System/01_Sound/CSoundManagerSubsystem.h"
 
 ACMainGameModeBase::ACMainGameModeBase()
 {
@@ -49,6 +51,84 @@ void ACMainGameModeBase::BeginPlay()
 			StageManager->OnCheckPointActivated.AddDynamic(this, &ACMainGameModeBase::OnCheckPointActivateEvent);
 		}
 	}
+	
+	// -----------------------임시로 SoundManager 초기화 및 BGM 시작 --------------------------
+	if (UGameInstance* GI = GetGameInstance())
+	{
+		if (UCSoundManagerSubsystem* SoundMgr = GI->GetSubsystem<UCSoundManagerSubsystem>())
+		{
+			SoundMgr->SetSoundDataAsset(SoundDataAsset);
+		}
+	}
+	if (MasterSoundMix)
+	{
+		if (UWorld* World = GetWorld())
+		{
+			if (APlayerController* PC = World->GetFirstPlayerController())
+			{
+				UGameplayStatics::PushSoundMixModifier(this, MasterSoundMix);
+				UE_LOG(LogTemp, Log, TEXT("[GameMode] Applied Master SoundMix"));
+			}
+		}
+	}
+    
+	// SoundManager 초기화 및 BGM 시작
+	if (UGameInstance* GI = GetGameInstance())
+	{
+		if (UCSoundManagerSubsystem* SoundMgr = GI->GetSubsystem<UCSoundManagerSubsystem>())
+		{
+			SoundMgr->SetSoundDataAsset(SoundDataAsset);
+		}
+	}
+	//---------------------- 세팅 UI만들어지면 위에 코드 지워야함.[박용석 남김]------------------------
+	StartGameplayBGM();
+
+}
+
+void ACMainGameModeBase::StartGameplayBGM()
+{
+	if (!SoundDataAsset)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[GameMode] SoundDataAsset is not set"));
+		return;
+	}
+	
+
+	if (UGameInstance* GI = GetGameInstance())
+	{
+		if (UCSoundManagerSubsystem* SoundMgr = GI->GetSubsystem<UCSoundManagerSubsystem>())
+		{
+			USoundBase* BGM = SoundDataAsset->GameSounds.GameplayBGM;
+			if (!BGM)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("[GameMode] Gameplay BGM is not assigned in DataAsset"));
+				return;
+			}
+            
+			SoundMgr->PlayBGM(BGM, 2.0f, 1.0f);
+			UE_LOG(LogTemp, Log, TEXT("[GameMode] Started gameplay BGM"));
+		}
+	}
+	
+}
+
+void ACMainGameModeBase::PlayBossBGM()
+{
+	if (!SoundDataAsset)
+		return;
+
+	if (UGameInstance* GI = GetGameInstance())
+	{
+		if (UCSoundManagerSubsystem* SoundMgr = GI->GetSubsystem<UCSoundManagerSubsystem>())
+		{
+			USoundBase* BossBGM = SoundDataAsset->GameSounds.BossBattleBGM;
+			if (BossBGM)
+			{
+				SoundMgr->PlayBGM(BossBGM, 1.5f, 1.2f);
+				UE_LOG(LogTemp, Log, TEXT("[GameMode] Started boss BGM"));
+			}
+		}
+	}
 }
 
 void ACMainGameModeBase::OnCheckPointActivateEvent(ACCheckPoint* CheckPoint, ACPlayerCharacter* Player)
@@ -65,6 +145,20 @@ void ACMainGameModeBase::OnCheckPointActivateEvent(ACCheckPoint* CheckPoint, ACP
 	StageSnapshot.ActivateStage = CheckPoint->SectionID;
 
 	CLog::Log(FString::Printf(TEXT("[ACMainGameModeBase::OnCheckPointActivateEvent] 체크포인트 이벤트 받음 : %s (Section %d)"), *CheckPoint->GetName(), CheckPoint->SectionID));
+
+	if (SoundDataAsset)
+	{
+		if (UGameInstance* GI = GetGameInstance())
+		{
+			if (UCSoundManagerSubsystem* SoundMgr = GI->GetSubsystem<UCSoundManagerSubsystem>())
+			{
+				if (USoundBase* CheckpointSound = SoundDataAsset->GameSounds.CheckpointSound)
+				{
+					SoundMgr->PlaySFX2D(CheckpointSound, 0.8f);
+				}
+			}
+		}
+	}
 }
 
 void ACMainGameModeBase::RestartFromLastCheckpoint(ACPlayerController* PlayerController)
@@ -90,6 +184,14 @@ void ACMainGameModeBase::ReturnToTitleScreen()
 {
 	GetWorldTimerManager().ClearTimer(TimerHandle_Respawn);
 	GetWorldTimerManager().ClearTimer(TimerHandle_ReturnToMenu);
+
+	if (UGameInstance* GI = GetGameInstance())
+	{
+		if (UCSoundManagerSubsystem* SoundMgr = GI->GetSubsystem<UCSoundManagerSubsystem>())
+		{
+			SoundMgr->StopBGM(2.0f);
+		}
+	}
 	
 	if (MainMenuLevelName != NAME_None)
 	{
@@ -103,6 +205,20 @@ void ACMainGameModeBase::ReturnToTitleScreen()
 
 void ACMainGameModeBase::OnPlayerDeath(ACPlayerController* PlayerController)
 {
+	if (SoundDataAsset)
+	{
+		if (UGameInstance* GI = GetGameInstance())
+		{
+			if (UCSoundManagerSubsystem* SoundMgr = GI->GetSubsystem<UCSoundManagerSubsystem>())
+			{
+				if (USoundBase* DeathSound = SoundDataAsset->PlayerSounds.DeathSound)
+				{
+					SoundMgr->PlaySFX2D(DeathSound, 1.0f);
+				}
+			}
+		}
+	}
+	
 	if (!PlayerController)
 	{
 		CLog::Log(TEXT("[GameMode] OnPlayerDeath - Invalid PlayerController"));
@@ -213,6 +329,21 @@ void ACMainGameModeBase::RespawnPlayerAtCheckPoint(ACPlayerController* PlayerCon
 		RestorePlayerState(NewPlayer);
 		NewPlayer->EnableInput(PlayerController);
 		RequestStageRespawn();
+
+		if (SoundDataAsset)
+		{
+			if (UGameInstance* GI = GetGameInstance())
+			{
+				if (UCSoundManagerSubsystem* SoundMgr = GI->GetSubsystem<UCSoundManagerSubsystem>())
+				{
+					if (USoundBase* RespawnSound = SoundDataAsset->PlayerSounds.RespawnSound)
+					{
+						SoundMgr->PlaySFX2D(RespawnSound, 0.7f);
+					}
+				}
+			}
+		}
+		
 
 		if (APlayerCameraManager* CameraManager = PlayerController->PlayerCameraManager)
 		{

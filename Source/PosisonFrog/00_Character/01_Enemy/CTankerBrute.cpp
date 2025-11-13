@@ -9,6 +9,11 @@
 #include "Kismet/KismetMathLibrary.h"
 #include "Sound/SoundBase.h"
 
+
+#include "05_System/01_Sound/CSoundManagerSubsystem.h"
+#include "05_System/01_Sound//CSoundDataAsset.h"
+#include "00_Character/CMainGameModeBase.h"
+
 namespace TankerBrute
 {
     const FName AttackEffectSocketName = TEXT("SignSocket");
@@ -248,7 +253,7 @@ void ACTankerBrute::StartAttack()
 
     StopMove();
     PlayMontageIfValid(AttackMontage);
-    PlaySoundIfValid(AttackSound);
+    PlayEnemySound(CachedAttackSound, 1.0f);
     
     
     SpawnAttackEffect();
@@ -514,4 +519,28 @@ void ACTankerBrute::SyncAttackTuning()
     AttackInterval = AttackIntervalTanker;
     AttackRange = AttackRangeTanker;
     BaseDamage = AttackDamage;
+}
+
+//---------------- 사운드 ----------------
+void ACTankerBrute::CacheSoundsFromDataAsset()
+{
+    if (ACMainGameModeBase* GM = Cast<ACMainGameModeBase>(GetWorld()->GetAuthGameMode()))
+    {
+        if (UCSoundDataAsset* SoundData = GM->GetSoundDataAsset())
+        {
+            const FCharacterSoundCollection* Sounds = SoundData->GetCharacterSounds(TEXT("TankerBrute"));
+            if (Sounds)
+            {
+                CachedAttackSound = Sounds->AttackSound;
+                CachedHitSound = Sounds->HitSound;
+                CachedDeathSound = Sounds->DeathSound;
+                
+                // 돌진 사운드도 추가
+                if (Sounds->ChargeSound)
+                {
+                    CachedChargeSound = Sounds->ChargeSound;
+                }
+            }
+        }
+    }
 }

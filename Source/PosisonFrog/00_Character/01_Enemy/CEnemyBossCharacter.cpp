@@ -8,6 +8,9 @@
 #include "03_Combat/Boss/BossPhaseDataAsset.h"
 #include "AIController.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "05_System/01_Sound/CSoundManagerSubsystem.h"
+#include "05_System/01_Sound//CSoundDataAsset.h"
+#include "00_Character/CMainGameModeBase.h"
 
 ACEnemyBossCharacter::ACEnemyBossCharacter()
 {
@@ -137,7 +140,7 @@ float ACEnemyBossCharacter::TakeDamage(float DamageAmount, FDamageEvent const& D
 void ACEnemyBossCharacter::StartBossBattle(bool bSkipIntro)
 {
     UE_LOG(LogTemp, Error, TEXT("========================================"));
-    UE_LOG(LogTemp, Error, TEXT("[Boss] ⚠️ StartBossBattle CALLED! SkipIntro=%s"), bSkipIntro ? TEXT("true") : TEXT("false"));
+    UE_LOG(LogTemp, Error, TEXT("[Boss] StartBossBattle CALLED! SkipIntro=%s"), bSkipIntro ? TEXT("true") : TEXT("false"));
     UE_LOG(LogTemp, Error, TEXT("[Boss] Call Location: %s"), ANSI_TO_TCHAR(__FUNCTION__));
     UE_LOG(LogTemp, Error, TEXT("========================================"));
     
@@ -150,6 +153,11 @@ void ACEnemyBossCharacter::StartBossBattle(bool bSkipIntro)
     if (BossPhaseComponent)
     {
         BossPhaseComponent->StartBattle(bSkipIntro);
+    }
+
+    if (ACMainGameModeBase* GM = Cast<ACMainGameModeBase>(GetWorld()->GetAuthGameMode()))
+    {
+        GM->PlayBossBGM();
     }
 }
 

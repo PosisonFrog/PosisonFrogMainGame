@@ -28,7 +28,7 @@ public:
 	virtual void Tick(float DeltaSeconds) override;
 	
 protected:
-
+	virtual void CacheSoundsFromDataAsset() override;
 	virtual void PostInitProperties() override;
 	virtual void PostLoad() override;
 	virtual void OnConstruction(const FTransform& Transform) override;
@@ -63,7 +63,7 @@ private:
 	void SpawnHitEffectAtLocation() const;
 	void ClearAttackTimers();
 	void SyncAttackTuning();
-	
+
 	void InitialiseChargeComponent();
 	void ApplyPerceptionTuning();
 	bool ShouldAttemptCharge() const;
@@ -120,8 +120,8 @@ protected:
 	/** @deprecated Use ComboHitReactionMontages array in base class for combo-specific hit reactions */
 	TObjectPtr<UAnimMontage> HitMontage = nullptr;
 
-	UPROPERTY(EditAnywhere, Category="PF|Sound")
-	USoundBase* AttackSound = nullptr;
+	UPROPERTY(Transient)
+	TObjectPtr<USoundBase> CachedChargeSound = nullptr; 
 
 	UPROPERTY(EditAnywhere, Category="PF|Effects")
 	UNiagaraSystem* AttackEffect = nullptr;

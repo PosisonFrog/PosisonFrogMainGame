@@ -260,10 +260,6 @@ protected:
     /** 몽타주가 유효하면 재생 */
     void PlayMontageIfValid(UAnimMontage* Montage, float PlayRate = 1.f) const;
     
-    /** 사운드가 유효하면 재생 */
-    void PlaySoundIfValid(USoundBase* Sound) const;
-
-
     // 전투(스윙 창(애님 노티파이) + 분할 스윕)
     UFUNCTION(BlueprintCallable, Category="PF|Combat")
     void AttackWindowBegin(float AutoEndAfter = 0.f);
@@ -309,10 +305,7 @@ protected:
     float   LastSeenTime   = -1000.f;
     float   LastAttackTime = -1000.f;
     float   StateEnterTime = -1000.f;
-
-    UPROPERTY(EditAnywhere, Category="PF|Sound")
-    USoundBase* HitSound = nullptr;
-
+    
     // 직진 스티어링
     bool    bDirectMoveActive = false;
     FVector DirectMoveGoal = FVector::ZeroVector;
@@ -403,4 +396,23 @@ protected:
 
     void UpdateHitDirectionFromAttacker(AActor* AttackerActor);
     UAnimMontage* ResolveComboHitReactionMontage(int32 ComboIndex, FName& OutSource) const;
+
+    //───────── 사운드 ─────────
+protected:
+    // 각 Enemy가 오버라이드할 함수
+    virtual void CacheSoundsFromDataAsset();
+    
+    // 사운드 재생 헬퍼
+    void PlayEnemySound(const TWeakObjectPtr<USoundBase>& Sound, float VolumeMultiplier = 1.0f);
+    
+    // 캐싱된 사운드들
+    UPROPERTY(Transient)
+    TWeakObjectPtr<USoundBase> CachedAttackSound;
+    
+    UPROPERTY(Transient)
+    TWeakObjectPtr<USoundBase> CachedHitSound;
+    
+    UPROPERTY(Transient)
+    TWeakObjectPtr<USoundBase> CachedDeathSound;
+    
 };

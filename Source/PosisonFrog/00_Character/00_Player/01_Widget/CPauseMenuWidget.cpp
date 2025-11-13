@@ -9,6 +9,9 @@
 #include "Components/Widget.h"
 #include "Input/Reply.h"
 #include "InputCoreTypes.h"
+#include "05_System/01_Sound/CSoundManagerSubsystem.h"
+
+class UCSoundManagerSubsystem;
 
 void UPauseMenuWidget::NativeConstruct()
 {
@@ -223,4 +226,26 @@ void UPauseMenuWidget::ShowOptionsPanel()
     }
 
     bShowingOptions = true;
+}
+
+void UPauseMenuWidget::OnPauseOpened()
+{
+    if (UGameInstance* GI = GetGameInstance())
+    {
+        if (UCSoundManagerSubsystem* SoundMgr = GI->GetSubsystem<UCSoundManagerSubsystem>())
+        {
+            SoundMgr->PauseBGM();
+        }
+    }
+}
+
+void UPauseMenuWidget::OnPauseClosed()
+{
+    if (UGameInstance* GI = GetGameInstance())
+    {
+        if (UCSoundManagerSubsystem* SoundMgr = GI->GetSubsystem<UCSoundManagerSubsystem>())
+        {
+            SoundMgr->ResumeBGM();
+        }
+    }
 }

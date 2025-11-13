@@ -96,6 +96,8 @@ private:
     void EnsureOptionsWidget();
     void ShowMainPanel();
     void ShowOptionsPanel();
+    void OnPauseOpened();
+    void OnPauseClosed();
 
     UPROPERTY() TObjectPtr<UOptionsMenuWidget> OptionsMenuInstance = nullptr;
     bool bShowingOptions = false;

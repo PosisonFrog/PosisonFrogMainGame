@@ -28,6 +28,8 @@ protected:
     virtual void DoChase() override;     // 거리 밴드 유지 + 전술 이동
     virtual void DoAttack() override;    // 사격 조건/쿨다운/회피
     virtual void ExitState(EEnemyState OldState) override;
+    virtual void CacheSoundsFromDataAsset() override;
+
 
     // ───── 사격 ─────
     void StartBurst();

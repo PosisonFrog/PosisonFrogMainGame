@@ -279,4 +279,26 @@ private:
     float AttackCameraShakeScale = 1.f;
     //UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Camera", meta = (AllowPrivateAccess = "true"))
     //TObjectPtr<UTransparentCameraComponent> TransparentCameraComponent = nullptr;
+
+    // ─────────── 사운드 ───────────
+protected:
+    UPROPERTY(Transient)
+    TWeakObjectPtr<USoundBase> CachedAttackSound;
+    
+    UPROPERTY(Transient)
+    TWeakObjectPtr<USoundBase> CachedDashSound;
+    
+    UPROPERTY(Transient)
+    TWeakObjectPtr<USoundBase> CachedHitSound;
+    
+    UPROPERTY(Transient)
+    TWeakObjectPtr<USoundBase> CachedDeathSound;
+
+private:
+    // 사운드 로드 헬퍼
+    void CachePlayerSounds();
+    
+    // 사운드 재생 헬퍼
+    void PlayPlayerSound(const TWeakObjectPtr<USoundBase>& Sound, float VolumeMultiplier = 1.0f);
+
 };

@@ -89,6 +89,21 @@ public:
 	UFUNCTION()
 	void RespawnPlayerAtCheckPoint(ACPlayerController* PlayerController);
 
+	// ──────────── BGM 관리 ────────────
+	/** 게임플레이 BGM 시작 */
+	UFUNCTION(BlueprintCallable, Category = "Audio")
+	void StartGameplayBGM();
+
+	/** 보스 BGM으로 전환 */
+	UFUNCTION(BlueprintCallable, Category = "Audio")
+	void PlayBossBGM();
+
+	// ──────────── Getter ────────────
+	/** SoundDataAsset 가져오기 (캐릭터들이 사운드 로드할 때 사용) */
+	UFUNCTION(BlueprintPure, Category = "Audio")
+	UCSoundDataAsset* GetSoundDataAsset() const { return SoundDataAsset; }
+
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -103,6 +118,17 @@ private:
 	void RequestStageRespawn();
 	
 private:
+
+	// ──────────── 사운드 데이터 ────────────
+	/** 게임 전체 사운드를 담은 데이터 에셋 */
+	UPROPERTY(EditDefaultsOnly, Category = "Audio")
+	TObjectPtr<UCSoundDataAsset> SoundDataAsset = nullptr;
+
+
+	/** 세팅 UI넣기 전까지 임시 마스터 믹스 */
+	UPROPERTY(EditDefaultsOnly, Category = "Audio")
+	TObjectPtr<USoundMix> MasterSoundMix = nullptr;
+	
 	// ──────────── 체크포인트 ────────────
 	UPROPERTY(VisibleInstanceOnly, Category = "Game|CheckPoint")
 	TObjectPtr<ACCheckPoint> CurrentCheckPoint = nullptr;

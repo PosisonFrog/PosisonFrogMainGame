@@ -31,6 +31,10 @@
 #include "04_Skill/CSkill_SpinAttack.h"
 #include "00_Character/01_Enemy/CTankerBrute.h"
 #include "00_Character/02_Component/01_EnemyComponent/CTankerChargeComponent.h"
+#include "00_Character/CMainGameModeBase.h"
+#include "05_System/01_Sound/CSoundManagerSubsystem.h"
+#include "05_System/01_Sound/CSoundDataAsset.h"
+
 
 #include "99_Util/CLog.h"
 
@@ -193,6 +197,8 @@ void ACPlayerCharacter::BeginPlay()
             CLog::Log(TEXT("PlayerWidget create failed"));
         }
     }
+
+    CachePlayerSounds();
 }
 
 void ACPlayerCharacter::PostInitializeComponents()
@@ -329,6 +335,8 @@ void ACPlayerCharacter::Attack()
         WeaponComponent->DoAttack();
     else
         CLog::Log(TEXT("WeaponComponent missing"));
+
+    PlayPlayerSound(CachedAttackSound, 0.8f);
 }
 void ACPlayerCharacter::HandlePlayerComboHit(AActor* HitActor, int32 ComboIndex, float Damage)
 {
@@ -446,6 +454,9 @@ bool ACPlayerCharacter::TryCommitDash()
 
     if (PlayerWidget)
         PlayerWidget->PlayDashFX(DashSpeedBuffDuration);
+
+    PlayPlayerSound(CachedDashSound, 0.9f);
+
     
     return true;
 }
@@ -521,6 +532,8 @@ void ACPlayerCharacter::HandleHealthChanged(float CurrentHealth, float MaxHealth
 void ACPlayerCharacter::HandleDeath(AActor* DeadActor)
 {
     if (bIsDead) return;
+
+    PlayPlayerSound(CachedDeathSound, 1.2f);
 
     bIsDead = true;
     CLog::Log(TEXT("[Player] Death processing started"));
@@ -640,12 +653,16 @@ float ACPlayerCharacter::TakeDamage(float DamageAmount, struct FDamageEvent cons
     if (AppliedDamage > 0.0f && HealthComponent)
     {
         HealthComponent->Damage(AppliedDamage);
+        PlayPlayerSound(CachedHitSound, 1.0f);
+
     }
 
     if (bUltActive == false)
     {
         CLog::Log(FString::Printf(TEXT("[PlayerCharacter] Took %.1f Damage from %s"), AppliedDamage, *GetNameSafe(DamageCauser)));
     }
+
+    
     
     return AppliedDamage;
 }
@@ -940,4 +957,42 @@ float ACPlayerCharacter::GetIncomingDamageScale() const
 bool ACPlayerCharacter::IsBuffActive() const
 {
     return bUltActive;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Sound
+// ────────────────────────────────────────────────────────────────────────────
+
+void ACPlayerCharacter::CachePlayerSounds()
+{
+    if (ACMainGameModeBase* GM = Cast<ACMainGameModeBase>(GetWorld()->GetAuthGameMode()))
+    {
+        if (UCSoundDataAsset* SoundData = GM->GetSoundDataAsset())
+        {
+            const FCharacterSoundCollection* Sounds = SoundData->GetCharacterSounds(TEXT("Player"));
+            if (Sounds)
+            {
+                CachedAttackSound = Sounds->AttackSound;
+                CachedDashSound = Sounds->DashSound;
+                CachedHitSound = Sounds->HitSound;
+                CachedDeathSound = Sounds->DeathSound;
+                
+                UE_LOG(LogTemp, Log, TEXT("[Player] Cached sounds from DataAsset"));
+            }
+        }
+    }
+}
+
+void ACPlayerCharacter::PlayPlayerSound(const TWeakObjectPtr<USoundBase>& Sound, float VolumeMultiplier)
+{
+    if (!Sound.IsValid())
+        return;
+        
+    if (UGameInstance* GI = GetGameInstance())
+    {
+        if (UCSoundManagerSubsystem* SoundMgr = GI->GetSubsystem<UCSoundManagerSubsystem>())
+        {
+            SoundMgr->PlaySFX3D(Sound.Get(), GetActorLocation(), VolumeMultiplier);
+        }
+    }
 }

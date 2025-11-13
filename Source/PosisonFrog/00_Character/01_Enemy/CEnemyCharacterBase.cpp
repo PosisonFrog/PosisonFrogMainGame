@@ -22,6 +22,10 @@
 #include "01_Item/CHealOrbPoolSubsystem.h"
 #include "03_Combat/Damage/DamageType_FuryCountable.h"
 
+#include "05_System/01_Sound/CSoundManagerSubsystem.h"
+#include "05_System/01_Sound//CSoundDataAsset.h"
+#include "00_Character/CMainGameModeBase.h"
+
 #include "Engine/DamageEvents.h"
 
 ACEnemyCharacterBase::ACEnemyCharacterBase()
@@ -101,7 +105,11 @@ void ACEnemyCharacterBase::BeginPlay()
 	SubscribeToPlayerComboHits();
 	
 	SetState(EEnemyState::Patrol); // 기본적으로 순찰모드
+	CacheSoundsFromDataAsset();
+
 }
+
+
 
 void ACEnemyCharacterBase::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
@@ -1377,13 +1385,7 @@ void ACEnemyCharacterBase::PlayMontageIfValid(UAnimMontage* Montage, float PlayR
 	}
 }
 
-void ACEnemyCharacterBase::PlaySoundIfValid(USoundBase* Sound) const
-{
-	if (!Sound)
-		return;
 
-	UGameplayStatics::PlaySoundAtLocation(this, Sound, GetActorLocation());
-}
 
 void ACEnemyCharacterBase::OnPlayerComboHit(AActor* HitActor, int32 ComboIndex, float Damage)
 {
@@ -1471,8 +1473,7 @@ void ACEnemyCharacterBase::OnPlayerComboHit(AActor* HitActor, int32 ComboIndex, 
 			UE_LOG(LogTemp, Error, TEXT("[%s] MeshComp is NULL!"), *GetName());
 		}
 		
-		// 피격 사운드
-		PlaySoundIfValid(HitSound);
+
         
 		// 피격 경직 타이머 설정
 		GetWorldTimerManager().ClearTimer(HitStunTimer);
@@ -1588,5 +1589,28 @@ void ACEnemyCharacterBase::StopHitShake()
 	if (bShowDebugInfo)
 	{
 		UE_LOG(LogTemp, Log, TEXT("[Enemy] Hit shake stopped"));
+	}
+}
+
+// ============================================================
+// 사운드 처리
+// ============================================================
+
+void ACEnemyCharacterBase::CacheSoundsFromDataAsset()
+{
+	// Base 클래스는 비워두고 자식 클래스에서 오버라이드
+}
+
+void ACEnemyCharacterBase::PlayEnemySound(const TWeakObjectPtr<USoundBase>& Sound, float VolumeMultiplier)
+{
+    if (!Sound.IsValid())
+		return;
+        
+	if (UGameInstance* GI = GetGameInstance())
+	{
+		if (UCSoundManagerSubsystem* SoundMgr = GI->GetSubsystem<UCSoundManagerSubsystem>())
+		{
+			SoundMgr->PlaySFX3D(Sound.Get(), GetActorLocation(), VolumeMultiplier);
+		}
 	}
 }
