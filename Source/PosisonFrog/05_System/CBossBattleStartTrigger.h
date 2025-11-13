@@ -4,6 +4,7 @@
 #include "GameFramework/Actor.h"
 #include "CBossBattleStartTrigger.generated.h"
 
+class ACPlayerCharacter;
 class UBoxComponent;
 class ACEnemyBossCharacter;
 class ACBossStageBarrier;
@@ -30,6 +31,9 @@ private:
                                UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, 
                                bool bFromSweep, const FHitResult& SweepResult);
 
+    /** 플레이어가 트리거에 진입했을 때 보스 전투를 시도 */
+    void AttemptStartBossBattle(ACPlayerCharacter* PlayerCharacter);
+    
 private:
     /** 트리거 박스 컴포넌트 */
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))

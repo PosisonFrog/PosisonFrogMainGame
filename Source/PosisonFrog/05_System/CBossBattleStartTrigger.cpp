@@ -62,6 +62,22 @@ void ACBossBattleStartTrigger::EndPlay(const EEndPlayReason::Type EndPlayReason)
 void ACBossBattleStartTrigger::OnTriggerBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
     UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
+    // 플레이어 캐릭터인지 확인
+    ACPlayerCharacter* PlayerCharacter = Cast<ACPlayerCharacter>(OtherActor);
+    if (!IsValid(PlayerCharacter))
+    {
+        return;
+    }
+    AttemptStartBossBattle(PlayerCharacter);
+}
+
+void ACBossBattleStartTrigger::AttemptStartBossBattle(ACPlayerCharacter* PlayerCharacter)
+{
+    if (!IsValid(PlayerCharacter))
+    {
+        return;
+    }
+    
     // 트리거 비활성화 상태면 무시
     if (!bIsEnabled)
     {
@@ -74,13 +90,6 @@ void ACBossBattleStartTrigger::OnTriggerBeginOverlap(UPrimitiveComponent* Overla
         return;
     }
 
-    // 플레이어 캐릭터인지 확인
-    ACPlayerCharacter* PlayerCharacter = Cast<ACPlayerCharacter>(OtherActor);
-    if (!IsValid(PlayerCharacter))
-    {
-        return;
-    }
-    
     UE_LOG(LogTemp, Error, TEXT("================================================================="));
     UE_LOG(LogTemp, Error, TEXT("[BossTrigger] 플레이어 감지"));
     UE_LOG(LogTemp, Error, TEXT("[BossTrigger] Player: %s"), *GetNameSafe(PlayerCharacter));
@@ -98,7 +107,7 @@ void ACBossBattleStartTrigger::OnTriggerBeginOverlap(UPrimitiveComponent* Overla
     UE_LOG(LogTemp, Error, TEXT("[BossTrigger] StageManager 검색"));
     TArray<AActor*> FoundActors;
     UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACStageManager::StaticClass(), FoundActors);
-    
+
     if (FoundActors.Num() > 0)
     {
         ACStageManager* StageManager = Cast<ACStageManager>(FoundActors[0]);
@@ -200,6 +209,22 @@ void ACBossBattleStartTrigger::ResetTrigger()
     {
         TriggerBox->SetGenerateOverlapEvents(true);
         TriggerBox->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+        
+        TArray<AActor*> OverlappingActors;
+        TriggerBox->GetOverlappingActors(OverlappingActors, ACPlayerCharacter::StaticClass());
+        
+        if (OverlappingActors.Num() > 0)
+        {
+            for (AActor* Actor : OverlappingActors)
+            {
+                if (ACPlayerCharacter* PlayerCharacter = Cast<ACPlayerCharacter>(Actor))
+                {
+                    UE_LOG(LogTemp, Log, TEXT("[BossTrigger] ResetTrigger - 플레이어가 이미 트리거 내부에 있음"));
+                    AttemptStartBossBattle(PlayerCharacter);
+                    break;
+                }
+            }
+        }
     }
     
     UE_LOG(LogTemp, Log, TEXT("[BossTrigger] 리스폰으로 트리거 초기화"));
