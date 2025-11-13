@@ -67,6 +67,9 @@ private:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Boss Battle", meta = (AllowPrivateAccess = "true"))
     bool bIsEnabled = true;
 
+    /** 초기 보스 이름(리스폰 시 보스 참조 복구용) */
+    FString InitialBossName;
+    
 public :
     /** 리스폰 시 트리거 상태 초기화 */
     UFUNCTION(BlueprintCallable, Category = "Boss Battle")

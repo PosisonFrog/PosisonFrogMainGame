@@ -38,6 +38,11 @@ void ACBossBattleStartTrigger::BeginPlay()
     UE_LOG(LogTemp, Error, TEXT("[BossTrigger] TargetBoss: %s"), *GetNameSafe(TargetBoss));
     UE_LOG(LogTemp, Error, TEXT("================================================================="));
 
+    if (IsValid(TargetBoss))
+    {
+        InitialBossName = TargetBoss->GetName();
+    }
+    
     if (IsValid(TriggerBox))
     {
         TriggerBox->OnComponentBeginOverlap.AddDynamic(this, &ACBossBattleStartTrigger::OnTriggerBeginOverlap);
@@ -98,7 +103,40 @@ void ACBossBattleStartTrigger::AttemptStartBossBattle(ACPlayerCharacter* PlayerC
     // 보스 레퍼런스 유효성 확인
     if (!IsValid(TargetBoss))
     {
-        UE_LOG(LogTemp, Error, TEXT("[BossTrigger] TargetBoss가 유효하지 않음"));
+        UE_LOG(LogTemp, Warning, TEXT("[BossTrigger] TargetBoss가 유효하지 않음 - 재할당 시도"));
+        
+        TArray<AActor*> BossActors;
+        UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACEnemyBossCharacter::StaticClass(), BossActors);
+        
+        ACEnemyBossCharacter* ReacquiredBoss = nullptr;
+        
+        if (!InitialBossName.IsEmpty())
+        {
+            for (AActor* BossActor : BossActors)
+            {
+                if (BossActor && BossActor->GetName() == InitialBossName)
+                {
+                    ReacquiredBoss = Cast<ACEnemyBossCharacter>(BossActor);
+                    break;
+                }
+            }
+        }
+        
+        if (!ReacquiredBoss && BossActors.Num() == 1)
+        {
+            ReacquiredBoss = Cast<ACEnemyBossCharacter>(BossActors[0]);
+        }
+        
+        if (ReacquiredBoss)
+        {
+            TargetBoss = ReacquiredBoss;
+            UE_LOG(LogTemp, Warning, TEXT("[BossTrigger] TargetBoss 재설정: %s"), *GetNameSafe(TargetBoss));
+        }
+    }
+    
+    if (!IsValid(TargetBoss))
+    {
+        UE_LOG(LogTemp, Error, TEXT("[BossTrigger] TargetBoss 재할당 실패"));
         UE_LOG(LogTemp, Error, TEXT("================================================================="));
         return;
     }
@@ -142,6 +180,7 @@ void ACBossBattleStartTrigger::AttemptStartBossBattle(ACPlayerCharacter* PlayerC
         {
             TriggerBox->SetGenerateOverlapEvents(false);
         }
+        SetTriggerEnabled(false);
     }
 }
 
@@ -181,7 +220,7 @@ void ACBossBattleStartTrigger::ManualTrigger()
     
     if (bTriggerOnce)
     {
-        bIsEnabled = false;
+        SetTriggerEnabled(false);
     }
 }
 
@@ -189,30 +228,33 @@ void ACBossBattleStartTrigger::SetTriggerEnabled(bool bEnabled)
 {
     bIsEnabled = bEnabled;
     UE_LOG(LogTemp, Log, TEXT("[BossTrigger] 트리거 %s"), bEnabled ? TEXT("활성화") : TEXT("비활성화"));
-    
-    if (!bEnabled && IsValid(TriggerBox))
+        
+    if (!IsValid(TriggerBox))
     {
-        TriggerBox->SetGenerateOverlapEvents(false);
+        return;
     }
-    else if (bEnabled && IsValid(TriggerBox))
+        
+    TriggerBox->SetCollisionEnabled(bEnabled ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
+    TriggerBox->SetGenerateOverlapEvents(bEnabled);
+    
+    if (bEnabled)
     {
-        TriggerBox->SetGenerateOverlapEvents(true);
+        TriggerBox->UpdateOverlaps();
     }
 }
 
-void ACBossBattleStartTrigger::ResetTrigger()
+/*void ACBossBattleStartTrigger::ResetTrigger()
 {
     bHasTriggered = false;
-    bIsEnabled = true;
+    SetTriggerEnabled(true);
     
     if (IsValid(TriggerBox))
     {
-        TriggerBox->SetGenerateOverlapEvents(true);
-        TriggerBox->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
-        
+        TriggerBox->UpdateOverlaps();
+             
         TArray<AActor*> OverlappingActors;
         TriggerBox->GetOverlappingActors(OverlappingActors, ACPlayerCharacter::StaticClass());
-        
+             
         if (OverlappingActors.Num() > 0)
         {
             for (AActor* Actor : OverlappingActors)
@@ -228,4 +270,20 @@ void ACBossBattleStartTrigger::ResetTrigger()
     }
     
     UE_LOG(LogTemp, Log, TEXT("[BossTrigger] 리스폰으로 트리거 초기화"));
+}*/
+
+void ACBossBattleStartTrigger::ResetTrigger()
+{
+    // 상태 초기화
+    bHasTriggered = false;
+    bIsEnabled = true;
+    
+    if (IsValid(TriggerBox))
+    {
+        TriggerBox->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+        TriggerBox->SetGenerateOverlapEvents(true);
+        TriggerBox->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+    }
+    
+    UE_LOG(LogTemp, Log, TEXT("[BossTrigger] 트리거 리셋 완료"));
 }
