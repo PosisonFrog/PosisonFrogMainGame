@@ -3,6 +3,7 @@
 #include "CMainGameModeBase.h"
 #include "00_Character/00_Player/CPlayerController.h"
 #include "00_Character/00_Player/CPlayerCharacter.h"
+#include "01_Enemy/CEnemyBossCharacter.h"
 #include "01_Item/CHealOrb.h"
 #include "01_Item/CHealOrbPoolSubsystem.h"
 #include "02_Component/00_PlayerComponent/CFuryGaugeComponent.h"
@@ -300,6 +301,16 @@ void ACMainGameModeBase::ResetBossBattleState()
 	UWorld* World = GetWorld();
 	if (!World)
 		return;
+
+	TArray<AActor*> BossCharacters;
+	UGameplayStatics::GetAllActorsOfClass(World, ACEnemyBossCharacter::StaticClass(), BossCharacters);
+	for (AActor* Actor : BossCharacters)
+	{
+		if (ACEnemyBossCharacter* BossCharacter = Cast<ACEnemyBossCharacter>(Actor))
+		{
+			BossCharacter->ResetBossBattleState();
+		}
+	}
 	
 	TArray<AActor*> StageManagers;
 	UGameplayStatics::GetAllActorsOfClass(World, ACStageManager::StaticClass(), StageManagers);

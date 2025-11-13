@@ -30,6 +30,10 @@ public:
     UFUNCTION(BlueprintCallable, Category="Boss")
     void ForcePattern(FName PatternId);
 
+    /** 보스 전투 상태와 체력을 초기화합니다. */
+    UFUNCTION(BlueprintCallable, Category="Boss")
+    void ResetBossBattleState();
+    
     UFUNCTION(BlueprintPure, Category="Boss")
     UCEnemyBossPhaseComponent* GetBossPhaseComponent() const { return BossPhaseComponent; }
 
@@ -56,10 +60,7 @@ protected:
     UFUNCTION()
     void HandleBossDeath(AActor* DeadActor);
 
-
-    
 protected:
-
     /** 레벨 시작 시 자동으로 전투를 시작할지 여부 */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Boss")
     bool bAutoStartBattle = false;
@@ -93,6 +94,4 @@ protected:
     /** 보스 사망 시 재생할 몽타주 */
     UPROPERTY(EditAnywhere, Category="Boss|Animation")
     TObjectPtr<UAnimMontage> DeathMontage;
-
-    
 };
