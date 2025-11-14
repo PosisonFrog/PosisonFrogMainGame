@@ -23,6 +23,7 @@ class UCPlayerWidget;
 class UCameraShakeBase;
 class AActor;
 class UComboStackComponent;
+class UCPlayerKnockbackComponent;
 struct FInputActionValue;
 
 
@@ -51,7 +52,6 @@ public:
     void SetUltimateGauge(float UltGauge);
     
     // ─ 애니메이션
-    FORCEINLINE UAnimMontage* GetKnockbackMontage() const { return KnockbackMontage; }
     FORCEINLINE UComboStackComponent* GetComboStackComponent() const { return ComboStackComponent; }
  
 
@@ -89,6 +89,11 @@ public:
     void SetAttackMovementSlowMultiplier(float Multiplier);
     void ResetAttackMovementSlowMultiplier();
 
+    // 탱커 돌진에 맞았을 때 처리
+    UFUNCTION() void OnHitByTankerCharge(AActor* HitPlayer, FVector KnockbackDirection, float KnockbackStrength, AActor* Attacker);
+
+
+
 private:
     // ─────────── Dash ───────────
     // ─ Dash 실행 단일 경로 + 버퍼 소비
@@ -106,12 +111,8 @@ private:
     
     UFUNCTION() void HandleOverHealChanged(float CurrentOverHeal, float MaxOverHeal);
     
-    void KnockBackTankerDash();
     void UpdateHpUI() const;
     
-    // 탱커 돌진에 맞았을 때 처리
-    UFUNCTION() void OnHitByTankerCharge(AActor* HitPlayer, FVector KnockbackDirection, float KnockbackStrength);
-
     virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser) override;
     
 private:
@@ -204,9 +205,9 @@ protected:
 
     UPROPERTY(EditDefaultsOnly, Category = "Death|Anim")
     UAnimMontage* DeathHammerMontage = nullptr;
-
-    UPROPERTY(EditDefaultsOnly, Category = "|Anim")
-    UAnimMontage* KnockbackMontage = nullptr;
+    
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+    TObjectPtr<UCPlayerKnockbackComponent> KnockbackComponent = nullptr;
     
     UPROPERTY(VisibleInstanceOnly, Category = "State")
     bool bIsDead = false;

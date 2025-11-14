@@ -76,7 +76,8 @@ private:
 	
 	UFUNCTION()
 	void HandleChargeFinished(EChargeEndReason Reason, AActor* HitActor);
-
+	void BindPlayerToChargeDelegate();
+	
 protected:
 	// ───────── 기본 공격 설정(튜닝) ─────────
 	

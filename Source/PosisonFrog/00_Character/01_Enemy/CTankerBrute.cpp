@@ -13,6 +13,7 @@
 #include "05_System/01_Sound/CSoundManagerSubsystem.h"
 #include "05_System/01_Sound//CSoundDataAsset.h"
 #include "00_Character/CMainGameModeBase.h"
+#include "00_Character/00_Player/CPlayerCharacter.h"
 
 namespace TankerBrute
 {
@@ -99,6 +100,7 @@ void ACTankerBrute::BeginPlay()
     
     ApplyPerceptionTuning();
     InitialiseChargeComponent();
+    BindPlayerToChargeDelegate();
 }
 
 void ACTankerBrute::Tick(float DeltaSeconds)
@@ -514,6 +516,8 @@ void ACTankerBrute::HandleChargeFinished(EChargeEndReason Reason, AActor* HitAct
     HandleImmediatePostCharge(Now);
 }
 
+
+
 void ACTankerBrute::SyncAttackTuning()
 {
     AttackInterval = AttackIntervalTanker;
@@ -543,4 +547,40 @@ void ACTankerBrute::CacheSoundsFromDataAsset()
             }
         }
     }
+}
+
+void ACTankerBrute::BindPlayerToChargeDelegate()
+{
+    
+    if (!ChargeComp)
+    {
+        return;
+    }
+
+    UWorld* World = GetWorld();
+    if (!World)
+    {
+        return;
+    }
+    
+    APlayerController* PC = World->GetFirstPlayerController();
+    if (!PC)
+    {
+        return;
+    }
+
+    APawn* PlayerPawn = PC->GetPawn();
+    if (!PlayerPawn)
+    {
+        return;
+    }
+
+    ACPlayerCharacter* Player = Cast<ACPlayerCharacter>(PlayerPawn);
+    if (Player)
+    {
+        ChargeComp->OnPlayerHitByCharge.AddDynamic(Player, &ACPlayerCharacter::OnHitByTankerCharge);
+        UE_LOG(LogTemp, Log, TEXT("[TankerBrute] Successfully bound charge delegate to player"));
+    }
+    
+    
 }

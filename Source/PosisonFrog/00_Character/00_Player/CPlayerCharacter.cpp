@@ -26,6 +26,8 @@
 #include "00_Character/02_Component/00_PlayerComponent/CUltimateBuffComponent.h"
 #include "00_Character/02_Component/00_PlayerComponent/CFuryGaugeComponent.h"
 #include "00_Character/02_Component/00_PlayerComponent/ComboStackComponent.h"
+#include "00_Character/02_Component/00_PlayerComponent/CPlayerKnockbackComponent.h"
+
 #include "01_Widget/CPlayerWidget.h"
 #include "04_Skill/CSkill_CommandLaunchSlam.h"
 #include "04_Skill/CSkill_SpinAttack.h"
@@ -56,6 +58,7 @@ ACPlayerCharacter::ACPlayerCharacter()
     ComboStackComponent = CreateDefaultSubobject<UComboStackComponent>(TEXT("ComboStackComponent"));
     SpinAttackComponent = CreateDefaultSubobject<UCSkill_SpinAttack>(TEXT("SkillSpinAttack"));
     CommandLaunchSlamComponent = CreateDefaultSubobject<UCSkill_CommandLaunchSlam>(TEXT("CommandLaunchSlam"));
+    KnockbackComponent = CreateDefaultSubobject<UCPlayerKnockbackComponent>(TEXT("KnockbackComponent"));
     
     check(DashComponent);
     check(WeaponComponent);
@@ -66,6 +69,7 @@ ACPlayerCharacter::ACPlayerCharacter()
     check(ComboStackComponent);
     check(SpinAttackComponent);
     check(CommandLaunchSlamComponent);
+    check(KnockbackComponent);
 
     SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
     SpringArm->SetupAttachment(RootComponent);
@@ -159,6 +163,7 @@ void ACPlayerCharacter::BeginPlay()
     }
     
     // 탱커 돌진 델리게이트 바인딩
+    /*
     if (UWorld* World = GetWorld())
     {
         TArray<AActor*> FoundTankers;
@@ -174,7 +179,7 @@ void ACPlayerCharacter::BeginPlay()
                 }
             }
         }
-    }
+    }*/
     
     // UI 생성
     if (PlayerWidgetClass)
@@ -214,6 +219,8 @@ void ACPlayerCharacter::PostInitializeComponents()
     checkf(FuryGaugeComponent != nullptr, TEXT("FuryGauge missing"));
     checkf(ComboStackComponent != nullptr, TEXT("ComboStackComponent missing"));
     checkf(SpinAttackComponent != nullptr, TEXT("SkillSpinAttack missing"));
+    checkf(KnockbackComponent != nullptr, TEXT("KnockbackComponent missing"));  // ★ 추가
+
     
     // TransparentCameraComponent 설정 개선
  /*  if (TransparentCameraComponent)
@@ -296,6 +303,11 @@ void ACPlayerCharacter::Move(const FInputActionValue& Value)
     if (bCommandMovementLocked)
     {
         HandleCommandMovementLockChanged(false);
+    }
+
+    if (KnockbackComponent && KnockbackComponent->IsKnockedBack())
+    {
+        return;
     }
     
     const FVector2D Axis = Value.Get<FVector2D>();
@@ -405,6 +417,10 @@ void ACPlayerCharacter::DashStart()
     
     if (CommandLaunchSlamComponent && CommandLaunchSlamComponent->ShouldBlockOtherActions())
         return;
+
+    if (KnockbackComponent && KnockbackComponent->IsKnockedBack())
+        return;
+    
     
     // 컨트롤러에서 바인딩되는 대시 입력 진입점
     const float Now = GetWorld()->GetTimeSeconds();
@@ -532,7 +548,12 @@ void ACPlayerCharacter::HandleHealthChanged(float CurrentHealth, float MaxHealth
 void ACPlayerCharacter::HandleDeath(AActor* DeadActor)
 {
     if (bIsDead) return;
-
+    
+    if (KnockbackComponent)
+    {
+        KnockbackComponent->CancelKnockback();
+    }
+    
     PlayPlayerSound(CachedDeathSound, 1.2f);
 
     bIsDead = true;
@@ -602,41 +623,32 @@ void ACPlayerCharacter::HandleOverHealChanged(float CurrentOverHeal, float MaxOv
     }
 }
 
-void ACPlayerCharacter::KnockBackTankerDash()
-{
-    if (KnockbackMontage)
-    {
-        if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
-        {
-            AnimInstance->Montage_Play(DeathPlayerMontage);
-        }
-    }
-}
 
-void ACPlayerCharacter::OnHitByTankerCharge(AActor* HitPlayer, FVector KnockbackDirection, float KnockbackStrength)
+void ACPlayerCharacter::OnHitByTankerCharge(AActor* HitPlayer, FVector KnockbackDirection, float KnockbackStrength, AActor* Attacker)
 {
     // 자기 자신이 맞은 경우만 처리
     if (HitPlayer != this)
     {
         return;
     }
-    
-    // 넉백 몽타주 재생
-    if (KnockbackMontage)
+
+    if (bIsDead)
     {
-        if (USkeletalMeshComponent* MeshComp = GetMesh())
-        {
-            if (UAnimInstance* AnimInstance = MeshComp->GetAnimInstance())
-            {
-                AnimInstance->Montage_Play(KnockbackMontage, 1.0f);
-            }
-        }
+        return;
     }
+    
+    if (KnockbackComponent)
+    {
+        KnockbackComponent->StartKnockback(Attacker);
+    }
+    
+    // 콤보 리셋
     if (ComboStackComponent)
     {
         ComboStackComponent->OnReset(ECSCResetReason::Reset_BA_Rush);
     }
 }
+
 
 void ACPlayerCharacter::UpdateHpUI() const
 {
@@ -677,6 +689,10 @@ void ACPlayerCharacter::UseUltimate()
 
     if (!ComboStackComponent || !ComboStackComponent->CanCastUlt())
         return;
+
+    if (KnockbackComponent && KnockbackComponent->IsKnockedBack())
+        return;
+    
 
     static const FName PlayerUltId(TEXT("PlayerUlt"));
 
@@ -809,6 +825,10 @@ void ACPlayerCharacter::OnSpinPressed()
 {
     if (CommandLaunchSlamComponent && CommandLaunchSlamComponent->ShouldBlockOtherActions())
         return;
+
+    if (KnockbackComponent && KnockbackComponent->IsKnockedBack())
+        return;
+    
     
     if (SpinAttackComponent)
         SpinAttackComponent->TryStartSpin();
@@ -828,6 +848,10 @@ void ACPlayerCharacter::OnCommandPressed()
 {
     if (SpinAttackComponent && SpinAttackComponent->IsSkillActive())
         return;
+    
+    if (KnockbackComponent && KnockbackComponent->IsKnockedBack())
+        return;
+    
     
     if (CommandLaunchSlamComponent)
     {

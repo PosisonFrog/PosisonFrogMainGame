@@ -38,8 +38,7 @@ enum class EChargeEndReason : uint8
 // 상태 변경/종료 브로드캐스트
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnChargeStateChanged, EChargeState, NewState, EChargeState, PreviousState);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnChargeFinished, EChargeEndReason, Reason, AActor*, HitActor);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnPlayerHitByCharge, AActor*, HitPlayer, FVector, KnockbackDirection, float, KnockbackStrength);
-
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_FourParams(FOnPlayerHitByCharge, AActor*, HitPlayer, FVector, KnockbackDirection, float, KnockbackStrength, AActor*, Attacker); 
 
 /*
  * Behaviour component that drives the tanker's multi-step charge move.
@@ -187,10 +186,10 @@ private:
     float FailedChargeRecoveryDelay = 1.0f;
 
     UPROPERTY(EditDefaultsOnly, Category = "PF|Charge|Hit", meta = (ClampMin = "0"))
-    float PlayerKnockbackStrength = 900.f;
+    float PlayerKnockbackStrength = 2000.f;
     
     UPROPERTY(EditDefaultsOnly, Category = "PF|Charge|Hit")
-    float PlayerKnockbackUp = 120.f;
+    float PlayerKnockbackUp = 260.f;
     
     // ─ Cooldown ─
     UPROPERTY(EditDefaultsOnly, Category = "PF|Charge|Cooldown", meta = (ClampMin = "0"))

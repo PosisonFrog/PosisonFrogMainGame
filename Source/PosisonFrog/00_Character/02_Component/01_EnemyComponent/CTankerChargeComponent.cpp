@@ -629,7 +629,7 @@ void UCTankerChargeComponent::PerformChargeTrace()
                 HitCharacter->LaunchCharacter(LaunchVelocity, /*bXYOverride=*/true, /*bZOverride=*/true);
                 
                 // 플레이어 히트 델리게이트 브로드캐스트
-                OnPlayerHitByCharge.Broadcast(HitCharacter, KnockDirection, PlayerKnockbackStrength);
+                OnPlayerHitByCharge.Broadcast(HitCharacter, KnockDirection, PlayerKnockbackStrength, OwnerChar.Get()); 
             }
         }
     }
