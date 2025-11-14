@@ -6,6 +6,8 @@
 #include "Engine/World.h"
 #include "TimerManager.h"
 #include "DrawDebugHelpers.h"
+#include "Kismet/GameplayStatics.h"
+#include "GameFramework/Character.h"
 #include "00_Character/00_Player/CPlayerCharacter.h"
 #include "00_Character/01_Enemy/CEnemyCharacterBase.h"
 #include "00_Character/01_Enemy/CRiotRobot.h"
@@ -39,8 +41,21 @@ void ACRiotRobotHordeTrigger::BeginPlay()
         if (TriggerBox)
         {
                 TriggerBox->OnComponentBeginOverlap.AddDynamic(this, &ACRiotRobotHordeTrigger::HandleTriggerOverlap);
+                TriggerBox->OnComponentEndOverlap.AddDynamic(this, &ACRiotRobotHordeTrigger::HandleTriggerEndOverlap);
+              
+                if (UWorld* World = GetWorld())
+                {
+                        if (ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(World, 0))
+                        {
+                                if (TriggerBox->IsOverlappingActor(PlayerCharacter))
+                                {
+                                        bPlayerInsideOnBeginPlay = true;
+                                        bPlayerExitedAfterBeginPlay = false;
+                                }
+                        }
+                }
         }
-
+ 
         if (!ensureMsgf(MinSpawnCount <= MaxSpawnCount, TEXT("MinSpawnCount must be <= MaxSpawnCount")))
         {
                 MaxSpawnCount = MinSpawnCount;
@@ -49,6 +64,12 @@ void ACRiotRobotHordeTrigger::BeginPlay()
 
 void ACRiotRobotHordeTrigger::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+        if (TriggerBox)
+        {
+                TriggerBox->OnComponentBeginOverlap.RemoveDynamic(this, &ACRiotRobotHordeTrigger::HandleTriggerOverlap);
+                TriggerBox->OnComponentEndOverlap.RemoveDynamic(this, &ACRiotRobotHordeTrigger::HandleTriggerEndOverlap);
+        }
+
         if (SpawnTimerHandle.IsValid())
         {
                 if (UWorld* World = GetWorld())
@@ -64,6 +85,17 @@ void ACRiotRobotHordeTrigger::EndPlay(const EEndPlayReason::Type EndPlayReason)
 void ACRiotRobotHordeTrigger::HandleTriggerOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
         UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
+        if (OtherActor && OtherActor->IsA(ACPlayerCharacter::StaticClass()))
+        {
+                if (bPlayerInsideOnBeginPlay && !bPlayerExitedAfterBeginPlay)
+                {
+                        return;
+                }
+                        
+                bPlayerInsideOnBeginPlay = false;
+                bPlayerExitedAfterBeginPlay = false;
+        }
+
         if (bHasTriggered && bTriggerOnce)
         {
                 return;
@@ -283,4 +315,18 @@ void ACRiotRobotHordeTrigger::CleanupSpawnedEnemies()
         }
 
         SpawnedEnemies.Empty();
+}
+
+void ACRiotRobotHordeTrigger::HandleTriggerEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
+        UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
+{
+        if (!OtherActor)
+        {
+                return;
+        }
+       
+        if (OtherActor->IsA(ACPlayerCharacter::StaticClass()) && bPlayerInsideOnBeginPlay)
+        {
+                bPlayerExitedAfterBeginPlay = true;
+        }
 }

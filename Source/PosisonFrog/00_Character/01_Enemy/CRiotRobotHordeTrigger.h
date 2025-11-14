@@ -30,6 +30,10 @@ private:
         void HandleTriggerOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
                 UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
 
+        UFUNCTION()
+        void HandleTriggerEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
+        UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
+        
         void StartSpawnSequence();
         void SpawnEnemyBatch();
         void SpawnEnemyAtTransform(const FTransform& SpawnTransform);
@@ -85,6 +89,8 @@ private:
         UPROPERTY(EditAnywhere, Category = "Spawn|Batching")
         bool bAutoStartTimer = true;
 
+        bool bPlayerInsideOnBeginPlay = false;
+        bool bPlayerExitedAfterBeginPlay = false;
         bool bHasTriggered = false;
         int32 TotalToSpawn = 0;
         int32 SpawnedCount = 0;
