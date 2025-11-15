@@ -11,6 +11,7 @@
 #include "00_Character/00_Player/CPlayerCharacter.h"
 #include "00_Character/01_Enemy/CEnemyCharacterBase.h"
 #include "00_Character/01_Enemy/CRiotRobot.h"
+#include "05_System/00_Stage/CEnemySpawnZone.h"
 
 namespace
 {
@@ -140,17 +141,26 @@ void ACRiotRobotHordeTrigger::StartSpawnSequence()
                 return;
         }
 
-        if (SpawnedCount > 0 || PendingSpawnTransforms.Num() > 0)
+        if (SpawnedCount > 0 || PendingSpawnInfos.Num() > 0)
         {
                 return;
         }
 
-        TotalToSpawn = FMath::RandRange(MinSpawnCount, MaxSpawnCount);
+        const bool bUsingSpawnZone = IsValid(LinkedSpawnZone);
+       
+        if (!bUsingSpawnZone)
+        {
+                TotalToSpawn = FMath::RandRange(MinSpawnCount, MaxSpawnCount);
+        }
         SpawnedCount = 0;
 
-        BuildSpawnQueue();
+        if (!BuildSpawnQueue())
+        {
+                UE_LOG(LogTemp, Warning, TEXT("[RiotRobotHordeTrigger] Failed to build spawn queue."));
+                return;
+        }
 
-        if (PendingSpawnTransforms.Num() == 0)
+        if (PendingSpawnInfos.Num() == 0)
         {
                 UE_LOG(LogTemp, Warning, TEXT("[RiotRobotHordeTrigger] No spawn transforms generated."));
                 return;
@@ -158,17 +168,16 @@ void ACRiotRobotHordeTrigger::StartSpawnSequence()
 
         if (InitialImmediateSpawn > 0)
         {
-                const int32 ImmediateCount = FMath::Min(InitialImmediateSpawn, PendingSpawnTransforms.Num());
+                const int32 ImmediateCount = FMath::Min(InitialImmediateSpawn, PendingSpawnInfos.Num());
                 for (int32 Index = 0; Index < ImmediateCount; ++Index)
                 {
-                        SpawnEnemyAtTransform(PendingSpawnTransforms[Index]);
+                        SpawnEnemyFromInfo(PendingSpawnInfos[Index]);
                 }
 
-                PendingSpawnTransforms.RemoveAt(0, ImmediateCount, false);
+                PendingSpawnInfos.RemoveAt(0, ImmediateCount, false);
         }
 
-        if (PendingSpawnTransforms.Num() == 0)
-        {
+        if (PendingSpawnInfos.Num() == 0)        {
                 if (!bTriggerOnce)
                 {
                         bHasTriggered = false;
@@ -184,23 +193,23 @@ void ACRiotRobotHordeTrigger::StartSpawnSequence()
 
 void ACRiotRobotHordeTrigger::SpawnEnemyBatch()
 {
-        if (PendingSpawnTransforms.Num() == 0)
+        if (PendingSpawnInfos.Num() == 0)
         {
                 GetWorldTimerManager().ClearTimer(SpawnTimerHandle);
                 return;
         }
 
         int32 SpawnThisBatch = 0;
-        while (PendingSpawnTransforms.Num() > 0 && SpawnThisBatch < SpawnPerBatch)
+        while (PendingSpawnInfos.Num() > 0 && SpawnThisBatch < SpawnPerBatch)
         {
-                const FTransform SpawnTransform = PendingSpawnTransforms[0];
-                PendingSpawnTransforms.RemoveAt(0, 1, false);
+                const FSpawnTransformInfo SpawnInfo = PendingSpawnInfos[0];
+                PendingSpawnInfos.RemoveAt(0, 1, false);
 
-                SpawnEnemyAtTransform(SpawnTransform);
+ SpawnEnemyFromInfo(SpawnInfo);
                 ++SpawnThisBatch;
         }
 
-        if (PendingSpawnTransforms.Num() == 0)
+        if (PendingSpawnInfos.Num() == 0)
         {
                 GetWorldTimerManager().ClearTimer(SpawnTimerHandle);
 
@@ -211,9 +220,15 @@ void ACRiotRobotHordeTrigger::SpawnEnemyBatch()
         }
 }
 
-void ACRiotRobotHordeTrigger::SpawnEnemyAtTransform(const FTransform& SpawnTransform)
+void ACRiotRobotHordeTrigger::SpawnEnemyFromInfo(const FSpawnTransformInfo& SpawnInfo)
 {
-        if (!RiotRobotClass)
+        TSubclassOf<ACEnemyCharacterBase> EnemyClass = SpawnInfo.EnemyClass;
+        if (!EnemyClass)
+        {
+                EnemyClass = RiotRobotClass;
+        }
+
+        if (!EnemyClass)
         {
                 return;
         }
@@ -227,7 +242,7 @@ void ACRiotRobotHordeTrigger::SpawnEnemyAtTransform(const FTransform& SpawnTrans
         FActorSpawnParameters SpawnParams;
         SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
-        ACEnemyCharacterBase* SpawnedEnemy = World->SpawnActor<ACEnemyCharacterBase>(RiotRobotClass, SpawnTransform, SpawnParams);
+      ACEnemyCharacterBase* SpawnedEnemy = World->SpawnActor<ACEnemyCharacterBase>(EnemyClass, SpawnInfo.Transform, SpawnParams);
         if (SpawnedEnemy)
         {
                 ++SpawnedCount;
@@ -239,23 +254,63 @@ void ACRiotRobotHordeTrigger::SpawnEnemyAtTransform(const FTransform& SpawnTrans
         }
 }
 
-void ACRiotRobotHordeTrigger::BuildSpawnQueue()
+bool ACRiotRobotHordeTrigger::BuildSpawnQueue()
 {
-        PendingSpawnTransforms.Reset();
-
+        PendingSpawnInfos.Reset();
+        
         const FVector Origin = GetActorLocation();
-        const int32 CountToBuild = TotalToSpawn;
-
-        for (int32 Index = 0; Index < CountToBuild; ++Index)
+        if (IsValid(LinkedSpawnZone))
         {
-                FTransform SpawnTransform = CreateSpawnTransform(Origin);
-                PendingSpawnTransforms.Add(SpawnTransform);
+                TArray<FSpawnTransformInfo> ZoneSpawns = LinkedSpawnZone->GenerateSpawnTransforms();
+            
+                if (ZoneSpawns.Num() == 0)
+                {
+                        return false;
+                }
+                if (bShuffleZoneSpawns)
+                {
+                        for (int32 Index = 0; Index < ZoneSpawns.Num() - 1; ++Index)
+                        {
+                                const int32 SwapIndex = FMath::RandRange(Index, ZoneSpawns.Num() - 1);
+                                if (SwapIndex != Index)
+                                {
+                                        ZoneSpawns.Swap(Index, SwapIndex);
+                                }
+                        }
+                }
+          
+                if (ZoneSpawnLimit > 0 && ZoneSpawns.Num() > ZoneSpawnLimit)
+                {
+                        ZoneSpawns.SetNum(ZoneSpawnLimit);
+                }
+             
+                for (FSpawnTransformInfo& SpawnInfo : ZoneSpawns)
+                {
+                        if (!bUseSpawnZoneEnemyTypes || !SpawnInfo.EnemyClass)
+                        {
+                                SpawnInfo.EnemyClass = RiotRobotClass;
+                        }
+                }
+            
+                TotalToSpawn = ZoneSpawns.Num();
+                PendingSpawnInfos = MoveTemp(ZoneSpawns);
         }
-
-        if (bDebugDrawSpawnArea)
+        else
         {
-                DrawDebugSphere(GetWorld(), Origin, SpawnRadius, 24, FColor::Red, false, 5.0f, 0, 2.0f);
+                const int32 CountToBuild = TotalToSpawn;
+             
+                for (int32 Index = 0; Index < CountToBuild; ++Index)
+                {
+                        FTransform SpawnTransform = CreateSpawnTransform(Origin);
+                        PendingSpawnInfos.Add(FSpawnTransformInfo(SpawnTransform, RiotRobotClass));
+                }
+               
+                if (bDebugDrawSpawnArea)
+                {
+                        DrawDebugSphere(GetWorld(), Origin, SpawnRadius, 24, FColor::Red, false, 5.0f, 0, 2.0f);
+                }
         }
+        return PendingSpawnInfos.Num() > 0;
 }
 
 FTransform ACRiotRobotHordeTrigger::CreateSpawnTransform(const FVector& BaseLocation) const

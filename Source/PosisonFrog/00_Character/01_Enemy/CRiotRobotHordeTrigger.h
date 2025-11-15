@@ -3,6 +3,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "05_System/00_Stage/CEnemySpawnZone.h"
 #include "CRiotRobotHordeTrigger.generated.h"
 
 class UBoxComponent;
@@ -36,10 +37,10 @@ private:
         
         void StartSpawnSequence();
         void SpawnEnemyBatch();
-        void SpawnEnemyAtTransform(const FTransform& SpawnTransform);
+        void SpawnEnemyFromInfo(const FSpawnTransformInfo& SpawnInfo);
         void CleanupSpawnedEnemies();
 
-        void BuildSpawnQueue();
+        bool BuildSpawnQueue();
         FTransform CreateSpawnTransform(const FVector& BaseLocation) const;
         bool TraceToGround(FVector& Location) const;
 
@@ -53,6 +54,19 @@ private:
         UPROPERTY(EditAnywhere, Category = "Trigger")
         bool bDebugDrawSpawnArea = false;
 
+        UPROPERTY(EditAnywhere, Category = "Spawn|Zone")
+        TObjectPtr<ACEnemySpawnZone> LinkedSpawnZone;
+        
+        UPROPERTY(EditAnywhere, Category = "Spawn|Zone", meta = (EditCondition = "LinkedSpawnZone != nullptr"))
+        bool bUseSpawnZoneEnemyTypes = false;
+      
+        UPROPERTY(EditAnywhere, Category = "Spawn|Zone", meta = (EditCondition = "LinkedSpawnZone != nullptr"))
+        bool bShuffleZoneSpawns = true;
+       
+        UPROPERTY(EditAnywhere, Category = "Spawn|Zone", meta = (EditCondition = "LinkedSpawnZone != nullptr", ClampMin = "0"))
+        int32 ZoneSpawnLimit = 0;
+
+        
         UPROPERTY(EditAnywhere, Category = "Spawn")
         TSubclassOf<ACEnemyCharacterBase> RiotRobotClass;
 
@@ -95,7 +109,7 @@ private:
         int32 TotalToSpawn = 0;
         int32 SpawnedCount = 0;
 
-        TArray<FTransform> PendingSpawnTransforms;
+        TArray<FSpawnTransformInfo> PendingSpawnInfos;
         TArray<TWeakObjectPtr<ACEnemyCharacterBase>> SpawnedEnemies;
 
         FTimerHandle SpawnTimerHandle;
