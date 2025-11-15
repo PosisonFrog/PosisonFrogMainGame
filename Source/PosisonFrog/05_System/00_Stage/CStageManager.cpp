@@ -15,7 +15,7 @@
 #include "99_Util/CLog.h"
 #include "Kismet/GameplayStatics.h"
 #include "Navigation/PathFollowingComponent.h"
-
+#include "TimerManager.h"
 
 ACStageManager::ACStageManager()
 {
@@ -578,25 +578,39 @@ void ACStageManager::ActivatePreloadedStage(int32 StageID)
 			AI->UnPossess();
 			AI->Possess(Enemy);
 		}
+		
 		else
 		{
 			if (UWorld* World = Enemy->GetWorld())
 				Enemy->SpawnDefaultController();
 		}
-
+		
 		if (UCBaseHealthComponent* HealthComp = Enemy->FindComponentByClass<UCBaseHealthComponent>())
 		{
 			HealthComp->OnDeath.AddDynamic(this, &ACStageManager::OnEnemyDied);
 		}
+		if (UWorld* World = Enemy->GetWorld())
+		{
+			TWeakObjectPtr<ACEnemyCharacterBase> WeakEnemy = Enemy;
+			World->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateLambda([WeakEnemy]()
+			{
+					if (WeakEnemy.IsValid())
+					{
+							WeakEnemy->OnRespawned();
+					}
+			}));
+		}
+		else
+		{
+			Enemy->OnRespawned();
+		}
 		EnemyArray.Add(Enemy);
 		ActivatedCount++;
 	}
-
 	PreloadedEnemies.Remove(StageID);
 	PreloadedStages.Remove(StageID);
 	CurrentStage = StageID;
 }
-
 
 void ACStageManager::OnStageComplete(int32 StageID)
 {
@@ -877,6 +891,22 @@ void ACStageManager::ResetEnemy(ACEnemyCharacterBase* Enemy)
 
 	Enemy->SetActorHiddenInGame(false);
 	Enemy->SetActorTickEnabled(true);
+
+	if (UWorld* World = Enemy->GetWorld())
+	{
+		TWeakObjectPtr<ACEnemyCharacterBase> WeakEnemy = Enemy;
+		World->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateLambda([WeakEnemy]()
+		{
+				if (WeakEnemy.IsValid())
+				{
+						WeakEnemy->OnRespawned();
+				}
+	   }));
+	}
+	else
+	{
+		Enemy->OnRespawned();
+	}
 }
 
 bool ACStageManager::IsSpawnInProgress() const
