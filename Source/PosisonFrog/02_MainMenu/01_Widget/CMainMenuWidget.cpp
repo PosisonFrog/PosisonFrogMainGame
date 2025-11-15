@@ -11,6 +11,10 @@
 #include "Engine/AssetManager.h"
 #include "Engine/StreamableManager.h"
 
+#include "MediaPlayer.h"
+#include "MediaSource.h"
+#include "MediaTexture.h"
+
 #ifndef WITH_NIAGARA
 #define WITH_NIAGARA 0
 #endif
@@ -39,6 +43,21 @@ void UCMainMenuWidget::NativeConstruct()
 
     // 메인 레벨을 미리 로딩해 두어 컷신 재생 중 빠르게 진입할 수 있도록 한다.
     BeginPreloadStartLevel();
+
+    // 글리치 영상 Image는 처음에 숨김
+    if (CutsceneImage)
+    {
+        CutsceneImage->SetVisibility(ESlateVisibility::Collapsed);
+    }
+    
+    // Media Player 이벤트 바인딩
+    if (GlitchMediaPlayer)
+    {
+        // 기존 바인딩 제거 (중복 방지)
+        GlitchMediaPlayer->OnEndReached.RemoveAll(this);
+        // 영상 종료 이벤트 바인딩
+        GlitchMediaPlayer->OnEndReached.AddDynamic(this, &UCMainMenuWidget::OnGlitchCutsceneFinished);
+    }
     
     // --- 중복 바인딩 방지 후 바인딩 ---
     if (MainMenu_StartButton)
@@ -91,6 +110,12 @@ void UCMainMenuWidget::NativeDestruct()
     {
         W->GetTimerManager().ClearTimer(InputUnlockTimer);
     }
+
+    if (GlitchMediaPlayer)
+    {
+        GlitchMediaPlayer->Close();
+        GlitchMediaPlayer->OnEndReached.RemoveAll(this);
+    }
     
     if (StartLevelStreamHandle.IsValid())
     {
@@ -114,12 +139,18 @@ void UCMainMenuWidget::OnStartClicked()
     if (Anim_Click) PlayAnimation(Anim_Click, 0.08f, 1, EUMGSequencePlayMode::Forward, 1.0f);
 
     // (선택) 페이드아웃 연출
-    if (Anim_FadeOut) PlayAnimation(Anim_FadeOut);
+    if (!bWaitForCutsceneBeforeTravel && Anim_FadeOut)
+        PlayAnimation(Anim_FadeOut);
 
     bTravelRequested = true;
     bCutsceneFinished = !bWaitForCutsceneBeforeTravel;
     
     BeginPreloadStartLevel();
+
+    if (bWaitForCutsceneBeforeTravel)
+    {
+        PlayGlitchCutscene();
+    }
     
     // Blueprint에서 컷신을 재생할 수 있도록 이벤트를 호출한다.
     BP_OnStartGameRequested();
@@ -219,6 +250,70 @@ void UCMainMenuWidget::OnExitButtonUnhovered()
 {
     if (MainMenu_ExitArrow)
         MainMenu_ExitArrow->SetVisibility(ESlateVisibility::Hidden);
+}
+
+void UCMainMenuWidget::PlayGlitchCutscene()
+{
+    if (!GlitchMediaPlayer || !GlitchMediaSource || !GlitchMediaTexture || !CutsceneImage)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("UCMainMenuWidget::PlayGlitchCutscene - Missing media assets! Skipping cutscene."));
+        // 필수 에셋이 없으면 즉시 종료 처리
+        OnGlitchCutsceneFinished();
+        return;
+    }
+    
+    bIsPlayingCutscene = true;
+    
+    // 메인 메뉴 버튼들 숨기기
+    SetMainPanelVisible(false);
+    
+    // 컷신 Image 표시
+    CutsceneImage->SetVisibility(ESlateVisibility::Visible);
+    CutsceneImage->SetRenderOpacity(1.0f);
+    
+    // Media Texture를 Image 위젯에 설정
+    FSlateBrush Brush;
+    Brush.SetResourceObject(GlitchMediaTexture);
+    Brush.ImageSize = CutsceneResolution;
+    Brush.DrawAs = ESlateBrushDrawType::Image;
+    Brush.Tiling = ESlateBrushTileType::NoTile;
+    CutsceneImage->SetBrush(Brush);
+    
+    // Media Player로 영상 재생
+    if (GlitchMediaPlayer->OpenSource(GlitchMediaSource))
+    {
+        GlitchMediaPlayer->Play();
+        UE_LOG(LogTemp, Log, TEXT("UCMainMenuWidget::PlayGlitchCutscene - 컷신 플레이"));
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("UCMainMenuWidget::PlayGlitchCutscene - 미디어 소스 재생 실패"));
+        OnGlitchCutsceneFinished();
+    }
+}
+
+void UCMainMenuWidget::OnGlitchCutsceneFinished()
+{
+    if (!bIsPlayingCutscene) return;
+    
+    UE_LOG(LogTemp, Log, TEXT("UCMainMenuWidget::OnGlitchCutsceneFinished - 컷신 종료됨"));
+    
+    bIsPlayingCutscene = false;
+    
+    // 영상 정지
+    if (GlitchMediaPlayer)
+    {
+        GlitchMediaPlayer->Close();
+    }
+    
+    // 컷신 Image 숨기기
+    if (CutsceneImage)
+    {
+        CutsceneImage->SetVisibility(ESlateVisibility::Collapsed);
+    }
+    
+    // 레벨 전환 시도
+    NotifyCutsceneFinished();
 }
 
 void UCMainMenuWidget::PlayUISound(USoundBase* SFX)

@@ -14,6 +14,9 @@ class USoundBase;
 class UNiagaraSystem;
 class UOptionsMenuWidget;
 class UWorld;
+class UMediaPlayer;
+class UMediaSource;
+class UMediaTexture;
 
 /**
  * 메인 메뉴 UMG 위젯 (Start / Settings / Exit)
@@ -26,7 +29,7 @@ class POSISONFROG_API UCMainMenuWidget : public UUserWidget
 protected:
     virtual void NativeConstruct() override;
     virtual void NativeDestruct() override;
-
+    
     // ─────────────────────────────
     // UI 바인딩 (디자이너에 놓인 위젯들)
     // ─────────────────────────────
@@ -69,6 +72,42 @@ protected:
     UFUNCTION() void OnExitButtonHovered();
     UFUNCTION() void OnExitButtonUnhovered();
 
+    
+    // ─────────────────────────────
+    // 글리치 컷신 재생
+    // ─────────────────────────────
+protected:
+    // 글리치 영상을 표시할 Image
+    UPROPERTY(meta = (BindWidgetOptional), BlueprintReadOnly, Category = "Cutscene")
+    TObjectPtr<UImage> CutsceneImage;
+    
+    // Media Player
+    UPROPERTY(EditDefaultsOnly, Category = "Cutscene")
+    TObjectPtr<UMediaPlayer> GlitchMediaPlayer;
+    
+    // Media Source
+    UPROPERTY(EditDefaultsOnly, Category = "Cutscene")
+    TObjectPtr<UMediaSource> GlitchMediaSource;
+    
+    // Media Texture
+    UPROPERTY(EditDefaultsOnly, Category = "Cutscene")
+    TObjectPtr<UMediaTexture> GlitchMediaTexture;
+    
+    // 컷신 영상의 해상도
+    UPROPERTY(EditDefaultsOnly, Category = "Cutscene")
+    FVector2D CutsceneResolution = FVector2D(1920, 1080);
+    
+    // 글리치 영상 재생
+    UFUNCTION()
+    void PlayGlitchCutscene();
+    
+    // 영상 종료 콜백
+    UFUNCTION()
+    void OnGlitchCutsceneFinished();
+    
+    // 영상 재생 중 여부
+    bool bIsPlayingCutscene = false;
+    
     // ─────────────────────────────
     // 애니메이션 (이름 일치 필요)
     // ─────────────────────────────

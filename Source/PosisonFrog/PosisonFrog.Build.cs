@@ -28,7 +28,9 @@ public class PosisonFrog : ModuleRules
             "SlateCore",
             "RHI",
             "RenderCore",
-            "SkillBorderFx"
+            "SkillBorderFx",
+            "MediaAssets",
+            "Media"
 		});
 		
 		PrivateDependencyModuleNames.AddRange(new string[] 
@@ -36,7 +38,8 @@ public class PosisonFrog : ModuleRules
 			"Slate", 
 			"SlateCore",   
 			"UMG",
-			"ToolMenus", "GameplayCameras"
+			"ToolMenus",
+			"GameplayCameras",
 		});
 	}
 }
