@@ -141,6 +141,14 @@ void UComboStackComponent::OnUltEnded(FName UltId)
     ResetInternal(true, true);
 }
 
+void UComboStackComponent::ForceUltReady()
+{
+    const int32 TargetCSC = GetMaxCSCForRank(EComboRank::S);
+    SetRank(EComboRank::S, true);
+    SetCSC(TargetCSC, true, true);
+    SetUltState(EUltState::Ready);
+}
+
 void UComboStackComponent::RefreshConfigFromTable()
 {
     if (!ConfigTable)
