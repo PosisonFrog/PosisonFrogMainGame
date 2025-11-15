@@ -7,6 +7,13 @@
 #include "Blueprint/WidgetBlueprintLibrary.h"
 #include "Engine/World.h"
 #include "TimerManager.h"
+#include "Components/Image.h"
+#include "Engine/AssetManager.h"
+#include "Engine/StreamableManager.h"
+
+#include "MediaPlayer.h"
+#include "MediaSource.h"
+#include "MediaTexture.h"
 
 #ifndef WITH_NIAGARA
 #define WITH_NIAGARA 0
@@ -16,10 +23,42 @@
 #include "NiagaraFunctionLibrary.h"
 #endif
 
+namespace
+{
+    FStreamableManager& GetMenuStreamableManager()
+    {
+        if (UAssetManager* AssetManager = UAssetManager::GetIfValid())
+        {
+            return AssetManager->GetStreamableManager();
+        }
+        
+        static FStreamableManager StaticStreamableManager;
+        return StaticStreamableManager;
+    }
+}
+
 void UCMainMenuWidget::NativeConstruct()
 {
     Super::NativeConstruct();
 
+    // 메인 레벨을 미리 로딩해 두어 컷신 재생 중 빠르게 진입할 수 있도록 한다.
+    BeginPreloadStartLevel();
+
+    // 글리치 영상 Image는 처음에 숨김
+    if (CutsceneImage)
+    {
+        CutsceneImage->SetVisibility(ESlateVisibility::Collapsed);
+    }
+    
+    // Media Player 이벤트 바인딩
+    if (GlitchMediaPlayer)
+    {
+        // 기존 바인딩 제거 (중복 방지)
+        GlitchMediaPlayer->OnEndReached.RemoveAll(this);
+        // 영상 종료 이벤트 바인딩
+        GlitchMediaPlayer->OnEndReached.AddDynamic(this, &UCMainMenuWidget::OnGlitchCutsceneFinished);
+    }
+    
     // --- 중복 바인딩 방지 후 바인딩 ---
     if (MainMenu_StartButton)
     {
@@ -27,10 +66,13 @@ void UCMainMenuWidget::NativeConstruct()
         MainMenu_StartButton->OnPressed.RemoveAll(this);
         MainMenu_StartButton->OnClicked.RemoveAll(this);
 
-        MainMenu_StartButton->OnHovered.AddDynamic(this, &UCMainMenuWidget::OnAnyButtonHovered);
+        MainMenu_StartButton->OnHovered.AddDynamic(this, &UCMainMenuWidget::OnStartButtonHovered);
+        MainMenu_StartButton->OnUnhovered.AddDynamic(this, &UCMainMenuWidget::OnStartButtonUnhovered);
         MainMenu_StartButton->OnPressed.AddDynamic(this, &UCMainMenuWidget::OnAnyButtonPressed);
         MainMenu_StartButton->OnClicked.AddDynamic(this, &UCMainMenuWidget::OnStartClicked);
     }
+    if (MainMenu_StartArrow)
+        MainMenu_StartArrow->SetVisibility(ESlateVisibility::Hidden);
 
     if (MainMenu_SettingButton)
     {
@@ -38,10 +80,13 @@ void UCMainMenuWidget::NativeConstruct()
         MainMenu_SettingButton->OnPressed.RemoveAll(this);
         MainMenu_SettingButton->OnClicked.RemoveAll(this);
 
-        MainMenu_SettingButton->OnHovered.AddDynamic(this, &UCMainMenuWidget::OnAnyButtonHovered);
+        MainMenu_SettingButton->OnHovered.AddDynamic(this, &UCMainMenuWidget::OnSettingButtonHovered);
+        MainMenu_SettingButton->OnUnhovered.AddDynamic(this, &UCMainMenuWidget::OnSettingButtonUnhovered);
         MainMenu_SettingButton->OnPressed.AddDynamic(this, &UCMainMenuWidget::OnAnyButtonPressed);
         MainMenu_SettingButton->OnClicked.AddDynamic(this, &UCMainMenuWidget::OnSettingClicked);
     }
+    if (MainMenu_SettingArrow)
+        MainMenu_SettingArrow->SetVisibility(ESlateVisibility::Hidden);
 
     if (MainMenu_ExitButton)
     {
@@ -49,10 +94,13 @@ void UCMainMenuWidget::NativeConstruct()
         MainMenu_ExitButton->OnPressed.RemoveAll(this);
         MainMenu_ExitButton->OnClicked.RemoveAll(this);
 
-        MainMenu_ExitButton->OnHovered.AddDynamic(this, &UCMainMenuWidget::OnAnyButtonHovered);
+        MainMenu_ExitButton->OnHovered.AddDynamic(this, &UCMainMenuWidget::OnExitButtonHovered);
+        MainMenu_ExitButton->OnUnhovered.AddDynamic(this, &UCMainMenuWidget::OnExitButtonUnhovered);
         MainMenu_ExitButton->OnPressed.AddDynamic(this, &UCMainMenuWidget::OnAnyButtonPressed);
         MainMenu_ExitButton->OnClicked.AddDynamic(this, &UCMainMenuWidget::OnExitClicked);
     }
+    if (MainMenu_ExitArrow)
+        MainMenu_ExitArrow->SetVisibility(ESlateVisibility::Hidden);
 }
 
 void UCMainMenuWidget::NativeDestruct()
@@ -63,6 +111,18 @@ void UCMainMenuWidget::NativeDestruct()
         W->GetTimerManager().ClearTimer(InputUnlockTimer);
     }
 
+    if (GlitchMediaPlayer)
+    {
+        GlitchMediaPlayer->Close();
+        GlitchMediaPlayer->OnEndReached.RemoveAll(this);
+    }
+    
+    if (StartLevelStreamHandle.IsValid())
+    {
+        StartLevelStreamHandle->ReleaseHandle();
+        StartLevelStreamHandle.Reset();
+    }
+    
     Super::NativeDestruct();
 }
 
@@ -79,13 +139,24 @@ void UCMainMenuWidget::OnStartClicked()
     if (Anim_Click) PlayAnimation(Anim_Click, 0.08f, 1, EUMGSequencePlayMode::Forward, 1.0f);
 
     // (선택) 페이드아웃 연출
-    if (Anim_FadeOut) PlayAnimation(Anim_FadeOut);
+    if (!bWaitForCutsceneBeforeTravel && Anim_FadeOut)
+        PlayAnimation(Anim_FadeOut);
 
-    if (!StartLevelName.IsNone())
+    bTravelRequested = true;
+    bCutsceneFinished = !bWaitForCutsceneBeforeTravel;
+    
+    BeginPreloadStartLevel();
+
+    if (bWaitForCutsceneBeforeTravel)
     {
-        // 레벨 로드
-        UGameplayStatics::OpenLevel(this, StartLevelName, true);
+        PlayGlitchCutscene();
     }
+    
+    // Blueprint에서 컷신을 재생할 수 있도록 이벤트를 호출한다.
+    BP_OnStartGameRequested();
+    
+    // 컷신이 없거나 이미 종료되었다면 즉시 전환을 시도한다.
+    TryTravelToStartLevel();
 }
 
 void UCMainMenuWidget::OnSettingClicked()
@@ -128,13 +199,6 @@ void UCMainMenuWidget::OnExitClicked()
 /* ─────────────────────────────
  * 공통 연출 / SFX / VFX
  * ───────────────────────────── */
-
-void UCMainMenuWidget::OnAnyButtonHovered()
-{
-    if (Anim_Hover) PlayAnimation(Anim_Hover);
-    PlayUISound(SFX_Hover);
-}
-
 void UCMainMenuWidget::OnAnyButtonPressed()
 {
     // 필요 시 프레스 전용 짧은 연출만 (클릭 연출은 OnClicked에서)
@@ -147,6 +211,109 @@ void UCMainMenuWidget::OnAnyButtonPressed()
             SpawnClickVFX(FVector2D(MX, MY));
         }
     }
+}
+
+// Start 버튼 호버
+void UCMainMenuWidget::OnStartButtonHovered()
+{
+    if (MainMenu_StartArrow)
+        MainMenu_StartArrow->SetVisibility(ESlateVisibility::Visible);
+}
+
+void UCMainMenuWidget::OnStartButtonUnhovered()
+{
+    if (MainMenu_StartArrow)
+        MainMenu_StartArrow->SetVisibility(ESlateVisibility::Hidden);
+}
+
+// Setting 버튼 호버
+void UCMainMenuWidget::OnSettingButtonHovered()
+{
+    if (MainMenu_SettingArrow)
+        MainMenu_SettingArrow->SetVisibility(ESlateVisibility::Visible);
+}
+
+void UCMainMenuWidget::OnSettingButtonUnhovered()
+{
+    if (MainMenu_SettingArrow)
+        MainMenu_SettingArrow->SetVisibility(ESlateVisibility::Hidden);
+}
+
+// Exit 버튼 호버
+void UCMainMenuWidget::OnExitButtonHovered()
+{
+    if (MainMenu_ExitArrow)
+        MainMenu_ExitArrow->SetVisibility(ESlateVisibility::Visible);
+}
+
+void UCMainMenuWidget::OnExitButtonUnhovered()
+{
+    if (MainMenu_ExitArrow)
+        MainMenu_ExitArrow->SetVisibility(ESlateVisibility::Hidden);
+}
+
+void UCMainMenuWidget::PlayGlitchCutscene()
+{
+    if (!GlitchMediaPlayer || !GlitchMediaSource || !GlitchMediaTexture || !CutsceneImage)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("UCMainMenuWidget::PlayGlitchCutscene - Missing media assets! Skipping cutscene."));
+        // 필수 에셋이 없으면 즉시 종료 처리
+        OnGlitchCutsceneFinished();
+        return;
+    }
+    
+    bIsPlayingCutscene = true;
+    
+    // 메인 메뉴 버튼들 숨기기
+    SetMainPanelVisible(false);
+    
+    // 컷신 Image 표시
+    CutsceneImage->SetVisibility(ESlateVisibility::Visible);
+    CutsceneImage->SetRenderOpacity(1.0f);
+    
+    // Media Texture를 Image 위젯에 설정
+    FSlateBrush Brush;
+    Brush.SetResourceObject(GlitchMediaTexture);
+    Brush.ImageSize = CutsceneResolution;
+    Brush.DrawAs = ESlateBrushDrawType::Image;
+    Brush.Tiling = ESlateBrushTileType::NoTile;
+    CutsceneImage->SetBrush(Brush);
+    
+    // Media Player로 영상 재생
+    if (GlitchMediaPlayer->OpenSource(GlitchMediaSource))
+    {
+        GlitchMediaPlayer->Play();
+        UE_LOG(LogTemp, Log, TEXT("UCMainMenuWidget::PlayGlitchCutscene - 컷신 플레이"));
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("UCMainMenuWidget::PlayGlitchCutscene - 미디어 소스 재생 실패"));
+        OnGlitchCutsceneFinished();
+    }
+}
+
+void UCMainMenuWidget::OnGlitchCutsceneFinished()
+{
+    if (!bIsPlayingCutscene) return;
+    
+    UE_LOG(LogTemp, Log, TEXT("UCMainMenuWidget::OnGlitchCutsceneFinished - 컷신 종료됨"));
+    
+    bIsPlayingCutscene = false;
+    
+    // 영상 정지
+    if (GlitchMediaPlayer)
+    {
+        GlitchMediaPlayer->Close();
+    }
+    
+    // 컷신 Image 숨기기
+    if (CutsceneImage)
+    {
+        CutsceneImage->SetVisibility(ESlateVisibility::Collapsed);
+    }
+    
+    // 레벨 전환 시도
+    NotifyCutsceneFinished();
 }
 
 void UCMainMenuWidget::PlayUISound(USoundBase* SFX)
@@ -194,6 +361,85 @@ void UCMainMenuWidget::SetMainPanelVisible(bool bVisible)
     {
         MainRootPanel->SetVisibility(bVisible ? ESlateVisibility::SelfHitTestInvisible
             : ESlateVisibility::Collapsed);
+    }
+}
+
+void UCMainMenuWidget::BeginPreloadStartLevel()
+{
+    if (StartLevelAsset.IsNull())
+    {
+        bLevelPreloaded = true;
+        return;
+    }
+    
+    if (StartLevelAsset.IsValid())
+    {
+        bLevelPreloaded = true;
+        return;
+    }
+    
+    if (StartLevelStreamHandle.IsValid())
+    {
+        if (StartLevelStreamHandle->HasLoadCompleted())
+        {
+            bLevelPreloaded = true;
+            TryTravelToStartLevel();
+        }
+        return;
+    }
+    
+    StartLevelStreamHandle = GetMenuStreamableManager().RequestAsyncLoad(
+        StartLevelAsset.ToSoftObjectPath(),
+        FStreamableDelegate::CreateUObject(this, &UCMainMenuWidget::OnStartLevelPreloadCompleted),
+        FStreamableManager::AsyncLoadHighPriority);
+    
+    if (!StartLevelStreamHandle.IsValid())
+    {
+        // 로드 요청이 실패한 경우 즉시 전환할 수 있도록 true 처리
+        bLevelPreloaded = true;
+    }
+}
+
+void UCMainMenuWidget::OnStartLevelPreloadCompleted()
+{
+    bLevelPreloaded = true;
+    TryTravelToStartLevel();
+}
+
+void UCMainMenuWidget::NotifyCutsceneFinished()
+{
+    bCutsceneFinished = true;
+    TryTravelToStartLevel();
+}
+
+void UCMainMenuWidget::TryTravelToStartLevel()
+{
+    if (!bTravelRequested || !bCutsceneFinished || !bLevelPreloaded)
+    {
+        return;
+    }
+    
+    bTravelRequested = false;
+    
+    if (StartLevelStreamHandle.IsValid())
+    {
+        StartLevelStreamHandle->ReleaseHandle();
+        StartLevelStreamHandle.Reset();
+    }
+    
+    if (StartLevelAsset.IsValid())
+    {
+        const FString LevelPackageName = StartLevelAsset.GetLongPackageName();
+        if (!LevelPackageName.IsEmpty())
+        {
+            UGameplayStatics::OpenLevel(this, FName(*LevelPackageName), true);
+            return;
+        }
+    }
+    
+    if (!StartLevelName.IsNone())
+    {
+        UGameplayStatics::OpenLevel(this, StartLevelName, true);
     }
 }
 
