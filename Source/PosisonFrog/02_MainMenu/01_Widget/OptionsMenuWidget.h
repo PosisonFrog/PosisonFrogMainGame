@@ -131,7 +131,7 @@ protected:
     UPROPERTY() UInputMappingContext* RuntimeMapping = nullptr;
     UPROPERTY() UInputMappingContext* RuntimeGamepadMapping = nullptr;
     
-       /** 런타임 추가 시 사용할 우선순위 */
+    /** 런타임 추가 시 사용할 우선순위 */
     UPROPERTY(EditDefaultsOnly, Category = "Input|Rebind") int32 BaseMappingPriority = 0;
     UPROPERTY(EditDefaultsOnly, Category = "Input|Rebind") int32 GamepadMappingPriority = 1;
 
