@@ -936,6 +936,13 @@ void ACStageManager::HandleEnemySpawnedFromDirector(ACEnemyCharacterBase* Enemy,
 
 	if (bWasExistingActor)
 	{
+		// 기존에 존재하던 적은 사망 등으로 인해 이동 컴포넌트가 비활성화되거나
+		// 상태가 Dead로 남아 있을 수 있다. (사망 시 Movement 비활성화 등)
+		// 예산으로 인해 대기 상태였다가 다시 활성화될 때 이러한 상태가 유지되면
+		// AI가 다시 움직이지 못하는 문제가 발생하므로 재활성화 전에
+		// 적의 상태를 완전히 초기화한다.
+		Enemy->ResetForRespawn();
+			
 		Enemy->SetActorHiddenInGame(false);
 		Enemy->SetActorEnableCollision(true);
 		Enemy->SetActorTickEnabled(true);
