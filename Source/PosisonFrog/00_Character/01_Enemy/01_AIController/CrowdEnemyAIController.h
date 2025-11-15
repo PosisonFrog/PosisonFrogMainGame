@@ -25,6 +25,9 @@ class POSISONFROG_API ACrowdEnemyAIController : public AAIController
 public:
     ACrowdEnemyAIController(const FObjectInitializer& ObjectInitializer);
 
+    /** 컨트롤러가 다시 Possess할 때 CrowdFollowingComponent 설정을 다시 적용합니다. */
+    void ReinitializeCrowdComponent();
+
 protected:
     /**
      * Pawn에 빙의될 때 CrowdFollowingComponent의 품질 설정을 적용합니다.

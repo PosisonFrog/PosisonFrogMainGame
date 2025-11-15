@@ -208,26 +208,22 @@ void ACEnemyCharacterBase::HandlePlayerRespawned(ACPlayerCharacter* NewPlayer)
 	{
 		return;
 	}
-	
-	Target = nullptr;
-	AcquireTarget();
+
+	ResetForRespawn();
+	ForceRestartAI();
+	OnRespawned();
+
+	Target = NewPlayer;
 	NextThinkTime = 0.f;
-	
-	if (UWorld* World = GetWorld())
+
+	if (GetWorld())
 	{
-		LastSeenTime = World->GetTimeSeconds();
+		LastSeenTime = GetWorld()->GetTimeSeconds();
 	}
 	
-	if (Target)
+	if (State == EEnemyState::Patrol || State == EEnemyState::Alert || State == EEnemyState::ReturnHome)
 	{
-		if (State == EEnemyState::Patrol || State == EEnemyState::Alert || State == EEnemyState::ReturnHome)
-		{
-			SetState(EEnemyState::Chase);
-		}
-		else if (State == EEnemyState::Attack)
-		{
-			ReengageChase(0.f);
-		}
+		SetState(EEnemyState::Chase);
 	}
 }
 
@@ -391,7 +387,24 @@ void ACEnemyCharacterBase::DoChase()
 
 	const float Dist = DistToTarget();
 
-
+	if (Dist >= ChaseStopDistance || (!HasVisualOnTarget() && GetWorld()->GetTimeSeconds() - LastSeenTime >= LoseSightGrace))
+	{
+		SetState(EEnemyState::ReturnHome);
+		return;
+	}
+	
+	if (Dist <= AttackEnterDistance && HasVisualOnTarget())
+	{
+		StopMove();
+		SetState(EEnemyState::Attack);
+		return;
+	}
+	
+	if (HasVisualOnTarget())
+	{
+		LastSeenTime = GetWorld()->GetTimeSeconds();
+	}
+	
 	// ── 포위(링) 오프셋 목표 ──
 	FVector Goal = Target->GetActorLocation();
 	if (bUseChaseRing)
@@ -404,28 +417,6 @@ void ACEnemyCharacterBase::DoChase()
 
 		if (bShowDebugInfo)
 			DrawDebugSphere(GetWorld(), Goal, 16.f, 8, FColor::Purple, false, 0.1f);
-	}
-
-	// 추적 → 공격
-	if (Dist <= AttackEnterDistance && HasVisualOnTarget())
-	{
-		StopMove();
-		SetState(EEnemyState::Attack);
-		return;
-	}
-
-	if (!HasVisualOnTarget())
-	{
-		const bool bLoseTooLong = (GetWorld()->GetTimeSeconds() - LastSeenTime) >= LoseSightGrace;
-		if (bLoseTooLong || Dist >= ChaseStopDistance)
-		{
-			SetState(EEnemyState::ReturnHome);
-			return;
-		}
-	}
-	else
-	{
-		LastSeenTime = GetWorld()->GetTimeSeconds();
 	}
 
 	RequestMoveTo(Goal, PatrolPointReachRadius);
@@ -1116,57 +1107,42 @@ void ACEnemyCharacterBase::ResetForRespawn()
 
 void ACEnemyCharacterBase::ForceRestartAI()
 {
-	AAIController* ExistingAI = Cast<AAIController>(GetController());
-    
-	if (ExistingAI)
+	AAIController* AICon = Cast<AAIController>(GetController());
+	if (!AICon)
 	{
-		// Brain 로직 먼저 중단
-		if (UBrainComponent* Brain = ExistingAI->GetBrainComponent())
+		// 컨트롤러가 아예 없다면 스폰
+		SpawnDefaultController();
+		AICon = Cast<AAIController>(GetController());
+		if (!AICon)
 		{
-			Brain->StopLogic(TEXT("AI Restart"));
+			UE_LOG(LogTemp, Error, TEXT("[%s] AI 컨트롤러 스폰 실패!"), *GetName());
+			return;
 		}
-        
-		// 경로 추적 중단
-		if (UPathFollowingComponent* PathComp = ExistingAI->FindComponentByClass<UPathFollowingComponent>())
-		{
-			PathComp->AbortMove(*ExistingAI, FPathFollowingResultFlags::OwnerFinished);
-		}
-        
-		// UnPossess 전에 컨트롤러 참조 제거
-		ExistingAI->UnPossess();
+	}
+
+	// 1. 기존 BrainComponent 중지
+	if (UBrainComponent* Brain = AICon->GetBrainComponent())
+	{
+		Brain->StopLogic(TEXT("Player Respawn Reset"));
+	}
+
+	// 2. 컨트롤러가 Pawn을 다시 Possess하도록 하여 내부 상태를 리셋
+	AICon->UnPossess();
+	AICon->Possess(this);
+
+	// 3. CrowdFollowingComponent를 명시적으로 재초기화
+	if (ACrowdEnemyAIController* CrowdAI = Cast<ACrowdEnemyAIController>(AICon))
+	{
+		CrowdAI->ReinitializeCrowdComponent();
+	}
+
+	// 4. 새로운 BrainComponent 로직 시작
+	if (UBrainComponent* Brain = AICon->GetBrainComponent())
+	{
+		Brain->StartLogic();
 	}
     
-	// 새 AI 컨트롤러 스폰 (UnPossess 후에는 자동으로 새로 생성됨)
-	SpawnDefaultController();
-    
-	// 새 AI가 제대로 생성되었는지 확인
-	AAIController* NewAI = Cast<AAIController>(GetController());
-	if (NewAI)
-	{
-		// Brain 컴포넌트 시작
-		if (UBrainComponent* Brain = NewAI->GetBrainComponent())
-		{
-			if (!Brain->IsRunning())
-			{
-				Brain->StartLogic();
-			}
-		}
-        
-		UE_LOG(LogTemp, Log, TEXT("[%s] AI Controller successfully restarted"), *GetName());
-	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("[%s] Failed to spawn AI Controller!"), *GetName());
-        
-		// 강제로 다시 시도
-		GetWorld()->GetTimerManager().SetTimerForNextTick([this]()
-		{
-			if (!GetController())
-			{
-				SpawnDefaultController();
-			}
-		});
-	}
+	UE_LOG(LogTemp, Log, TEXT("[%s] AI가 성공적으로 재시작 및 재빙의되었습니다."), *GetName());
 }
 
 void ACEnemyCharacterBase::OnResetForRespawn_Implementation()

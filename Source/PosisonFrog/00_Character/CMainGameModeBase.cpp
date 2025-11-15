@@ -4,6 +4,7 @@
 #include "00_Character/00_Player/CPlayerController.h"
 #include "00_Character/00_Player/CPlayerCharacter.h"
 #include "01_Enemy/CEnemyBossCharacter.h"
+#include "01_Enemy/CEnemyCharacterBase.h"
 #include "01_Item/CHealOrb.h"
 #include "01_Item/CHealOrbPoolSubsystem.h"
 #include "02_Component/00_PlayerComponent/CFuryGaugeComponent.h"
@@ -334,13 +335,16 @@ void ACMainGameModeBase::RespawnPlayerAtCheckPoint(ACPlayerController* PlayerCon
 		RequestStageRespawn();
 		ResetBossBattleState();
 
+		TArray<AActor*> AllEnemies;
+		UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACEnemyCharacterBase::StaticClass(), AllEnemies);
+
 		if (UGameInstance* GameInstance = GetGameInstance())
-		            {
-				                       if (UCPawnLifecycleSubsystem* PawnLifecycle = GameInstance->GetSubsystem<UCPawnLifecycleSubsystem>())
-				                        {
-						                                PawnLifecycle->NotifyPlayerRespawned(NewPlayer);
-						                       }
-				               }
+		{
+			if (UCPawnLifecycleSubsystem* PawnLifecycle = GameInstance->GetSubsystem<UCPawnLifecycleSubsystem>())
+			{
+				PawnLifecycle->NotifyPlayerRespawned(NewPlayer);
+			}
+		}
 
 		if (SoundDataAsset)
 		{

@@ -147,6 +147,17 @@ void ACRangedSkirmisher::DoChase()
 
     const float D = DistToTarget();
 
+    if (D >= ChaseStopDistance || (!HasVisualOnTarget() && GetWorld()->GetTimeSeconds() - LastSeenTime >= LoseSightGrace))
+    {
+        SetState(EEnemyState::ReturnHome);
+        return;
+    }
+    
+    if (HasVisualOnTarget())
+    {
+        LastSeenTime = GetWorld()->GetTimeSeconds();
+    }
+    
     // 사격 거리 안에 들어오면 Attack 상태로 전환
     if (D <= AttackEnterDistance)
     {

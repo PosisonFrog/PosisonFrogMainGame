@@ -136,6 +136,19 @@ void ACRiotRobot::DoChase()
         return;
     }
 
+    const float Dist = DistToTarget();
+
+    if (Dist >= ChaseStopDistance || (!HasVisualOnTarget() && GetWorld()->GetTimeSeconds() - LastSeenTime >= LoseSightGrace))
+    {
+        SetState(EEnemyState::ReturnHome);
+        return;
+    }
+
+    if (HasVisualOnTarget())
+    {
+        LastSeenTime = GetWorld()->GetTimeSeconds();
+    }
+
     if (ShouldEnterAttackFromChase())
     {
         StopMovement();
