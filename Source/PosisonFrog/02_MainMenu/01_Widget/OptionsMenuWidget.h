@@ -6,6 +6,7 @@
 #include "OptionsMenuWidget.generated.h"
 
 // ── 전방 선언 ──
+class UProgressBar;
 class UButton;
 class UComboBoxString;
 class USlider;
@@ -41,22 +42,35 @@ protected:
     // ===================== UMG Bind =====================
     // 그래픽
     UPROPERTY(meta = (BindWidget), BlueprintReadOnly) UComboBoxString* Combo_Resolution = nullptr;
+    UPROPERTY(meta = (BindWidget), BlueprintReadOnly) UButton* Btn_ResolutionLeft = nullptr;
+    UPROPERTY(meta = (BindWidget), BlueprintReadOnly) UButton* Btn_ResolutionRight = nullptr;
+    
     UPROPERTY(meta = (BindWidget), BlueprintReadOnly) UComboBoxString* Combo_WindowMode = nullptr;
-    UPROPERTY(meta = (BindWidget), BlueprintReadOnly) UCheckBox* Check_VSync = nullptr;
+    UPROPERTY(meta = (BindWidget), BlueprintReadOnly) UButton* Btn_WindowModeLeft = nullptr;
+    UPROPERTY(meta = (BindWidget), BlueprintReadOnly) UButton* Btn_WindowModeRight = nullptr;
+    
+    UPROPERTY(meta = (BindWidgetOptional), BlueprintReadOnly) UCheckBox* Check_VSync = nullptr;
 
     // 오디오
+    UPROPERTY(meta = (BindWidget), BlueprintReadOnly) UProgressBar* ProgressBar_MasterFill = nullptr;
     UPROPERTY(meta = (BindWidget), BlueprintReadOnly) USlider* Slider_Master = nullptr;
-    UPROPERTY(meta = (BindWidget), BlueprintReadOnly) USlider* Slider_BGM = nullptr;
-    UPROPERTY(meta = (BindWidget), BlueprintReadOnly) USlider* Slider_SFX = nullptr;
+    UPROPERTY(meta = (BindWidget), BlueprintReadOnly) UTextBlock* Text_MasterVolume = nullptr;
+    
+    UPROPERTY(meta = (BindWidgetOptional), BlueprintReadOnly) USlider* Slider_BGM = nullptr;
+    UPROPERTY(meta = (BindWidgetOptional), BlueprintReadOnly) USlider* Slider_SFX = nullptr;
 
     // 공용 버튼
     UPROPERTY(meta = (BindWidget), BlueprintReadOnly) UButton* Btn_Apply = nullptr;
-    UPROPERTY(meta = (BindWidget), BlueprintReadOnly) UButton* Btn_Default = nullptr;
+    UPROPERTY(meta = (BindWidgetOptional), BlueprintReadOnly) UButton* Btn_Default = nullptr;
     UPROPERTY(meta = (BindWidget), BlueprintReadOnly) UButton* Btn_Back = nullptr;
 
-    // 추가: 밝기/마우스 감도
+    // 밝기
     UPROPERTY(meta = (BindWidgetOptional), BlueprintReadOnly) USlider* Slider_Brightness = nullptr;  // 0~1 → 0.5~3.0 감마
-    UPROPERTY(meta = (BindWidgetOptional), BlueprintReadOnly) USlider* Slider_MouseSens = nullptr;  // 0~1 → 0.1~2.0 배
+
+    // 마우스 감도
+    UPROPERTY(meta = (BindWidget), BlueprintReadOnly) UProgressBar* ProgressBar_MouseSensFill = nullptr;
+    UPROPERTY(meta = (BindWidget), BlueprintReadOnly) USlider* Slider_MouseSens = nullptr;  // 0~1 → 0.1~2.0 배
+    UPROPERTY(meta = (BindWidget), BlueprintReadOnly) UTextBlock* Text_MouseSens = nullptr;
 
     // 추가: 키 리바인드(라벨/버튼)
     UPROPERTY(meta = (BindWidgetOptional), BlueprintReadOnly) UTextBlock* Label_AttackKey = nullptr;
@@ -70,6 +84,44 @@ protected:
     UPROPERTY(EditDefaultsOnly, Category = "Audio") USoundClass* BGMClass = nullptr;
     UPROPERTY(EditDefaultsOnly, Category = "Audio") USoundClass* SFXClass = nullptr;
 
+    // ===================== Thumb 이미지 리소스 =====================
+    // 마스터 볼륨 Thumb 이미지 (0~25%)
+    UPROPERTY(EditDefaultsOnly, Category = "UI|Slider")
+    UTexture2D* MasterThumb_Low = nullptr;
+    
+    // 마스터 볼륨 Thumb 이미지 (26~70%)
+    UPROPERTY(EditDefaultsOnly, Category = "UI|Slider")
+    UTexture2D* MasterThumb_Mid = nullptr;
+    
+    // 마스터 볼륨 Thumb 이미지 (71~100%)
+    UPROPERTY(EditDefaultsOnly, Category = "UI|Slider")
+    UTexture2D* MasterThumb_High = nullptr;
+    
+    // 마우스 감도 Thumb 이미지 (0~25%) 
+    UPROPERTY(EditDefaultsOnly, Category = "UI|Slider")
+    UTexture2D* MouseThumb_Low = nullptr;
+    
+    // 마우스 감도 Thumb 이미지 (26~70%)
+    UPROPERTY(EditDefaultsOnly, Category = "UI|Slider")
+    UTexture2D* MouseThumb_Mid = nullptr;
+    
+    // 마우스 감도 Thumb 이미지 (71~100%)
+    UPROPERTY(EditDefaultsOnly, Category = "UI|Slider")
+    UTexture2D* MouseThumb_High = nullptr;
+
+    // ===================== Thumb 변경 임계값 =====================
+    UPROPERTY(EditDefaultsOnly, Category = "UI|Slider|Master", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+    float MasterThreshold_LowToMid = 0.25f;
+    
+    UPROPERTY(EditDefaultsOnly, Category = "UI|Slider|Master", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+    float MasterThreshold_MidToHigh = 0.70f;
+
+    UPROPERTY(EditDefaultsOnly, Category = "UI|Slider|MouseSens", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+    float MouseThreshold_LowToMid = 0.25f;
+    
+    UPROPERTY(EditDefaultsOnly, Category = "UI|Slider|MouseSens", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+    float MouseThreshold_MidToHigh = 0.70f;
+    
     // ===================== 입력(Enhanced Input) =====================
     /** 에디터에서 지정할 기본 매핑 컨텍스트(복제하여 런타임 편집) */
     UPROPERTY(EditDefaultsOnly, Category = "Input|Rebind") UInputMappingContext* BaseMappingContext = nullptr;
@@ -110,7 +162,13 @@ protected:
     // ===================== 콜백 =====================
     // 그래픽
     UFUNCTION() void OnResolutionChanged(FString Item, ESelectInfo::Type Type);
+    UFUNCTION() void OnResolutionLeftClicked();
+    UFUNCTION() void OnResolutionRightClicked();
+    
     UFUNCTION() void OnWindowModeChanged(FString Item, ESelectInfo::Type Type);
+    UFUNCTION() void OnWindowModeLeftClicked();
+    UFUNCTION() void OnWindowModeRightClicked();
+    
     UFUNCTION() void OnVSyncChanged(bool bChecked);
 
     // 오디오
@@ -138,5 +196,11 @@ protected:
     EWindowMode::Type ToWindowMode(const FString& Item) const;
     FString FromWindowMode(EWindowMode::Type M) const;
     FString KeyToText(const FKey& Key) const;
+
+    void UpdateVolumeProgressBar(UProgressBar* ProgressBar, UTextBlock* TextBlock, float Value);
+    void UpdateMouseSensUI(float NormalizedValue);
+
+    // 슬라이더 Thumb 이미지 업데이트 
+    void UpdateSliderThumb(USlider* Slider, float Percent, UTexture2D* LowImg, UTexture2D* MidImg, UTexture2D* HighImg, float LowToMid, float MidToHigh); 
 };
 

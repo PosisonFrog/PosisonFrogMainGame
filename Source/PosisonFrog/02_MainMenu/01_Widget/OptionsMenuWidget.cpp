@@ -18,29 +18,36 @@
 #include "EnhancedInputSubsystems.h"
 #include "InputMappingContext.h"
 #include "InputAction.h"
+#include "Components/ProgressBar.h"
 
 void UOptionsMenuWidget::NativeConstruct()
 {
     Super::NativeConstruct();
 
     // ── 이벤트 바인딩 ──
-    if (Combo_Resolution)  Combo_Resolution->OnSelectionChanged.AddDynamic(this, &UOptionsMenuWidget::OnResolutionChanged);
-    if (Combo_WindowMode)  Combo_WindowMode->OnSelectionChanged.AddDynamic(this, &UOptionsMenuWidget::OnWindowModeChanged);
-    if (Check_VSync)       Check_VSync->OnCheckStateChanged.AddDynamic(this, &UOptionsMenuWidget::OnVSyncChanged);
+    if (Combo_Resolution)    Combo_Resolution->OnSelectionChanged.AddDynamic(this, &UOptionsMenuWidget::OnResolutionChanged);
+    if (Btn_ResolutionLeft)  Btn_ResolutionLeft->OnClicked.AddDynamic(this, &UOptionsMenuWidget::OnResolutionLeftClicked);
+    if (Btn_ResolutionRight) Btn_ResolutionRight->OnClicked.AddDynamic(this, &UOptionsMenuWidget::OnResolutionRightClicked);
+    
+    if (Combo_WindowMode)    Combo_WindowMode->OnSelectionChanged.AddDynamic(this, &UOptionsMenuWidget::OnWindowModeChanged);
+    if (Btn_WindowModeLeft)  Btn_WindowModeLeft->OnClicked.AddDynamic(this, &UOptionsMenuWidget::OnWindowModeLeftClicked);
+    if (Btn_WindowModeRight) Btn_WindowModeRight->OnClicked.AddDynamic(this, &UOptionsMenuWidget::OnWindowModeRightClicked);
+    
+    if (Check_VSync)         Check_VSync->OnCheckStateChanged.AddDynamic(this, &UOptionsMenuWidget::OnVSyncChanged);
 
-    if (Slider_Master)     Slider_Master->OnValueChanged.AddDynamic(this, &UOptionsMenuWidget::OnMasterVolChanged);
-    if (Slider_BGM)        Slider_BGM->OnValueChanged.AddDynamic(this, &UOptionsMenuWidget::OnBGMVolChanged);
-    if (Slider_SFX)        Slider_SFX->OnValueChanged.AddDynamic(this, &UOptionsMenuWidget::OnSFXVolChanged);
+    if (Slider_Master)       Slider_Master->OnValueChanged.AddDynamic(this, &UOptionsMenuWidget::OnMasterVolChanged);
+    if (Slider_BGM)          Slider_BGM->OnValueChanged.AddDynamic(this, &UOptionsMenuWidget::OnBGMVolChanged);
+    if (Slider_SFX)          Slider_SFX->OnValueChanged.AddDynamic(this, &UOptionsMenuWidget::OnSFXVolChanged);
 
-    if (Btn_Apply)         Btn_Apply->OnClicked.AddDynamic(this, &UOptionsMenuWidget::OnApplyClicked);
-    if (Btn_Default)       Btn_Default->OnClicked.AddDynamic(this, &UOptionsMenuWidget::OnDefaultClicked);
-    if (Btn_Back)          Btn_Back->OnClicked.AddDynamic(this, &UOptionsMenuWidget::OnBackClicked);
+    if (Btn_Apply)           Btn_Apply->OnClicked.AddDynamic(this, &UOptionsMenuWidget::OnApplyClicked);
+    if (Btn_Default)         Btn_Default->OnClicked.AddDynamic(this, &UOptionsMenuWidget::OnDefaultClicked);
+    if (Btn_Back)            Btn_Back->OnClicked.AddDynamic(this, &UOptionsMenuWidget::OnBackClicked);
 
-    if (Slider_Brightness) Slider_Brightness->OnValueChanged.AddDynamic(this, &UOptionsMenuWidget::OnBrightnessChanged);
-    if (Slider_MouseSens)  Slider_MouseSens->OnValueChanged.AddDynamic(this, &UOptionsMenuWidget::OnMouseSensChanged);
+    if (Slider_Brightness)   Slider_Brightness->OnValueChanged.AddDynamic(this, &UOptionsMenuWidget::OnBrightnessChanged);
+    if (Slider_MouseSens)    Slider_MouseSens->OnValueChanged.AddDynamic(this, &UOptionsMenuWidget::OnMouseSensChanged);
 
-    if (Btn_RebindAttack)  Btn_RebindAttack->OnClicked.AddDynamic(this, &UOptionsMenuWidget::OnRebindAttack);
-    if (Btn_RebindDash)    Btn_RebindDash->OnClicked.AddDynamic(this, &UOptionsMenuWidget::OnRebindDash);
+    if (Btn_RebindAttack)    Btn_RebindAttack->OnClicked.AddDynamic(this, &UOptionsMenuWidget::OnRebindAttack);
+    if (Btn_RebindDash)      Btn_RebindDash->OnClicked.AddDynamic(this, &UOptionsMenuWidget::OnRebindDash);
 
     // ── 해상도 목록 구성 + 설정 로드/적용 ──
     BuildResolutionList();
@@ -220,9 +227,73 @@ void UOptionsMenuWidget::OnResolutionChanged(FString Item, ESelectInfo::Type Typ
     ApplyGraphicsFromUI(false);
 }
 
+void UOptionsMenuWidget::OnResolutionLeftClicked()
+{
+    if (!Combo_Resolution) return;
+    
+    int32 CurrentIndex = Combo_Resolution->GetSelectedIndex();
+    int32 NewIndex = CurrentIndex - 1;
+    
+    if (NewIndex < 0)
+    {
+        NewIndex = Combo_Resolution->GetOptionCount() - 1; // 순환
+    }
+    
+    Combo_Resolution->SetSelectedIndex(NewIndex);
+    ApplyGraphicsFromUI(false);
+}
+
+void UOptionsMenuWidget::OnResolutionRightClicked()
+{
+    if (!Combo_Resolution) return;
+    
+    int32 CurrentIndex = Combo_Resolution->GetSelectedIndex();
+    int32 NewIndex = CurrentIndex + 1;
+    
+    if (NewIndex >= Combo_Resolution->GetOptionCount())
+    {
+        NewIndex = 0; // 순환
+    }
+    
+    Combo_Resolution->SetSelectedIndex(NewIndex);
+    ApplyGraphicsFromUI(false);
+}
+
 void UOptionsMenuWidget::OnWindowModeChanged(FString Item, ESelectInfo::Type Type)
 {
     if (Type == ESelectInfo::Direct) return;
+    ApplyGraphicsFromUI(false);
+}
+
+void UOptionsMenuWidget::OnWindowModeLeftClicked()
+{
+    if (!Combo_WindowMode) return;
+    
+    int32 CurrentIndex = Combo_WindowMode->GetSelectedIndex();
+    int32 NewIndex = CurrentIndex - 1;
+    
+    if (NewIndex < 0)
+    {
+        NewIndex = Combo_WindowMode->GetOptionCount() - 1;
+    }
+    
+    Combo_WindowMode->SetSelectedIndex(NewIndex);
+    ApplyGraphicsFromUI(false);
+}
+
+void UOptionsMenuWidget::OnWindowModeRightClicked()
+{
+    if (!Combo_WindowMode) return;
+    
+    int32 CurrentIndex = Combo_WindowMode->GetSelectedIndex();
+    int32 NewIndex = CurrentIndex + 1;
+    
+    if (NewIndex >= Combo_WindowMode->GetOptionCount())
+    {
+        NewIndex = 0;
+    }
+    
+    Combo_WindowMode->SetSelectedIndex(NewIndex);
     ApplyGraphicsFromUI(false);
 }
 
@@ -269,8 +340,16 @@ void UOptionsMenuWidget::ApplyGraphicsFromUI(bool bSave)
 }
 
 /* ===================== 오디오 콜백 ===================== */
-
-void UOptionsMenuWidget::OnMasterVolChanged(float V) { MasterVol = FMath::Clamp(V, 0.f, 1.f); ApplyVolumes(); }
+// void UOptionsMenuWidget::OnMasterVolChanged(float V) { MasterVol = FMath::Clamp(V, 0.f, 1.f); ApplyVolumes(); }
+void UOptionsMenuWidget::OnMasterVolChanged(float V)
+{
+    MasterVol = V;
+    UpdateVolumeProgressBar(ProgressBar_MasterFill, Text_MasterVolume, V);
+    UpdateSliderThumb(Slider_Master, V, 
+                 MasterThumb_Low, MasterThumb_Mid, MasterThumb_High,
+                 MasterThreshold_LowToMid, MasterThreshold_MidToHigh);
+    ApplyVolumes();
+}
 void UOptionsMenuWidget::OnBGMVolChanged(float V) { BgmVol = FMath::Clamp(V, 0.f, 1.f); ApplyVolumes(); }
 void UOptionsMenuWidget::OnSFXVolChanged(float V) { SfxVol = FMath::Clamp(V, 0.f, 1.f); ApplyVolumes(); }
 
@@ -297,14 +376,18 @@ void UOptionsMenuWidget::OnMouseSensChanged(float V)
 {
     MouseSensitivity = FMath::GetMappedRangeValueClamped(FVector2D(0.f, 1.f), FVector2D(0.1f, 2.0f), V);
 
+    UpdateMouseSensUI(V);
+    UpdateSliderThumb(Slider_MouseSens, V,
+                         MouseThumb_Low, MouseThumb_Mid, MouseThumb_High,
+                         MouseThreshold_LowToMid, MouseThreshold_MidToHigh);
+    
     if (APlayerController* PC = GetOwningPlayer())
     {
         // UE5에서는 deprecated 함수 사용
         PC->SetDeprecatedInputYawScale(MouseSensitivity);
-        PC->SetDeprecatedInputPitchScale(MouseSensitivity);
+        PC->SetDeprecatedInputPitchScale(-MouseSensitivity);
     }
     
-
     if (GConfig)
     {
         const TCHAR* Section = TEXT("/Script/PosisonFrog.Input");
@@ -482,7 +565,6 @@ void UOptionsMenuWidget::ApplyRebind(UInputAction* Action, const FKey& NewKey)
 {
     if (!Action) return;
     
-    // 사용할 런타임 컨텍스트를 결정한다.
     UInputMappingContext* TargetContext = nullptr;
     if (NewKey.IsGamepadKey())
     {
@@ -548,6 +630,68 @@ FString UOptionsMenuWidget::FromWindowMode(EWindowMode::Type M) const
 FString UOptionsMenuWidget::KeyToText(const FKey& Key) const
 {
     return Key.IsValid() ? Key.GetDisplayName().ToString() : TEXT("-");
+}
+
+void UOptionsMenuWidget::UpdateVolumeProgressBar(UProgressBar* ProgressBar, UTextBlock* TextBlock, float Value)
+{
+    // Progress Bar 업데이트
+    if (ProgressBar)
+    {
+        ProgressBar->SetPercent(Value);
+    }
+    
+    // 퍼센트 텍스트 업데이트
+    if (TextBlock)
+    {
+        int32 Percent = FMath::RoundToInt(Value * 100.0f);
+        TextBlock->SetText(FText::Format(FText::FromString("{0}%"), Percent));
+    }
+}
+
+void UOptionsMenuWidget::UpdateMouseSensUI(float NormalizedValue)
+{
+    // Progress Bar 업데이트
+    if (ProgressBar_MouseSensFill)
+    {
+        ProgressBar_MouseSensFill->SetPercent(NormalizedValue);
+    }
+    
+    // 퍼센트 텍스트 업데이트
+    if (Text_MouseSens)
+    {
+        int32 Percent = FMath::RoundToInt(NormalizedValue * 100.0f);
+        Text_MouseSens->SetText(FText::Format(FText::FromString("{0}%"), Percent));
+    }
+}
+
+void UOptionsMenuWidget::UpdateSliderThumb(USlider* Slider, float Percent, UTexture2D* LowImg, UTexture2D* MidImg,
+    UTexture2D* HighImg, float LowToMid, float MidToHigh)
+{
+    if (!Slider) return;
+
+    UTexture2D* SelectedImage = nullptr;
+
+    if (Percent <= LowToMid)
+        SelectedImage = LowImg;
+    else if (Percent <= MidToHigh)
+        SelectedImage = MidImg;
+    else
+        SelectedImage = HighImg;
+
+    if (!SelectedImage) return;
+
+    FSliderStyle SliderStyle = Slider->GetWidgetStyle();
+
+    FSlateBrush NewThumbBrush;
+    NewThumbBrush.SetResourceObject(SelectedImage);
+    NewThumbBrush.ImageSize = FVector2d(115.0f, 92.0f);
+    NewThumbBrush.DrawAs = ESlateBrushDrawType::Image;
+
+    SliderStyle.NormalThumbImage = NewThumbBrush;
+    SliderStyle.HoveredThumbImage = NewThumbBrush;
+    SliderStyle.DisabledThumbImage = NewThumbBrush;
+
+    Slider->SetWidgetStyle(SliderStyle);
 }
 
 /*Build.cs

@@ -41,7 +41,20 @@ void ACPlayerController::BeginPlay()
 
     // 시작은 게임 전용 입력 모드
     SetInputMode_GameOnly();
- 
+
+    if (GConfig)
+    {
+        float SavedSensitivity = 1.0f;
+        const TCHAR* Section = TEXT("/Script/PosisonFrog.Input");
+        
+        if (GConfig->GetFloat(Section, TEXT("MouseSensitivity"), SavedSensitivity, GGameUserSettingsIni))
+        {
+            SavedSensitivity = FMath::Clamp(SavedSensitivity, 0.1f, 2.0f);
+            SetDeprecatedInputYawScale(SavedSensitivity);
+            SetDeprecatedInputPitchScale(-SavedSensitivity);
+        }
+    }
+    
     if (UGameInstance* GameInstance = GetGameInstance())
     {
         CachedPauseSubsystem = GameInstance->GetSubsystem<UCPauseSubsystem>();
