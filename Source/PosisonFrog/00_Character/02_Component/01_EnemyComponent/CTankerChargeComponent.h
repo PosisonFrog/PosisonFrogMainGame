@@ -74,6 +74,8 @@ public:
     UFUNCTION(BlueprintCallable, Category = "PF|Charge|Anim")
     void Anim_ChargeStart();
 
+    void ResetForRespawn();
+    
 public:
     UPROPERTY(BlueprintAssignable)
     FOnChargeStateChanged OnChargeStateChanged;
@@ -163,6 +165,12 @@ private:
     UPROPERTY(EditDefaultsOnly, Category = "PF|Charge|Move", meta = (ClampMin = "400"))
     float ChargeSpeed = 1500.f;
 
+    UPROPERTY(EditDefaultsOnly, Category = "PF|Charge|Move", meta = (ClampMin = "0"))
+    float ChargeVerticalAbortHeight = 150.f;
+    
+    UPROPERTY(EditDefaultsOnly, Category = "PF|Charge|Move", meta = (ClampMin = "0"))
+    float ChargeVerticalAbortHorizontalTolerance = 120.f;
+    
     UPROPERTY(EditDefaultsOnly, Category = "PF|Charge|Move", meta = (ClampMin = "90"))
     float TurnRateDegPerSec = 360.f;
 

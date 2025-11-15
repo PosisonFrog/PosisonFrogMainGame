@@ -37,7 +37,9 @@ protected:
 #endif
 	
 	virtual void BeginPlay() override;
-	
+	virtual void OnResetForRespawn_Implementation() override;
+	virtual void OnRespawned_Implementation() override;
+ 	
 private:
 
 	// 상위 FSM 훅

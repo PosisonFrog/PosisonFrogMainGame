@@ -168,6 +168,46 @@ bool UCTankerChargeComponent::IsChargingOrWindup() const
         || State == EChargeState::Charging;
 }
 
+
+void UCTankerChargeComponent::ResetForRespawn()
+{
+    ClearTimers();
+    ResetTransientData();
+    
+    PreChargeGoal = FVector::ZeroVector;
+    PreChargeStartTime = 0.f;
+    ChargeStartTime = 0.f;
+    LastSideSign = +1;
+    
+    if (CachedAI.IsValid())
+    {
+        CachedAI->StopMovement();
+    }
+    
+    if (OwnerChar.IsValid())
+    {
+        if (UCharacterMovementComponent* Movement = OwnerChar->GetCharacterMovement())
+        {
+            Movement->StopMovementImmediately();
+            Movement->Velocity = FVector::ZeroVector;
+        }
+            
+        MoveComp = OwnerChar->GetCharacterMovement();
+        CachedAI = Cast<AAIController>(OwnerChar->GetController());
+    }
+    else
+    {
+        EnsureOwnerAndMovement();
+    }
+    
+    const EChargeState PreviousState = State;
+    State = EChargeState::Idle;
+    if (PreviousState != State)
+    {
+        OnChargeStateChanged.Broadcast(State, PreviousState);
+    }
+}
+
 void UCTankerChargeComponent::Anim_ChargeStart()
 {
     if (State == EChargeState::Windup)
@@ -546,6 +586,15 @@ void UCTankerChargeComponent::UpdateCharging(float DeltaSeconds)
         const FVector ToTarget = TargetActor->GetActorLocation() - OwnerChar->GetActorLocation();
         FaceTowards(ToTarget, DeltaSeconds);
         ChargeDirection = ToTarget.GetSafeNormal2D();
+
+        const float HorizontalDistance = FVector::Dist2D(TargetActor->GetActorLocation(), OwnerChar->GetActorLocation());
+        const float VerticalDistance = FMath::Abs(TargetActor->GetActorLocation().Z - OwnerChar->GetActorLocation().Z);
+        if (HorizontalDistance <= ChargeVerticalAbortHorizontalTolerance
+            && VerticalDistance >= ChargeVerticalAbortHeight)
+        {
+            EndChargingInternal(EChargeEndReason::MaxDistance, TargetActor.Get());
+            return;
+        }
     }
   
     FVector Velocity = ChargeDirection * ChargeSpeed;

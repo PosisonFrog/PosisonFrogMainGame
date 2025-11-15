@@ -974,9 +974,18 @@ void ACEnemyCharacterBase::ResetToInitialTransform()
 void ACEnemyCharacterBase::ResetForRespawn()
 {
 	// 상태 초기화
-	State = EEnemyState::Patrol;
 	Target = nullptr;
-    
+	const EEnemyState PreviousState = State;
+	if (PreviousState != EEnemyState::Patrol)
+	{
+		SetState(EEnemyState::Patrol);
+	}
+	else
+	{
+		ExitState(PreviousState);
+		State = EEnemyState::Patrol;
+		EnterState(State);
+	}
 	// 타이머 초기화
 	LastSeenTime = -1000.f;
 	LastAttackTime = -1000.f;
@@ -1027,6 +1036,8 @@ void ACEnemyCharacterBase::ResetForRespawn()
 	
 	SetActorEnableCollision(true);
 	SetCanBeDamaged(true);
+
+	OnResetForRespawn();
 }
 
 void ACEnemyCharacterBase::ForceRestartAI()
@@ -1083,6 +1094,15 @@ void ACEnemyCharacterBase::ForceRestartAI()
 		});
 	}
 }
+
+void ACEnemyCharacterBase::OnResetForRespawn_Implementation()
+{
+}
+
+void ACEnemyCharacterBase::OnRespawned_Implementation()
+{
+}
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 전투(스윙 창 + 분할 스윕)

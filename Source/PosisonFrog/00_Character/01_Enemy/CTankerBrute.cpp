@@ -103,6 +103,24 @@ void ACTankerBrute::BeginPlay()
     BindPlayerToChargeDelegate();
 }
 
+void ACTankerBrute::OnResetForRespawn_Implementation()
+{
+    Super::OnResetForRespawn_Implementation();
+    
+    ClearAttackTimers();
+    
+    if (ChargeComp)
+    {
+        ChargeComp->ResetForRespawn();
+    }
+}
+
+void ACTankerBrute::OnRespawned_Implementation()
+{
+    Super::OnRespawned_Implementation();
+    StopMovement();
+}
+
 void ACTankerBrute::Tick(float DeltaSeconds)
 {
     Super::Tick(DeltaSeconds);

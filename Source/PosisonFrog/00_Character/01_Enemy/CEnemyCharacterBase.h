@@ -289,6 +289,15 @@ public:
     // 리스폰 시 초기 위치로 복귀
     void ResetToInitialTransform();
     void ResetForRespawn();
+
+    UFUNCTION(BlueprintNativeEvent, Category = "Enemy|Respawn")
+    void OnResetForRespawn();
+        virtual void OnResetForRespawn_Implementation();
+    
+    UFUNCTION(BlueprintNativeEvent, Category = "Enemy|Respawn")
+    void OnRespawned();
+        virtual void OnRespawned_Implementation();
+    
     void ForceRestartAI();
     
 protected:
