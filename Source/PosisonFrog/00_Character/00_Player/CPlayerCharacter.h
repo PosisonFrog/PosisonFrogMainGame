@@ -64,6 +64,7 @@ public:
 protected:
     virtual void BeginPlay() override;
     virtual void PostInitializeComponents() override;
+    virtual void Tick(float DeltaTime) override;
     virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
     virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
@@ -88,6 +89,7 @@ public:
 
     void SetAttackMovementSlowMultiplier(float Multiplier);
     void ResetAttackMovementSlowMultiplier();
+    void RefreshIdleSpeedBonus();
 
     // 탱커 돌진에 맞았을 때 처리
     UFUNCTION() void OnHitByTankerCharge(AActor* HitPlayer, FVector KnockbackDirection, float KnockbackStrength, AActor* Attacker);
@@ -178,6 +180,22 @@ protected:
    
     UPROPERTY(VisibleInstanceOnly, Category = "Movement|Attack")
     float CurrentAttackSlowMultiplier = 1.f;
+
+
+    // ─ 비전투 이동 속도 보너스 ─
+    UPROPERTY(EditDefaultsOnly, Category = "Movement|IdleSpeed", meta = (ClampMin = "1.0"))
+    float IdleSpeedBonusMultiplier = 1.3f;
+   
+    UPROPERTY(EditDefaultsOnly, Category = "Movement|IdleSpeed", meta = (ClampMin = "0.0"))
+    float IdleSpeedBonusDelay = 3.0f;
+    
+    UPROPERTY(VisibleInstanceOnly, Category = "Movement|IdleSpeed")
+    bool bIdleSpeedBonusActive = false;
+    
+    UPROPERTY(VisibleInstanceOnly, Category = "Movement|IdleSpeed")
+    float LastCombatActionTime = 0.f;
+    
+    void MarkCombatAction();
     
     // ─ Dash 쿨다운
     UPROPERTY(EditDefaultsOnly, Category = "Dash", meta = (ClampMin = "0"))
@@ -301,5 +319,4 @@ private:
     
     // 사운드 재생 헬퍼
     void PlayPlayerSound(const TWeakObjectPtr<USoundBase>& Sound, float VolumeMultiplier = 1.0f);
-
 };

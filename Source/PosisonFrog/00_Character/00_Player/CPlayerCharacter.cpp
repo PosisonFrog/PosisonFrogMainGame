@@ -142,7 +142,14 @@ void ACPlayerCharacter::BeginPlay()
     Super::BeginPlay();
 
     if (MovementBuffComponent)
+    {
         MovementBuffComponent->SetBaseMaxWalkSpeed(WalkingSpeed);
+        MovementBuffComponent->SetIdleSpeedMultiplier(1.f);
+    }
+    if (UWorld* World = GetWorld())
+    {
+        LastCombatActionTime = World->GetTimeSeconds();
+    }
     if (CommandLaunchSlamComponent)
         CommandLaunchSlamComponent->OnAirCommandLockChanged.AddDynamic(
             this, &ACPlayerCharacter::HandleCommandMovementLockChanged);
@@ -195,7 +202,7 @@ void ACPlayerCharacter::BeginPlay()
             ResetDashCooldown();
             
             if (FuryGaugeComponent)
-                    FuryGaugeComponent->OnStacksChanged.AddDynamic(PlayerWidget, &UCPlayerWidget::UpdateFuryStacks);
+                FuryGaugeComponent->OnStacksChanged.AddDynamic(PlayerWidget, &UCPlayerWidget::UpdateFuryStacks);
         }
         else
         {
@@ -204,6 +211,13 @@ void ACPlayerCharacter::BeginPlay()
     }
 
     CachePlayerSounds();
+}
+
+void ACPlayerCharacter::Tick(float DeltaTime)
+{
+    Super::Tick(DeltaTime);
+    
+    RefreshIdleSpeedBonus();
 }
 
 void ACPlayerCharacter::PostInitializeComponents()
@@ -349,6 +363,7 @@ void ACPlayerCharacter::Attack()
         CLog::Log(TEXT("WeaponComponent missing"));
 
     PlayPlayerSound(CachedAttackSound, 0.8f);
+    MarkCombatAction();
 }
 void ACPlayerCharacter::HandlePlayerComboHit(AActor* HitActor, int32 ComboIndex, float Damage)
 {
@@ -362,6 +377,8 @@ void ACPlayerCharacter::HandlePlayerComboHit(AActor* HitActor, int32 ComboIndex,
     static const FName ComboIds[] = { TEXT("BasicCombo_0"), TEXT("BasicCombo_1"), TEXT("BasicCombo_2") };
     const float Now = GetWorld()->GetTimeSeconds();
     ComboStackComponent->OnDirectHit(ComboIds[ComboIndex], Now);
+
+    MarkCombatAction();
 }
 // 무기/애님에서 공격 시작 시점에 호출(있으면 더 견고)
 void ACPlayerCharacter::OnAttackStarted()
@@ -666,7 +683,7 @@ float ACPlayerCharacter::TakeDamage(float DamageAmount, struct FDamageEvent cons
     {
         HealthComponent->Damage(AppliedDamage);
         PlayPlayerSound(CachedHitSound, 1.0f);
-
+        MarkCombatAction();
     }
 
     if (bUltActive == false)
@@ -701,6 +718,8 @@ void ACPlayerCharacter::UseUltimate()
     UltimateBuffComponent->ActivateUltimate();
     UE_LOG(LogTemp, Log, TEXT("[ULT] UseUltimate On Gauge=%.1f/%.1f"), CurUltGauge, MaxUltGauge);
 
+    MarkCombatAction();
+    
     GetWorldTimerManager().ClearTimer(TimerHandle_UltDuration);
     GetWorldTimerManager().SetTimer(
         TimerHandle_UltDuration,
@@ -837,7 +856,13 @@ void ACPlayerCharacter::OnSpinPressed()
 void ACPlayerCharacter::OnSpinReleased()
 {
     if (SpinAttackComponent)
-        SpinAttackComponent->StopSpin();
+    {
+        SpinAttackComponent->TryStartSpin();
+        if (SpinAttackComponent->IsSkillActive())
+        {
+            MarkCombatAction();
+        }
+    }
 }
 
 
@@ -857,7 +882,10 @@ void ACPlayerCharacter::OnCommandPressed()
     {
         if (CommandLaunchSlamComponent->IsAirCommandActive())
         {
-            CommandLaunchSlamComponent->TryConfirmSlam();
+            if (CommandLaunchSlamComponent->TryConfirmSlam())
+            {
+                MarkCombatAction();
+            }
         }
         else
         {
@@ -865,7 +893,11 @@ void ACPlayerCharacter::OnCommandPressed()
                 return;
             
             if (CommandLaunchSlamComponent->TryStartCommand())
+            {
                 HandleCommandMovementLockChanged(true);
+                MarkCombatAction();
+            }
+            
         }
     }
 }
@@ -934,16 +966,16 @@ void ACPlayerCharacter::ApplyAttackMovementOverride(bool bEnable)
 
 void ACPlayerCharacter::SetAttackMovementSlowMultiplier(float Multiplier)
 {
-      const float ClampedMultiplier = FMath::Clamp(Multiplier, 0.f, 1.f);
+    const float ClampedMultiplier = FMath::Clamp(Multiplier, 0.f, 1.f);
+  
+    CurrentAttackSlowMultiplier = ClampedMultiplier;
+    bAttackSlowActive = ClampedMultiplier < 1.f - KINDA_SMALL_NUMBER;
    
-       CurrentAttackSlowMultiplier = ClampedMultiplier;
-        bAttackSlowActive = ClampedMultiplier < 1.f - KINDA_SMALL_NUMBER;
-   
-       if (MovementBuffComponent)
-           {
-                  MovementBuffComponent->SetAdditionalMultiplier(ClampedMultiplier);
-               }
-  }
+    if (MovementBuffComponent)
+    {
+        MovementBuffComponent->SetAttackSlowMultiplier(ClampedMultiplier);
+    }
+}
 
 void ACPlayerCharacter::ResetAttackMovementSlowMultiplier()
 {
@@ -955,7 +987,58 @@ void ACPlayerCharacter::ResetAttackMovementSlowMultiplier()
 
     if (MovementBuffComponent)
     {
-        MovementBuffComponent->SetAdditionalMultiplier(1.f);
+        MovementBuffComponent->SetAttackSlowMultiplier(1.f);
+    }
+}
+
+
+void ACPlayerCharacter::RefreshIdleSpeedBonus()
+{
+    UWorld* World = GetWorld();
+    if (!World || !MovementBuffComponent)
+        return;
+   
+    const float Now = World->GetTimeSeconds();
+    
+    bool bHasActiveCombatSkill = false;
+    if (SpinAttackComponent && SpinAttackComponent->IsSkillActive())
+    {
+        bHasActiveCombatSkill = true;
+    }
+    if (CommandLaunchSlamComponent && CommandLaunchSlamComponent->IsAirCommandActive())
+    {
+        bHasActiveCombatSkill = true;
+    }
+ 
+    if (bHasActiveCombatSkill)
+    {
+        LastCombatActionTime = Now;
+    }
+   
+    const bool bShouldActivate = (Now - LastCombatActionTime) >= IdleSpeedBonusDelay;
+    if (bShouldActivate != bIdleSpeedBonusActive)
+    {
+        bIdleSpeedBonusActive = bShouldActivate;
+        const float TargetMultiplier = bIdleSpeedBonusActive ? IdleSpeedBonusMultiplier : 1.f;
+        MovementBuffComponent->SetIdleSpeedMultiplier(TargetMultiplier);
+    }
+}
+
+void ACPlayerCharacter::MarkCombatAction()
+{
+    UWorld* World = GetWorld();
+    if (!World)
+        return;
+    
+    LastCombatActionTime = World->GetTimeSeconds();
+    
+    if (bIdleSpeedBonusActive)
+    {
+        bIdleSpeedBonusActive = false;
+        if (MovementBuffComponent)
+        {
+            MovementBuffComponent->SetIdleSpeedMultiplier(1.f);
+        }
     }
 }
 

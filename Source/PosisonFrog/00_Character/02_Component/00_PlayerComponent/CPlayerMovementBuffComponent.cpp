@@ -18,7 +18,8 @@ void UCPlayerMovementBuffComponent::BeginPlay()
         {
             BaseMaxWalkSpeed = MoveComp->MaxWalkSpeed;
             CurrentMaxMultiplier = 1.f;
-            AdditionalMultiplier = 1.f;
+            AttackSlowMultiplier = 1.f;
+            IdleSpeedMultiplier = 1.f;
         }
     }
 }
@@ -86,18 +87,28 @@ void UCPlayerMovementBuffComponent::RecomputeAndApply()
 
     if (MoveComp && BaseMaxWalkSpeed > 0.f)
     {
-        const float EffectiveMultiplier = CurrentMaxMultiplier * AdditionalMultiplier;
-        MoveComp->MaxWalkSpeed = BaseMaxWalkSpeed * EffectiveMultiplier;
+        ApplyEffectiveMultiplier();
     }
 }
 
-void UCPlayerMovementBuffComponent::SetAdditionalMultiplier(float Multiplier)
+void UCPlayerMovementBuffComponent::SetAttackSlowMultiplier(float Multiplier)
 {
-    AdditionalMultiplier = FMath::Max(0.f, Multiplier);
+    AttackSlowMultiplier = FMath::Max(0.f, Multiplier);
+        
+    ApplyEffectiveMultiplier();
+}
     
+void UCPlayerMovementBuffComponent::SetIdleSpeedMultiplier(float Multiplier)
+{
+    IdleSpeedMultiplier = FMath::Max(0.f, Multiplier);
+        
+    ApplyEffectiveMultiplier();
+}
+void UCPlayerMovementBuffComponent::ApplyEffectiveMultiplier()
+{
     if (MoveComp && BaseMaxWalkSpeed > 0.f)
     {
-        const float EffectiveMultiplier = CurrentMaxMultiplier * AdditionalMultiplier;
+        const float EffectiveMultiplier = CurrentMaxMultiplier * AttackSlowMultiplier * IdleSpeedMultiplier;
         MoveComp->MaxWalkSpeed = BaseMaxWalkSpeed * EffectiveMultiplier;
     }
 }
