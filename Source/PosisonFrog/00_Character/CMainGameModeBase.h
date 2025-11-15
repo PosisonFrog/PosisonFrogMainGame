@@ -113,9 +113,10 @@ private:
 	// 플레이어 상태 저장/복원
 	void SavePlayerState(ACPlayerCharacter* Player);
 	void RestorePlayerState(ACPlayerCharacter* Player);
-
+ 
 	// Stage 상태 저장/복원
 	void RequestStageRespawn();
+	void ResetBossBattleState();
 	
 private:
 

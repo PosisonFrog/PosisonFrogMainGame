@@ -174,6 +174,58 @@ void ACEnemyBossCharacter::ForcePattern(FName PatternId)
     }
 }
 
+
+void ACEnemyBossCharacter::ResetBossBattleState()
+{
+    UE_LOG(LogTemp, Log, TEXT("[Boss] ResetBossBattleState"));
+    
+    bIsBossDead = false;
+    
+    if (PatternManager)
+    {
+        PatternManager->CleanupAllPatterns();
+    }
+    
+    if (BossPhaseComponent)
+    {
+        BossPhaseComponent->ResetBattleState();
+    }
+    
+    if (HealthComponent)
+    {
+        HealthComponent->ResetHealth();
+    }
+    
+    if (AAIController* AIController = Cast<AAIController>(GetController()))
+    {
+        AIController->StopMovement();
+            
+        if (ABossAIController* BossAI = Cast<ABossAIController>(AIController))
+        {
+            BossAI->SetChaseEnabled(false);
+        }
+    }
+    if (UCharacterMovementComponent* MovementComponent = GetCharacterMovement())
+    {
+        MovementComponent->StopMovementImmediately();
+        MovementComponent->Velocity = FVector::ZeroVector;
+        MovementComponent->SetMovementMode(MOVE_Walking);
+
+    }
+    if (USkeletalMeshComponent* MeshComponent = GetMesh())
+    {
+        if (UAnimInstance* AnimInstance = MeshComponent->GetAnimInstance())
+        {
+            AnimInstance->Montage_Stop(0.0f);
+        }
+    }
+    
+    SetActorHiddenInGame(false);
+    SetActorEnableCollision(true);
+    SetActorTickEnabled(true);
+    SetCanBeDamaged(true);
+}
+
 void ACEnemyBossCharacter::InitializeBossBindings()
 {
     if (!BossPhaseComponent)

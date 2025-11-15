@@ -220,6 +220,50 @@ void UCEnemyBossPhaseComponent::StartBattle(bool bSkipIntro)
     }
 }
 
+void UCEnemyBossPhaseComponent::ResetBattleState()
+{
+    UE_LOG(LogTemp, Log, TEXT("[BossPhaseComponent] ResetBattleState"));
+    
+    bBattleStarted = false;
+    State = EBossBattleState::Dormant;
+    CurrentPower = 0.f;
+    StateTimeRemaining = 0.f;
+    PendingRecoveryDuration = 0.f;
+    CurrentPatternIndex = INDEX_NONE;
+    ForcedPatternId = NAME_None;
+    PatternCooldowns.Empty();
+    ActivePatternId = NAME_None;
+    
+    if (PhaseData)
+    {
+        InitializePhases();
+        InitialiseFromData();
+            
+        ShoutTriggerPower = PhaseData->MaxPower * PhaseData->ShoutTriggerRatio;
+        CurrentPower = FMath::Clamp(CurrentPower, 0.f, PhaseData->MaxPower);
+    }
+    else
+    {
+        PhaseOrder.Reset();
+        CurrentPhaseIndex = INDEX_NONE;
+        ShoutTriggerPower = 0.f;
+    }
+    
+    if (CachedHealth.IsValid())
+    {
+        const float MaxHealth = CachedHealth->GetMaxHealth();
+        if (MaxHealth > KINDA_SMALL_NUMBER)
+        {
+            const float HealthRatio = CachedHealth->GetHealth() / MaxHealth;
+            EvaluatePhaseByHealth(HealthRatio);
+        }
+    }
+    
+    SetCombatState(EBossCombatState::None);
+    StateTimeRemaining = 0.f;
+    PendingRecoveryDuration = 0.f;
+}
+
 void UCEnemyBossPhaseComponent::ForceNextPattern(FName PatternId)
 {
     if (PatternId.IsNone() || !PhaseData)

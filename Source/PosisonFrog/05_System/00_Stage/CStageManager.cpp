@@ -161,17 +161,28 @@ void ACStageManager::PrepareForRespawn(int32 TargetStageID)
 
 	if (!bReactivated)
 	{
-		StartStageSpawn(TargetStageID);
+		if (ClearedStages.Contains(TargetStageID))
+		{
+			if (bEnableDebugLogs)
+			{
+				CLog::Log(FString::Printf(TEXT("[ACStageManager::PrepareForRespawn] Stage %d already cleared. Skipping respawn."), TargetStageID));
+			}
+		}
+		else
+		{
+			StartStageSpawn(TargetStageID);
+		}
 	}
 	
 	CurrentStage = TargetStageID;
 
 	for (auto ClearIterator = ClearedStages.CreateIterator(); ClearIterator; ++ClearIterator)
 	{
-		if (*ClearIterator >= TargetStageID)
+		if (*ClearIterator > TargetStageID)
 			ClearIterator.RemoveCurrent();
 	}
 }
+
 
 void ACStageManager::RegisterBossBarrier(ACBossStageBarrier* Barrier)
 {
@@ -241,6 +252,21 @@ void ACStageManager::OnBossDefeated()
 	BossBarrier->OnBossBattleEnd();
 	CLog::Log(TEXT("[StageManager] BossBarrier 열기 완료 - 보스 구역 탈출 가능"));
 	CLog::Log(TEXT("================================================================="));
+}
+
+void ACStageManager::ResetBossBattleForRespawn()
+{
+	if (!IsValid(BossBarrier))
+		CollectBossBarrier();
+	
+	if (!IsValid(BossBarrier))
+		return;
+
+	if (BossBarrier->IsBossBattleActive() || !BossBarrier->IsOpen())
+	{
+		CLog::Log(TEXT("[StageManager] ResetBossBattleForRespawn - reopening boss barrier"));
+		BossBarrier->OnBossBattleEnd();
+	}
 }
 
 int32 ACStageManager::GetRemainingEnemies(int32 StageID) const

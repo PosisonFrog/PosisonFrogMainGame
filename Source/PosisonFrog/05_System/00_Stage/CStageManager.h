@@ -48,6 +48,7 @@ public:
 	void RegisterBossBarrier(ACBossStageBarrier* Barrier);
 	void OnBossBattleStartRequested();
 	void OnBossDefeated();
+	void ResetBossBattleForRespawn();
 	
 	// ──────────── 상태 조회 ────────────
 	int32 GetRemainingEnemies(int32 StageID) const;

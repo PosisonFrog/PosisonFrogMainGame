@@ -4,6 +4,7 @@
 #include "GameFramework/Actor.h"
 #include "CBossBattleStartTrigger.generated.h"
 
+class ACPlayerCharacter;
 class UBoxComponent;
 class ACEnemyBossCharacter;
 class ACBossStageBarrier;
@@ -30,6 +31,9 @@ private:
                                UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, 
                                bool bFromSweep, const FHitResult& SweepResult);
 
+    /** 플레이어가 트리거에 진입했을 때 보스 전투를 시도 */
+    void AttemptStartBossBattle(ACPlayerCharacter* PlayerCharacter);
+    
 private:
     /** 트리거 박스 컴포넌트 */
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
@@ -50,7 +54,7 @@ private:
     /** 트리거 활성화/비활성화 */
     UFUNCTION(BlueprintCallable, Category = "Boss Battle")
     void SetTriggerEnabled(bool bEnabled);
-
+    
     /** 한 번만 트리거되도록 설정 */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Boss Battle", meta = (AllowPrivateAccess = "true"))
     bool bTriggerOnce = true;
@@ -62,4 +66,12 @@ private:
     /** 트리거 활성화 여부 */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Boss Battle", meta = (AllowPrivateAccess = "true"))
     bool bIsEnabled = true;
+
+    /** 초기 보스 이름(리스폰 시 보스 참조 복구용) */
+    FString InitialBossName;
+    
+public :
+    /** 리스폰 시 트리거 상태 초기화 */
+    UFUNCTION(BlueprintCallable, Category = "Boss Battle")
+    void ResetTrigger();
 };

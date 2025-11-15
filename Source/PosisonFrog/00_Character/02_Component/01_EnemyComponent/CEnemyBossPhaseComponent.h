@@ -125,6 +125,10 @@ public:
     UFUNCTION(BlueprintCallable, Category="Boss")
     void StartBattle(bool bSkipIntro = false);
 
+    /** 전투 상태를 초기 상태로 되돌립니다. */
+    UFUNCTION(BlueprintCallable, Category="Boss")
+    void ResetBattleState();
+    
     /** 특정 패턴을 강제로 예약 */
     UFUNCTION(BlueprintCallable, Category="Boss")
     void ForceNextPattern(FName PatternId);
