@@ -108,6 +108,9 @@ public:
     UFUNCTION(BlueprintCallable, Category="CSC")
     void OnUltEnded(FName UltId);
 
+    UFUNCTION(BlueprintCallable, Category="CSC")
+    void ForceUltReady();
+    
     UFUNCTION(BlueprintPure, Category="CSC")
     int32 GetCurrentCSC() const { return CSC; }
 

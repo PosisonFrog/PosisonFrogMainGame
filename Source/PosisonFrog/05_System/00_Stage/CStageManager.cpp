@@ -51,7 +51,7 @@ void ACStageManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
 // ────────────────────────────────────────────────────────────────────────────
 // 스테이지 컨트롤러
 // ────────────────────────────────────────────────────────────────────────────
-void ACStageManager::StartStageSpawn(int32 StageID)
+void ACStageManager::StartStageSpawn(int32 StageID, bool bForceImmediate)
 {
 	TArray<TObjectPtr<ACEnemySpawnZone>>* SpawnZones = StageSpawnZones.Find(StageID);
 	if (!SpawnZones || SpawnZones->Num() == 0)
@@ -85,7 +85,7 @@ void ACStageManager::StartStageSpawn(int32 StageID)
 		return;
 	}
 
-	StartDistributedSpawn(StageID,false);
+	StartDistributedSpawn(StageID,false, bForceImmediate);
 }
 
 void ACStageManager::CheckStageComplete(int32 StageID)
@@ -170,7 +170,7 @@ void ACStageManager::PrepareForRespawn(int32 TargetStageID)
 		}
 		else
 		{
-			StartStageSpawn(TargetStageID);
+			StartStageSpawn(TargetStageID, true);
 		}
 	}
 	
@@ -350,7 +350,7 @@ void ACStageManager::CollectCheckpoints()
 	}
 }
 
-void ACStageManager::StartDistributedSpawn(int32 StageID, bool bIsPreload)
+void ACStageManager::StartDistributedSpawn(int32 StageID, bool bIsPreload, bool bForceImmediate)
 {
 	if (IsSpawnInProgress())
 	{
@@ -391,16 +391,27 @@ void ACStageManager::StartDistributedSpawn(int32 StageID, bool bIsPreload)
 		return;
 	}
 
-	SpawnPerFrame = FMath::Max(1, TotalCount/SpawnDivision);
+	SpawnPerFrame = bForceImmediate ? TotalCount : FMath::Max(1, TotalCount/SpawnDivision);
 	SpawningStage = StageID;
 	bIsPreloading = bIsPreload;
 	SpawnProgress = 0;
 	CurrentSpawnQueue = SpawnInfos;
-
+	
 	if (!bIsPreload)
 		CurrentStage = StageID;
-
-	GetWorldTimerManager().SetTimer(SpawnTimer, this, &ACStageManager::ProcessSpawnBatch, SpawnInterval, true);
+	
+	if (bForceImmediate)
+	{
+		do
+		{
+			ProcessSpawnBatch();
+		}
+		while (IsSpawnInProgress());
+	}
+	else
+	{
+		GetWorldTimerManager().SetTimer(SpawnTimer, this, &ACStageManager::ProcessSpawnBatch, SpawnInterval, true);
+	}
 }
 
 void ACStageManager::ProcessSpawnBatch()

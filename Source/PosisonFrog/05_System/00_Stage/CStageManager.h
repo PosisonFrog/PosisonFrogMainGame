@@ -40,7 +40,7 @@ protected:
 
 public:
 	// ──────────── 스테이지 제어 ────────────
-	void StartStageSpawn(int32 StageID);
+	void StartStageSpawn(int32 StageID, bool bForceImmediate = false);
 	void CheckStageComplete(int32 StageID);
 	void PrepareForRespawn(int32 TargetStageID);
 
@@ -68,8 +68,8 @@ private:
 
 	// ──────────── 스폰 로직 ────────────
 	// 분산 스폰 시작
-	void StartDistributedSpawn(int32 StageID, bool bIsPreload = false);
-
+	void StartDistributedSpawn(int32 StageID, bool bIsPreload = false, bool bForceImmediate = false);
+ 
 	// 스폰 배치 처리
 	void ProcessSpawnBatch();
 

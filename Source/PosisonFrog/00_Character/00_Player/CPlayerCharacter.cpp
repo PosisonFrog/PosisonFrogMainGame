@@ -834,6 +834,10 @@ void ACPlayerCharacter::SetUltimateGauge(float UltGauge)
 {
     CurUltGauge = FMath::Clamp(UltGauge, 0.0f, MaxUltGauge);
 
+    if (ComboStackComponent && CurUltGauge >= MaxUltGauge - KINDA_SMALL_NUMBER)
+    {
+        ComboStackComponent->ForceUltReady();
+    }
     UpdateUltimateUI();
 }
 
