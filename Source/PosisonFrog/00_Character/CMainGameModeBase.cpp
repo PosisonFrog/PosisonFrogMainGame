@@ -17,6 +17,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "05_System/01_Sound/CSoundDataAsset.h"
 #include "05_System/01_Sound/CSoundManagerSubsystem.h"
+#include "05_System/CPawnLifecycleSubsystem.h"
 
 ACMainGameModeBase::ACMainGameModeBase()
 {
@@ -332,6 +333,14 @@ void ACMainGameModeBase::RespawnPlayerAtCheckPoint(ACPlayerController* PlayerCon
 		NewPlayer->EnableInput(PlayerController);
 		RequestStageRespawn();
 		ResetBossBattleState();
+
+		if (UGameInstance* GameInstance = GetGameInstance())
+		            {
+				                       if (UCPawnLifecycleSubsystem* PawnLifecycle = GameInstance->GetSubsystem<UCPawnLifecycleSubsystem>())
+				                        {
+						                                PawnLifecycle->NotifyPlayerRespawned(NewPlayer);
+						                       }
+				               }
 
 		if (SoundDataAsset)
 		{

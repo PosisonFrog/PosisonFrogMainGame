@@ -100,7 +100,17 @@ void ACTankerBrute::BeginPlay()
     
     ApplyPerceptionTuning();
     InitialiseChargeComponent();
-    BindPlayerToChargeDelegate();
+}
+
+void ACTankerBrute::HandlePlayerRespawned(ACPlayerCharacter* NewPlayer)
+{
+    Super::HandlePlayerRespawned(NewPlayer);
+    BindPlayerToChargeDelegate(NewPlayer);
+    
+    if (ChargeComp)
+    {
+        ChargeComp->ResetForRespawn();
+    }
 }
 
 void ACTankerBrute::OnResetForRespawn_Implementation()
@@ -567,38 +577,42 @@ void ACTankerBrute::CacheSoundsFromDataAsset()
     }
 }
 
-void ACTankerBrute::BindPlayerToChargeDelegate()
+void ACTankerBrute::BindPlayerToChargeDelegate(ACPlayerCharacter* PlayerOverride)
 {
-    
     if (!ChargeComp)
     {
         return;
     }
-
-    UWorld* World = GetWorld();
-    if (!World)
+ 
+    ACPlayerCharacter* Player = PlayerOverride;
+    if (!Player)
     {
-        return;
+        UWorld* World = GetWorld();
+        if (!World)
+        {
+            return;
+        }
+        
+        APlayerController* PC = World->GetFirstPlayerController();
+        if (!PC)
+        {
+            return;
+        }
+            
+        APawn* PlayerPawn = PC->GetPawn();
+        if (!PlayerPawn)
+        {
+            return;
+        }
+            
+        Player = Cast<ACPlayerCharacter>(PlayerPawn);
     }
-    
-    APlayerController* PC = World->GetFirstPlayerController();
-    if (!PC)
-    {
-        return;
-    }
-
-    APawn* PlayerPawn = PC->GetPawn();
-    if (!PlayerPawn)
-    {
-        return;
-    }
-
-    ACPlayerCharacter* Player = Cast<ACPlayerCharacter>(PlayerPawn);
+ 
+   
     if (Player)
     {
-        ChargeComp->OnPlayerHitByCharge.AddDynamic(Player, &ACPlayerCharacter::OnHitByTankerCharge);
+        ChargeComp->OnPlayerHitByCharge.Clear();
+        ChargeComp->OnPlayerHitByCharge.AddUniqueDynamic(Player, &ACPlayerCharacter::OnHitByTankerCharge);
         UE_LOG(LogTemp, Log, TEXT("[TankerBrute] Successfully bound charge delegate to player"));
     }
-    
-    
 }

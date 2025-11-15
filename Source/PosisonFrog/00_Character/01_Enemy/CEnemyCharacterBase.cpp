@@ -24,7 +24,9 @@
 
 #include "05_System/01_Sound/CSoundManagerSubsystem.h"
 #include "05_System/01_Sound//CSoundDataAsset.h"
+#include "05_System/CPawnLifecycleSubsystem.h"
 #include "00_Character/CMainGameModeBase.h"
+#include "Engine/GameInstance.h"
 
 #include "Engine/DamageEvents.h"
 
@@ -106,6 +108,7 @@ void ACEnemyCharacterBase::BeginPlay()
 	
 	SetState(EEnemyState::Patrol); // 기본적으로 순찰모드
 	CacheSoundsFromDataAsset();
+	RegisterForPlayerRespawnEvents();
 
 }
 
@@ -115,6 +118,7 @@ void ACEnemyCharacterBase::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	UnsubscribeFromPlayerComboHits();
 	StopHitShake();
+	UnregisterFromPlayerRespawnEvents();
 	Super::EndPlay(EndPlayReason);
 }
 
@@ -155,6 +159,76 @@ void ACEnemyCharacterBase::Tick(float DeltaSeconds)
 			DebugDrawState();
 	}
 
+}
+
+void ACEnemyCharacterBase::RegisterForPlayerRespawnEvents()
+{
+	if (PlayerRespawnDelegateHandle.IsValid())
+	{
+		return;
+	}
+	
+	UWorld* World = GetWorld();
+	if (!World)
+		return;
+	
+	if (UGameInstance* GameInstance = World->GetGameInstance())
+	{
+		if (UCPawnLifecycleSubsystem* Lifecycle = GameInstance->GetSubsystem<UCPawnLifecycleSubsystem>())
+		{
+			PlayerRespawnDelegateHandle = Lifecycle->OnPlayerRespawned().AddUObject(this, &ACEnemyCharacterBase::HandlePlayerRespawned);
+		}
+	}
+}
+
+void ACEnemyCharacterBase::UnregisterFromPlayerRespawnEvents()
+{
+	if (!PlayerRespawnDelegateHandle.IsValid())
+	{
+		return;
+	}
+	
+	if (UWorld* World = GetWorld())
+	{
+		if (UGameInstance* GameInstance = World->GetGameInstance())
+		{
+			if (UCPawnLifecycleSubsystem* Lifecycle = GameInstance->GetSubsystem<UCPawnLifecycleSubsystem>())
+			{
+				Lifecycle->OnPlayerRespawned().Remove(PlayerRespawnDelegateHandle);
+			}
+		}
+	}
+	
+	PlayerRespawnDelegateHandle = FDelegateHandle();
+}
+
+void ACEnemyCharacterBase::HandlePlayerRespawned(ACPlayerCharacter* NewPlayer)
+{
+	if (!IsValid(NewPlayer) || State == EEnemyState::Dead)
+	{
+		return;
+	}
+	
+	Target = nullptr;
+	AcquireTarget();
+	NextThinkTime = 0.f;
+	
+	if (UWorld* World = GetWorld())
+	{
+		LastSeenTime = World->GetTimeSeconds();
+	}
+	
+	if (Target)
+	{
+		if (State == EEnemyState::Patrol || State == EEnemyState::Alert || State == EEnemyState::ReturnHome)
+		{
+			SetState(EEnemyState::Chase);
+		}
+		else if (State == EEnemyState::Attack)
+		{
+			ReengageChase(0.f);
+		}
+	}
 }
 
 

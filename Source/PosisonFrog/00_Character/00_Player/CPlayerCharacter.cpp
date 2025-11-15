@@ -600,6 +600,12 @@ void ACPlayerCharacter::HandleDeath(AActor* DeadActor)
     GetWorldTimerManager().ClearAllTimersForObject(this);
 
     CleanupUltVFX();
+
+    if (UltimateBuffComponent)
+    {
+        UltimateBuffComponent->DeactivateUltimate();
+    }
+    bUltActive = false;
     
     // 죽을 때 사용할 애니메이션 재생
     if (DeathPlayerMontage && DeathHammerMontage)

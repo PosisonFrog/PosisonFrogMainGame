@@ -12,6 +12,8 @@ class UCEnemyHealthComponent;
 class UCEnemyWeaponComponent;
 class USoundBase;
 class UAnimMontage;
+class UCPawnLifecycleSubsystem;
+class ACPlayerCharacter;
 
 UENUM(BlueprintType)
 enum class EEnemyHitDirection : uint8
@@ -292,15 +294,19 @@ public:
 
     UFUNCTION(BlueprintNativeEvent, Category = "Enemy|Respawn")
     void OnResetForRespawn();
-        virtual void OnResetForRespawn_Implementation();
+    virtual void OnResetForRespawn_Implementation();
     
     UFUNCTION(BlueprintNativeEvent, Category = "Enemy|Respawn")
     void OnRespawned();
-        virtual void OnRespawned_Implementation();
+    virtual void OnRespawned_Implementation();
     
     void ForceRestartAI();
     
 protected:
+    virtual void HandlePlayerRespawned(class ACPlayerCharacter* NewPlayer);
+    
+protected:
+    
     // 런타임 상태
     UPROPERTY(Transient) TObjectPtr<AActor> Target = nullptr;
 
@@ -423,5 +429,10 @@ protected:
     
     UPROPERTY(Transient)
     TWeakObjectPtr<USoundBase> CachedDeathSound;
+
+private:
+    void RegisterForPlayerRespawnEvents();
+    void UnregisterFromPlayerRespawnEvents();
     
+    FDelegateHandle PlayerRespawnDelegateHandle;
 };

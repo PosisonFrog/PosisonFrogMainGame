@@ -10,7 +10,7 @@ class AAIController;
 class UAnimMontage;
 class USoundBase;
 class UNiagaraSystem;
-
+class ACPlayerCharacter;
 
 
 /**
@@ -39,7 +39,8 @@ protected:
 	virtual void BeginPlay() override;
 	virtual void OnResetForRespawn_Implementation() override;
 	virtual void OnRespawned_Implementation() override;
- 	
+	virtual void HandlePlayerRespawned(ACPlayerCharacter* NewPlayer) override;
+	
 private:
 
 	// 상위 FSM 훅
@@ -78,7 +79,7 @@ private:
 	
 	UFUNCTION()
 	void HandleChargeFinished(EChargeEndReason Reason, AActor* HitActor);
-	void BindPlayerToChargeDelegate();
+	void BindPlayerToChargeDelegate(ACPlayerCharacter* PlayerOverride);
 	
 protected:
 	// ───────── 기본 공격 설정(튜닝) ─────────
