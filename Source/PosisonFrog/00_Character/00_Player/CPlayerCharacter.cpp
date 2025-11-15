@@ -867,8 +867,9 @@ void ACPlayerCharacter::OnSpinReleased()
 {
     if (SpinAttackComponent)
     {
-        SpinAttackComponent->TryStartSpin();
-        if (SpinAttackComponent->IsSkillActive())
+        const bool bWasActive = SpinAttackComponent->IsSkillActive();
+        SpinAttackComponent->StopSpin();
+        if (bWasActive)
         {
             MarkCombatAction();
         }

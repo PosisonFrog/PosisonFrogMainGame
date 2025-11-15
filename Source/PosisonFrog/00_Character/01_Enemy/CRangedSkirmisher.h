@@ -24,6 +24,7 @@ protected:
     virtual void Tick(float DeltaSeconds) override;
     
     virtual void OnDead() override;
+    virtual void OnResetForRespawn_Implementation() override;
     // FSM 확장
     virtual void DoChase() override;     // 거리 밴드 유지 + 전술 이동
     virtual void DoAttack() override;    // 사격 조건/쿨다운/회피
@@ -126,7 +127,8 @@ protected:
     FTimerHandle BurstTimerHandle;
     int32 ShotsFiredInBurst = 0;
     float LastBurstTime = -1000.f;
-
+    FTransform InitialMeshRelativeTransform = FTransform::Identity;
+    
     // 디버그
     UPROPERTY(EditAnywhere, Category="PF|Debug")
     bool bDebugLog = false;

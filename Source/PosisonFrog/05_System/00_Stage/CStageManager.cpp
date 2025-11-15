@@ -901,6 +901,7 @@ void ACStageManager::ResetEnemy(ACEnemyCharacterBase* Enemy)
 	Enemy->ForceRestartAI();
 
 	Enemy->SetActorHiddenInGame(false);
+	Enemy->SetActorEnableCollision(true);
 	Enemy->SetActorTickEnabled(true);
 
 	if (UWorld* World = Enemy->GetWorld())

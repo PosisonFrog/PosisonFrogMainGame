@@ -100,6 +100,7 @@ void ACTankerBrute::BeginPlay()
     
     ApplyPerceptionTuning();
     InitialiseChargeComponent();
+    BindPlayerToChargeDelegate(nullptr);
 }
 
 void ACTankerBrute::HandlePlayerRespawned(ACPlayerCharacter* NewPlayer)

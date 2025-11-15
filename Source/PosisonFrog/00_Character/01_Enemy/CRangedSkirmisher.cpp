@@ -42,7 +42,10 @@ ACRangedSkirmisher::ACRangedSkirmisher()
 void ACRangedSkirmisher::BeginPlay()
 {
     Super::BeginPlay();
-
+    if (USkeletalMeshComponent* mesh = GetMesh())
+    {
+        InitialMeshRelativeTransform = mesh->GetRelativeTransform();
+    }
     // 피해 이벤트 → 반사 회피 트리거
     OnTakeAnyDamage.AddDynamic(this, &ACRangedSkirmisher::OnAnyDamaged);
     
@@ -105,7 +108,32 @@ void ACRangedSkirmisher::OnDead()
         Capsule->SetCollisionEnabled(ECollisionEnabled::NoCollision);
     }
 }
-
+void ACRangedSkirmisher::OnResetForRespawn_Implementation()
+{
+    Super::OnResetForRespawn_Implementation();
+    
+    ShotsFiredInBurst = 0;
+    LastBurstTime = -1000.f;
+    
+    if (USkeletalMeshComponent* mesh = GetMesh())
+    {
+        mesh->SetSimulatePhysics(false);
+        mesh->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+        mesh->SetCollisionProfileName(TEXT("CharacterMesh"));
+        mesh->AttachToComponent(GetCapsuleComponent(), FAttachmentTransformRules::KeepRelativeTransform);
+        mesh->SetRelativeTransform(InitialMeshRelativeTransform);
+    }
+    
+    if (UCapsuleComponent* Capsule = GetCapsuleComponent())
+    {
+        Capsule->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+    }
+    
+    if (!OnTakeAnyDamage.IsAlreadyBound(this, &ACRangedSkirmisher::OnAnyDamaged))
+    {
+        OnTakeAnyDamage.AddDynamic(this, &ACRangedSkirmisher::OnAnyDamaged);
+    }
+}
 
 
 // ───────────────── FSM 확장 ─────────────────
