@@ -1,5 +1,9 @@
 #include "CPlayerWidget.h"
 
+#include "MediaPlayer.h"
+#include "MediaTexture.h"
+#include "99_Util/CLog.h"
+#include "Components/CanvasPanelSlot.h"
 #include "Components/Image.h"
 #include "Components/ProgressBar.h"
 #include "Components/TextBlock.h"
@@ -15,10 +19,21 @@ void UCPlayerWidget::NativeOnInitialized()
     Super::NativeOnInitialized();
     // 초기 색상/상태 지정(위젯이 있을 때만)
     if (HealthBar)
+    {
         HealthBar->SetFillColorAndOpacity(HpColor_Normal);
+        
+        OriginalHpBarBrush = HealthBar->WidgetStyle.FillImage;
+        OriginalHpBarBackgroundBrush = HealthBar->WidgetStyle.BackgroundImage;
+
+        SaveOriginalHpBarTransform();
+        SaveOriginalHpBarAnchors();
+    }
 
     if (DashCooldownBar)
         DashCooldownBar->SetFillColorAndOpacity(DashColor_Ready);
+
+    if (UltMediaPlayer)
+        UltMediaPlayer->OnEndReached.AddDynamic(this, &UCPlayerWidget::OnUltimateAnimationFinished);
 }
 
 // 초기 상태는 READY로 세팅(에디터 미리보기/런타임 모두 안전)
@@ -41,8 +56,22 @@ void UCPlayerWidget::NativeConstruct()
         CSCComboCount->SetText(GetTextForRank(EComboRank::D));
         CSCComboCount->SetColorAndOpacity(GetColorForRank(EComboRank::D));
     }
+
+    if (UltAnimationImage)
+        UltAnimationImage->SetVisibility(ESlateVisibility::Hidden);
     
     HideSpinUltImages();
+}
+
+void UCPlayerWidget::NativeDestruct()
+{
+    if (UltMediaPlayer)
+    {
+        UltMediaPlayer->Close();
+        UltMediaTexture = nullptr;
+    }
+    
+    Super::NativeDestruct();
 }
 
 void UCPlayerWidget::UpdateHpBar(float Current, float Max)
@@ -161,6 +190,52 @@ void UCPlayerWidget::UpdateComboRank(EComboRank OldRank, EComboRank NewRank)
     CSCComboCount->SetColorAndOpacity(GetColorForRank(NewRank));
 }
 
+void UCPlayerWidget::OnUltimateActivated()
+{
+    bUltimateActive = true;
+
+    if (Ult_HPIcon)
+        Ult_HPIcon->SetVisibility(ESlateVisibility::Visible);
+
+    PlayUltimateAnimation();
+
+    if (GetWorld())
+    {
+        GetWorld()->GetTimerManager().ClearTimer(TimerHandle_HpBarChange);
+        GetWorld()->GetTimerManager().SetTimer(
+            TimerHandle_HpBarChange,
+            this,
+            &UCPlayerWidget::ApplyUltimateHpBarChanges,
+            HpBarChangeDelay,
+            false);
+    }
+    
+    if (HPBarImage_Ultimate)
+    {
+        SetHpBarImage(HPBarImage_Ultimate);
+    }
+}
+
+void UCPlayerWidget::OnUltimateDeactivated()
+{
+    bUltimateActive = false;
+
+    if (Ult_HPIcon)
+        Ult_HPIcon->SetVisibility(ESlateVisibility::Hidden);
+
+    RestoreHpBarImage();
+
+    if (UltAnimationImage)
+    {
+        UltAnimationImage->SetVisibility(ESlateVisibility::Hidden);
+    }
+
+    if (GetWorld())
+    {
+        GetWorld()->GetTimerManager().ClearTimer(TimerHandle_HpBarChange);
+    }
+}
+
 void UCPlayerWidget::StopDashFX()
 {
     if (DashFXImage)
@@ -276,6 +351,154 @@ FText UCPlayerWidget::GetTextForRank(EComboRank Rank) const
     case EComboRank::A: return FText::FromString(TEXT("A"));
     case EComboRank::S: return FText::FromString(TEXT("S"));
     default:            return FText::FromString(TEXT("?"));
+    }
+}
+
+void UCPlayerWidget::PlayUltimateAnimation()
+{
+    if (!UltMediaPlayer || !UltMediaTexture || !UltAnimationMediaSource)
+    {
+        CLog::Log(TEXT("[UCPlayerWidget] Media Player/Texture/Source 설정 필요"));
+        return;
+    }
+
+    // Media Player 재생
+    if (UltMediaPlayer->OpenSource(UltAnimationMediaSource))
+    {
+        UltMediaPlayer->Rewind();
+        UltMediaPlayer->Play();
+
+        // 애니메이션 이미지 표시
+        if (UltAnimationImage)
+            UltAnimationImage->SetVisibility(ESlateVisibility::Visible);
+        
+        CLog::Log(TEXT("[UCPlayerWidget] 궁극기 애니메이션 재생 시작"));
+    }
+    else
+    {
+        CLog::Log(TEXT("[UCPlayerWidget] 궁극기 애니메이션 재생 실패"));
+    }
+}
+
+void UCPlayerWidget::OnUltimateAnimationFinished()
+{
+    if (UltAnimationImage)
+    {
+        UltAnimationImage->SetVisibility(ESlateVisibility::Hidden);
+    }
+}
+
+void UCPlayerWidget::ApplyUltimateHpBarChanges()
+{
+    if (!HPBarImage_Ultimate)
+        return;
+
+    UE_LOG(LogTemp, Log, TEXT("[UCPlayerWidget] HP 바 변경 적용 시작"));
+    
+    // HP 바 이미지, 위치, 사이즈, 앵커 모두 변경
+    SetHpBarImage(HPBarImage_Ultimate);
+}
+
+void UCPlayerWidget::SetHpBarImage(UTexture2D* NewTexture)
+{
+    if (!HealthBar || !NewTexture)
+        return;
+
+    FProgressBarStyle NewStyle = HealthBar->WidgetStyle;
+    
+    // Fill 이미지 변경
+    FSlateBrush NewFillBrush = NewStyle.FillImage;
+    NewFillBrush.SetResourceObject(NewTexture);
+    NewStyle.FillImage = NewFillBrush;
+    
+    // Background 이미지 변경
+    if (HPBarBackgroundImage_Ultimate)
+    {
+        FSlateBrush NewBackgroundBrush = NewStyle.BackgroundImage;
+        NewBackgroundBrush.SetResourceObject(HPBarBackgroundImage_Ultimate);
+        NewStyle.BackgroundImage = NewBackgroundBrush;
+    }
+    
+    // 스타일 적용
+    HealthBar->SetWidgetStyle(NewStyle);
+
+    SetHpBarAnchors(UltimateHpBarAnchors);
+
+    // 위치/사이즈 변경
+    SetHpBarTransform(UltimateHpBarPosition, UltimateHpBarSize);
+}
+
+void UCPlayerWidget::RestoreHpBarImage()
+{
+    if (!HealthBar)
+        return;
+
+    // 원래 스타일로 복구
+    FProgressBarStyle OriginalStyle = HealthBar->WidgetStyle;
+    OriginalStyle.FillImage = OriginalHpBarBrush;
+    OriginalStyle.BackgroundImage = OriginalHpBarBackgroundBrush;
+    
+    HealthBar->SetWidgetStyle(OriginalStyle);
+
+    if (bOriginalHpBarAnchorsSaved)
+    {
+        SetHpBarAnchors(OriginalHpBarAnchors);
+    }
+
+    // 원래 위치/사이즈로 복구
+    if (bOriginalHpBarTransformSaved)
+        SetHpBarTransform(OriginalHpBarPosition, OriginalHpBarSize);
+}
+
+void UCPlayerWidget::SaveOriginalHpBarTransform()
+{
+    if (!HealthBar || bOriginalHpBarTransformSaved)
+        return;
+
+    UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(HealthBar->Slot);
+    if (CanvasSlot)
+    {
+        OriginalHpBarPosition = CanvasSlot->GetPosition();
+        OriginalHpBarSize = CanvasSlot->GetSize();
+        bOriginalHpBarTransformSaved = true;
+    }
+}
+
+void UCPlayerWidget::SetHpBarTransform(const FVector2D& Position, const FVector2D& Size)
+{
+    if (!HealthBar)
+        return;
+
+    UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(HealthBar->Slot);
+    if (CanvasSlot)
+    {
+        CanvasSlot->SetPosition(Position);
+        CanvasSlot->SetSize(Size);
+    }
+}
+
+void UCPlayerWidget::SaveOriginalHpBarAnchors()
+{
+    if (!HealthBar || bOriginalHpBarAnchorsSaved)
+        return;
+
+    UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(HealthBar->Slot);
+    if (CanvasSlot)
+    {
+        OriginalHpBarAnchors = CanvasSlot->GetAnchors();
+        bOriginalHpBarAnchorsSaved = true;
+    }
+}
+
+void UCPlayerWidget::SetHpBarAnchors(const FAnchors& Anchors)
+{
+    if (!HealthBar)
+        return;
+
+    UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(HealthBar->Slot);
+    if (CanvasSlot)
+    {
+        CanvasSlot->SetAnchors(Anchors);
     }
 }
 

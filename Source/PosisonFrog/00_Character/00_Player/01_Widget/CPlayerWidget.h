@@ -5,6 +5,9 @@
 #include "Blueprint/UserWidget.h"
 #include "CPlayerWidget.generated.h"
 
+class UMediaTexture;
+class UMediaSource;
+class UMediaPlayer;
 class UImage;
 class UTextBlock;
 class UProgressBar;  
@@ -52,6 +55,7 @@ public:
     UFUNCTION(BlueprintCallable, Category = "PF|HUD")
     void UpdateFuryStacksBar(int32 NewStacks, int32 MaxStacks);
 
+    // 스핀 스킬 - 이미지 활성화 방식
     UFUNCTION(BlueprintCallable, Category = "PF|HUD")
     void UpdateFuryStacksImage(int32 NewStacks, int32 MaxStacks);
 
@@ -62,10 +66,18 @@ public:
     // 콤보 랭크
     UFUNCTION(BlueprintCallable, Category = "PF|HUD")
     void UpdateComboRank(EComboRank OldRank, EComboRank NewRank);
+
+    // 궁극기 UI 연출 부분
+    UFUNCTION(BlueprintCallable, Category = "PF|HUD")
+    void OnUltimateActivated();
+
+    UFUNCTION(BlueprintCallable, Category = "PF|HUD")
+    void OnUltimateDeactivated();
     
 protected:
     virtual void NativeOnInitialized() override;
     virtual void NativeConstruct() override;
+    virtual void NativeDestruct() override;
 
 private:
     // ─────────── UMG 바인딩(위젯 이름만 맞추면 블루프린트 스크립트 불필요) ───────────
@@ -111,6 +123,9 @@ private:
 
     UPROPERTY(meta = (BindWidgetOptional))
     UImage* UltRank_5 = nullptr;
+
+    UPROPERTY(meta = (BindWidgetOptional))
+    UImage* UltAnimationImage = nullptr;
     
     // 스핀
     UPROPERTY(meta = (BindWidgetOptional))
@@ -190,6 +205,73 @@ private:
     UPROPERTY(EditAnywhere, Category = "PF|HUD|Combo")
     FLinearColor RankColor_S = FLinearColor(1.0f, 0.8f, 0.2f, 1.0f);
 
+    // ─────────── 궁극기 연출 설정 ───────────
+    // Media Player
+    UPROPERTY(EditAnywhere, Category = "PF|HUD|Ultimate|Animation")
+    TObjectPtr<UMediaSource> UltAnimationMediaSource = nullptr;
+
+    UPROPERTY(EditAnywhere, Category = "PF|HUD|Ultimate|Animation")
+    TObjectPtr<UMediaPlayer> UltMediaPlayer = nullptr;
+
+    UPROPERTY(EditAnywhere, Category = "PF|HUD|Ultimate|Animation")
+    TObjectPtr<UMediaTexture> UltMediaTexture = nullptr;
+
+    UPROPERTY(EditAnywhere, Category = "PF|HUD|Ultimate|Animation")
+    float HpBarChangeDelay = 0.9f;
+    
+    // HP Bar 이미지 교체용
+    UPROPERTY(EditAnywhere, Category = "PF|HUD|Ultimate|HPBar")
+    TObjectPtr<UTexture2D> HPBarImage_Normal = nullptr;
+    UPROPERTY(EditAnywhere, Category = "PF|HUD|Ultimate|HPBar")
+    TObjectPtr<UTexture2D> HPBarBackgroundImage_Normal = nullptr;
+
+    UPROPERTY(EditAnywhere, Category = "PF|HUD|Ultimate|HPBar")
+    TObjectPtr<UTexture2D> HPBarImage_Ultimate = nullptr;
+    UPROPERTY(EditAnywhere, Category = "PF|HUD|Ultimate|HPBar")
+    TObjectPtr<UTexture2D> HPBarBackgroundImage_Ultimate = nullptr;
+    
+    UPROPERTY(Transient)
+    FSlateBrush OriginalHpBarBrush;
+
+    UPROPERTY(Transient)
+    FSlateBrush OriginalHpBarBackgroundBrush;
+    
+    // HP Bar 원래 위치/사이즈 저장
+    UPROPERTY(Transient)
+    FVector2D OriginalHpBarPosition = FVector2D::ZeroVector;
+
+    UPROPERTY(Transient)
+    FVector2D OriginalHpBarSize = FVector2D::ZeroVector;
+
+    UPROPERTY(Transient)
+    bool bOriginalHpBarTransformSaved = false;
+
+    UPROPERTY(EditAnywhere, Category = "PF|HUD|Ultimate|HPBar")
+    FVector2D UltimateHpBarPosition = FVector2D(274.f, 12.0f);
+
+    UPROPERTY(EditAnywhere, Category = "PF|HUD|Ultimate|HPBar")
+    FVector2D UltimateHpBarSize = FVector2D(0.0f, 94.f);
+
+    // HP Bar Anchor 설정
+    UPROPERTY(Transient)
+    FAnchors OriginalHpBarAnchors;
+
+    UPROPERTY(Transient)
+    bool bOriginalHpBarAnchorsSaved = false;
+
+    // 일반 상태: 왼쪽 위 앵커 (0,0,0,0)
+    UPROPERTY(EditAnywhere, Category = "PF|HUD|Ultimate|HPBar")
+    FAnchors NormalHpBarAnchors = FAnchors(0.f, 0.f, 0.f, 0.f);
+
+    // 궁극기 상태: 상단 면 전체 앵커 (0,0,1,0)
+    UPROPERTY(EditAnywhere, Category = "PF|HUD|Ultimate|HPBar")
+    FAnchors UltimateHpBarAnchors = FAnchors(0.f, 0.f, 1.f, 0.f);
+
+    FTimerHandle TimerHandle_HpBarChange;
+    
+    UPROPERTY(Transient)
+    bool bUltimateActive = false;
+    
 private:
     void StopDashFX();
 
@@ -200,6 +282,22 @@ private:
 
     FLinearColor GetColorForRank(EComboRank Rank) const;
     FText GetTextForRank(EComboRank Rank) const;
+
+    // 궁극기 애니메이션 관련
+    void PlayUltimateAnimation();
+    UFUNCTION() void OnUltimateAnimationFinished();
+
+    // HP Bar 변경 (지연 후 호출)
+    UFUNCTION() void ApplyUltimateHpBarChanges();
+    
+    void SetHpBarImage(UTexture2D* NewTexture);
+    void RestoreHpBarImage();
+
+    // HP Bar 위치/사이즈 변경 헬퍼
+    void SaveOriginalHpBarTransform();
+    void SetHpBarTransform(const FVector2D& Position, const FVector2D& Size);
+    void SaveOriginalHpBarAnchors();
+    void SetHpBarAnchors(const FAnchors& Anchors);
     
     // 내부 헬퍼
     static float SafeRatio(float Num, float Denom);

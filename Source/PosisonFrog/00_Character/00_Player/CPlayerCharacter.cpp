@@ -732,15 +732,19 @@ void ACPlayerCharacter::UseUltimate()
     if (KnockbackComponent && KnockbackComponent->IsKnockedBack())
         return;
     
-
     static const FName PlayerUltId(TEXT("PlayerUlt"));
 
     bUltActive = true;
     ComboStackComponent->OnUltStarted(PlayerUltId);
     UltimateBuffComponent->ActivateUltimate();
     UE_LOG(LogTemp, Log, TEXT("[ULT] UseUltimate On Gauge=%.1f/%.1f"), CurUltGauge, MaxUltGauge);
-
+    
     MarkCombatAction();
+
+    if (PlayerWidget)
+    {
+        PlayerWidget->OnUltimateActivated();
+    }
     
     GetWorldTimerManager().ClearTimer(TimerHandle_UltDuration);
     GetWorldTimerManager().SetTimer(
@@ -777,6 +781,11 @@ void ACPlayerCharacter::OnUltimateExpired()
     }
     
     CleanupUltVFX();
+
+    if (PlayerWidget)
+    {
+        PlayerWidget->OnUltimateDeactivated();
+    }
     
     CLog::Log(TEXT("[ULT] UseUltimate OFF"));
 
