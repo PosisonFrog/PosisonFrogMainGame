@@ -2,6 +2,7 @@
 
 #include "Components/Image.h"
 #include "Components/ProgressBar.h"
+#include "Components/TextBlock.h"
 
 namespace
 {
@@ -18,9 +19,6 @@ void UCPlayerWidget::NativeOnInitialized()
 
     if (DashCooldownBar)
         DashCooldownBar->SetFillColorAndOpacity(DashColor_Ready);
-
-    if (FuryGaugeBar)
-        FuryGaugeBar->SetPercent(0.0f);
 }
 
 // 초기 상태는 READY로 세팅(에디터 미리보기/런타임 모두 안전)
@@ -32,8 +30,19 @@ void UCPlayerWidget::NativeConstruct()
     if (HealthBar)      HealthBar->SetPercent(1.0f);
     if (UltimateBar)    UltimateBar->SetPercent(0.0f);
     if (OverHealHpBar)  OverHealHpBar->SetPercent(0.0f);
-
+    
     SetDashReady(); // 대시는 처음엔 Ready 상태로
+    
+    if (FuryGaugeBar)
+        FuryGaugeBar->SetPercent(0.0f);
+
+    if (CSCComboCount)
+    {
+        CSCComboCount->SetText(GetTextForRank(EComboRank::D));
+        CSCComboCount->SetColorAndOpacity(GetColorForRank(EComboRank::D));
+    }
+    
+    HideSpinUltImages();
 }
 
 void UCPlayerWidget::UpdateHpBar(float Current, float Max)
@@ -117,7 +126,14 @@ void UCPlayerWidget::UpdateUltimateBar(float Current, float Max)
     }
 }
 
-void UCPlayerWidget::UpdateFuryStacks(int32 NewStacks, int32 MaxStacks)
+void UCPlayerWidget::UpdateUltimateImage(float Current, float Max)
+{
+    const float Ratio = SafeRatio(Current, Max);
+
+    UpdateUltimateRankImages(Ratio);
+}
+
+void UCPlayerWidget::UpdateFuryStacksBar(int32 NewStacks, int32 MaxStacks)
 {
     if (!FuryGaugeBar)
         return;
@@ -126,10 +142,141 @@ void UCPlayerWidget::UpdateFuryStacks(int32 NewStacks, int32 MaxStacks)
     FuryGaugeBar->SetPercent(Ratio);
 }
 
+void UCPlayerWidget::UpdateFuryStacksImage(int32 NewStacks, int32 MaxStacks)
+{
+    UpdateFuryStacksImages(NewStacks);
+}
+
+void UCPlayerWidget::UpdateComboStack(int32 NewCSC)
+{
+    // 일단 지금 Rank로 한번 해보기
+}
+
+void UCPlayerWidget::UpdateComboRank(EComboRank OldRank, EComboRank NewRank)
+{
+    if (!CSCComboCount)
+        return;
+
+    CSCComboCount->SetText(GetTextForRank(NewRank));
+    CSCComboCount->SetColorAndOpacity(GetColorForRank(NewRank));
+}
+
 void UCPlayerWidget::StopDashFX()
 {
     if (DashFXImage)
         DashFXImage->SetVisibility(ESlateVisibility::Hidden);
+}
+
+void UCPlayerWidget::HideSpinUltImages()
+{
+    if (Ult_HPIcon)
+        Ult_HPIcon->SetVisibility(ESlateVisibility::Hidden);
+    
+    if (UltRank_1)
+        UltRank_1->SetVisibility(ESlateVisibility::Hidden);
+    if (UltRank_2)
+        UltRank_2->SetVisibility(ESlateVisibility::Hidden);
+    if (UltRank_3)
+        UltRank_3->SetVisibility(ESlateVisibility::Hidden);
+    if (UltRank_4)
+        UltRank_4->SetVisibility(ESlateVisibility::Hidden);
+    if (UltRank_5)
+        UltRank_5->SetVisibility(ESlateVisibility::Hidden);
+    
+    if (SpinStack_1)
+        SpinStack_1->SetVisibility(ESlateVisibility::Hidden);
+    if (SpinStack_2)
+        SpinStack_2->SetVisibility(ESlateVisibility::Hidden);
+    if (SpinStack_3)
+        SpinStack_3->SetVisibility(ESlateVisibility::Hidden);
+    if (SpinStack_4)
+        SpinStack_4->SetVisibility(ESlateVisibility::Hidden);
+}
+
+void UCPlayerWidget::UpdateFuryStacksImages(int32 CurrentStacks)
+{
+    if (SpinStack_1)
+    {
+        const bool bShouldShow = CurrentStacks >= FuryStack1Threshold;
+        SpinStack_1->SetVisibility(bShouldShow ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden);
+    }
+    
+    if (SpinStack_2)
+    {
+        const bool bShouldShow = CurrentStacks >= FuryStack2Threshold;
+        SpinStack_2->SetVisibility(bShouldShow ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden);
+    }
+    
+    if (SpinStack_3)
+    {
+        const bool bShouldShow = CurrentStacks >= FuryStack3Threshold;
+        SpinStack_3->SetVisibility(bShouldShow ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden);
+    }
+    
+    if (SpinStack_4)
+    {
+        const bool bShouldShow = CurrentStacks >= FuryStack4Threshold;
+        SpinStack_4->SetVisibility(bShouldShow ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden);
+    }
+}
+
+void UCPlayerWidget::UpdateUltimateRankImages(float Ratio)
+{
+    if (UltRank_1)
+    {
+        const bool bShouldShow = Ratio >= UltRank1Threshold;
+        UltRank_1->SetVisibility(bShouldShow ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden);
+    }
+    
+    if (UltRank_2)
+    {
+        const bool bShouldShow = Ratio >= UltRank2Threshold;
+        UltRank_2->SetVisibility(bShouldShow ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden);
+    }
+    
+    if (UltRank_3)
+    {
+        const bool bShouldShow = Ratio >= UltRank3Threshold;
+        UltRank_3->SetVisibility(bShouldShow ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden);
+    }
+    
+    if (UltRank_4)
+    {
+        const bool bShouldShow = Ratio >= UltRank4Threshold;
+        UltRank_4->SetVisibility(bShouldShow ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden);
+    }
+    
+    if (UltRank_5)
+    {
+        const bool bShouldShow = Ratio >= UltRank5Threshold;
+        UltRank_5->SetVisibility(bShouldShow ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden);
+    }
+}
+
+FLinearColor UCPlayerWidget::GetColorForRank(EComboRank Rank) const
+{
+    switch (Rank)
+    {
+    case EComboRank::D: return RankColor_D;
+    case EComboRank::C: return RankColor_C;
+    case EComboRank::B: return RankColor_B;
+    case EComboRank::A: return RankColor_A;
+    case EComboRank::S: return RankColor_S;
+    default:            return FLinearColor::White;
+    }
+}
+
+FText UCPlayerWidget::GetTextForRank(EComboRank Rank) const
+{
+    switch (Rank)
+    {
+    case EComboRank::D: return FText::FromString(TEXT("D"));
+    case EComboRank::C: return FText::FromString(TEXT("C"));
+    case EComboRank::B: return FText::FromString(TEXT("B"));
+    case EComboRank::A: return FText::FromString(TEXT("A"));
+    case EComboRank::S: return FText::FromString(TEXT("S"));
+    default:            return FText::FromString(TEXT("?"));
+    }
 }
 
 float UCPlayerWidget::SafeRatio(float Num, float Denom)
