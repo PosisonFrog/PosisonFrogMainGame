@@ -56,35 +56,6 @@ void ACMainGameModeBase::BeginPlay()
 		}
 	}
 	
-	// -----------------------임시로 SoundManager 초기화 및 BGM 시작 --------------------------
-	if (UGameInstance* GI = GetGameInstance())
-	{
-		if (UCSoundManagerSubsystem* SoundMgr = GI->GetSubsystem<UCSoundManagerSubsystem>())
-		{
-			SoundMgr->SetSoundDataAsset(SoundDataAsset);
-		}
-	}
-	if (MasterSoundMix)
-	{
-		if (UWorld* World = GetWorld())
-		{
-			if (APlayerController* PC = World->GetFirstPlayerController())
-			{
-				UGameplayStatics::PushSoundMixModifier(this, MasterSoundMix);
-				UE_LOG(LogTemp, Log, TEXT("[GameMode] Applied Master SoundMix"));
-			}
-		}
-	}
-    
-	// SoundManager 초기화 및 BGM 시작
-	if (UGameInstance* GI = GetGameInstance())
-	{
-		if (UCSoundManagerSubsystem* SoundMgr = GI->GetSubsystem<UCSoundManagerSubsystem>())
-		{
-			SoundMgr->SetSoundDataAsset(SoundDataAsset);
-		}
-	}
-	//---------------------- 세팅 UI만들어지면 위에 코드 지워야함.[박용석 남김]------------------------
 	StartGameplayBGM();
 
 }

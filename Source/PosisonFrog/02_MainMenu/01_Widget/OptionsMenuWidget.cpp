@@ -150,26 +150,65 @@ void UOptionsMenuWidget::SaveToConfig()
 
 /* ===================== 오디오 적용 ===================== */
 
+// OptionsMenuWidget.cpp - ApplyVolumes 함수 수정
 void UOptionsMenuWidget::ApplyVolumes(bool bPushMix)
 {
-    if (!GetWorld() || !OptionsSoundMix) return;
+    if (!OptionsSoundMix || !MasterClass || !BGMClass || !SFXClass)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[Options] Missing SoundMix or SoundClass!"));
+        return;
+    }
 
-    auto ApplyOne = [&](USoundClass* Class, float Vol)
-        {
-            if (Class)
-            {
-                UGameplayStatics::SetSoundMixClassOverride(GetWorld(), OptionsSoundMix, Class, Vol, 1.0f, 0.0f, true);
-            }
-        };
+    UWorld* World = GetWorld();
+    if (!World) return;
 
-    ApplyOne(MasterClass, MasterVol);
-    ApplyOne(BGMClass, BgmVol);
-    ApplyOne(SFXClass, SfxVol);
-
+    // SoundMix 설정
     if (bPushMix)
     {
-        UGameplayStatics::PushSoundMixModifier(GetWorld(), OptionsSoundMix);
+        // 기존 것 제거 후 새로 Push
+        UGameplayStatics::PopSoundMixModifier(World, OptionsSoundMix);
+        
+        // Duration = -1.0f (무한) 또는 0.0f로 설정
+        UGameplayStatics::PushSoundMixModifier(World, OptionsSoundMix);
     }
+
+    // 볼륨 적용 (0.0001f로 완전 0 방지)
+    float ClampedMaster = FMath::Max(MasterVol, 0.0001f);
+    float ClampedBGM = FMath::Max(BgmVol, 0.0001f);
+    float ClampedSFX = FMath::Max(SfxVol, 0.0001f);
+
+    UGameplayStatics::SetSoundMixClassOverride(
+        World,
+        OptionsSoundMix,
+        MasterClass,
+        ClampedMaster,
+        1.0f,  // Pitch
+        0.0f,  // FadeInTime
+        true   // bApplyToChildren
+    );
+
+    UGameplayStatics::SetSoundMixClassOverride(
+        World,
+        OptionsSoundMix,
+        BGMClass,
+        ClampedBGM,
+        1.0f,
+        0.0f,
+        true
+    );
+
+    UGameplayStatics::SetSoundMixClassOverride(
+        World,
+        OptionsSoundMix,
+        SFXClass,
+        ClampedSFX,
+        1.0f,
+        0.0f,
+        true
+    );
+
+    UE_LOG(LogTemp, Log, TEXT("[Options] Applied volumes - Master: %.2f, BGM: %.2f, SFX: %.2f"), 
+           MasterVol, BgmVol, SfxVol);
 }
 
 /* ===================== UI ←→ 시스템 동기화 ===================== */
@@ -344,15 +383,27 @@ void UOptionsMenuWidget::ApplyGraphicsFromUI(bool bSave)
 void UOptionsMenuWidget::OnMasterVolChanged(float V)
 {
     MasterVol = V;
+    
+    // UI 업데이트
     UpdateVolumeProgressBar(ProgressBar_MasterFill, Text_MasterVolume, V);
-    UpdateSliderThumb(Slider_Master, V, 
-                 MasterThumb_Low, MasterThumb_Mid, MasterThumb_High,
-                 MasterThreshold_LowToMid, MasterThreshold_MidToHigh);
-    ApplyVolumes();
+    UpdateSliderThumb(Slider_Master, V, MasterThumb_Low, MasterThumb_Mid, 
+                      MasterThumb_High, MasterThreshold_LowToMid, MasterThreshold_MidToHigh);
+    
+    // 볼륨만 적용 (Push는 하지 않음)
+    ApplyVolumes(false);  // ← false로 변경!
 }
-void UOptionsMenuWidget::OnBGMVolChanged(float V) { BgmVol = FMath::Clamp(V, 0.f, 1.f); ApplyVolumes(); }
-void UOptionsMenuWidget::OnSFXVolChanged(float V) { SfxVol = FMath::Clamp(V, 0.f, 1.f); ApplyVolumes(); }
 
+void UOptionsMenuWidget::OnBGMVolChanged(float V)
+{
+    BgmVol = V;
+    ApplyVolumes(false);  // ← false로 변경!
+}
+
+void UOptionsMenuWidget::OnSFXVolChanged(float V)
+{
+    SfxVol = V;
+    ApplyVolumes(false);  // ← false로 변경!
+}
 /* ===================== 밝기/마우스 감도 ===================== */
 
 void UOptionsMenuWidget::OnBrightnessChanged(float V)
