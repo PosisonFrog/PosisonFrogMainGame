@@ -7,6 +7,8 @@
 class UAnimMontage;
 class ACharacter;
 class APlayerController;
+class ACHammer;
+class UCPlayerWeaponComponent;
 
 /**
  * 플레이어 넉백 전담 컴포넌트
@@ -21,15 +23,12 @@ class POSISONFROG_API UCPlayerKnockbackComponent : public UActorComponent
 public:
     UCPlayerKnockbackComponent();
 
-    // 넉백 시작 (외부에서 호출)
     UFUNCTION(BlueprintCallable, Category = "PF|Knockback")
     void StartKnockback(AActor* Attacker = nullptr); 
 
-    // 강제 중단 (사망 시 등)
     UFUNCTION(BlueprintCallable, Category = "PF|Knockback")
     void CancelKnockback();
 
-    // 상태 쿼리
     UFUNCTION(BlueprintPure, Category = "PF|Knockback")
     bool IsKnockedBack() const { return bIsKnockedBack; }
 
@@ -41,7 +40,6 @@ protected:
     virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 private:
-    // 시퀀스 단계들
     void PlayAirAnimation();
     void TransitionToDown();
     void OnStunEnd();
@@ -54,33 +52,45 @@ private:
     void PlayMontage(UAnimMontage* Montage);
     void FaceAttacker(AActor* Attacker);
     void ClearTimers();
+    
+    ACHammer* GetHammer() const;
 
 private:
     // ─────────── 애니메이션 ───────────
     UPROPERTY(EditDefaultsOnly, Category = "Knockback|Animation")
-    TObjectPtr<UAnimMontage> AirMontage = nullptr;        // 공중 넉백 애님
+    TObjectPtr<UAnimMontage> CharacterAirMontage = nullptr;       
 
     UPROPERTY(EditDefaultsOnly, Category = "Knockback|Animation")
-    TObjectPtr<UAnimMontage> DownMontage = nullptr;       // 땅에 쓰러진 기절 애님
+    TObjectPtr<UAnimMontage> CharacterDownMontage = nullptr;       
 
     UPROPERTY(EditDefaultsOnly, Category = "Knockback|Animation")
-    TObjectPtr<UAnimMontage> GetUpMontage = nullptr;      // 일어서는 애님
+    TObjectPtr<UAnimMontage> CharacterGetUpMontage = nullptr;
 
     UPROPERTY(EditDefaultsOnly, Category = "Knockback|Animation")
-    bool bLoopAirAnimation = true;                        // 공중 애님 루프 여부
+    TObjectPtr<UAnimMontage> HammerAirMontage = nullptr;       
+
+    UPROPERTY(EditDefaultsOnly, Category = "Knockback|Animation")
+    TObjectPtr<UAnimMontage> HammerDownMontage = nullptr;       
+
+    UPROPERTY(EditDefaultsOnly, Category = "Knockback|Animation")
+    TObjectPtr<UAnimMontage> HammerGetUpMontage = nullptr;
+
+
+    UPROPERTY(EditDefaultsOnly, Category = "Knockback|Animation")
+    bool bLoopAirAnimation = true;                        
     
     UPROPERTY(EditDefaultsOnly, Category = "Knockback|Animation", meta = (ClampMin = "0.1", ClampMax = "2.0"))
-    float AirAnimationPlayRate = 1.0f;                    // 공중 애님 재생 속도
+    float AirAnimationPlayRate = 1.0f;                  
 
     // ─────────── 타이밍 ───────────
     UPROPERTY(EditDefaultsOnly, Category = "Knockback|Timing", meta = (ClampMin = "0.1"))
-    float AirDuration = 0.7f;                             // 공중 애님 지속 시간
+    float AirDuration = 0.7f;                           
 
     UPROPERTY(EditDefaultsOnly, Category = "Knockback|Timing", meta = (ClampMin = "0"))
-    float StunDuration = 1.0f;                            // 기절 지속 시간
+    float StunDuration = 1.0f;                            
 
     UPROPERTY(EditDefaultsOnly, Category = "Knockback|Settings")
-    bool bBlockInputDuringKnockback = true;               // 넉백 중 입력 차단
+    bool bBlockInputDuringKnockback = true;              
 
     // ─────────── 디버그 ───────────
     UPROPERTY(EditDefaultsOnly, Category = "Knockback|Debug")
@@ -96,6 +106,7 @@ private:
     // 캐시된 참조
     TWeakObjectPtr<ACharacter> OwnerCharacter;
     TWeakObjectPtr<APlayerController> CachedPC;
+    TWeakObjectPtr<UCPlayerWeaponComponent> CachedWeaponComponent;
 
     // 타이머
     FTimerHandle TH_TransitionToDown;

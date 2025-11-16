@@ -351,6 +351,9 @@ void ACPlayerCharacter::Look(const FInputActionValue& Value)
 // ────────────────────────────────────────────────────────────────────────────
 void ACPlayerCharacter::Attack()
 {
+    if (KnockbackComponent && KnockbackComponent->IsKnockedBack())
+        return;
+    
     if (SpinAttackComponent && SpinAttackComponent->IsSkillActive())
         return;
     
@@ -865,6 +868,9 @@ void ACPlayerCharacter::OnSpinPressed()
 
 void ACPlayerCharacter::OnSpinReleased()
 {
+    if (KnockbackComponent && KnockbackComponent->IsKnockedBack())
+        return;
+    
     if (SpinAttackComponent)
     {
         const bool bWasActive = SpinAttackComponent->IsSkillActive();
