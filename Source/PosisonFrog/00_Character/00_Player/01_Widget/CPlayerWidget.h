@@ -58,6 +58,7 @@ private:
     UPROPERTY(meta = (BindWidgetOptional))
     UProgressBar* HealthBar = nullptr;
 
+
     // OverHealHealth
     UPROPERTY(meta = (BindWidgetOptional))
     UProgressBar* OverHealHpBar = nullptr;
@@ -73,11 +74,44 @@ private:
     
     // Ultimate
     UPROPERTY(meta = (BindWidgetOptional))
+    UImage* Ult_HPIcon = nullptr;
+    
+    UPROPERTY(meta = (BindWidgetOptional))
     UProgressBar* UltimateBar = nullptr;
 
+    UPROPERTY(meta = (BindWidgetOptional))
+    UTextBlock* SCSComboCount = nullptr;
+
+    UPROPERTY(meta = (BindWidgetOptional))
+    UImage* UltRank_1 = nullptr;
+
+    UPROPERTY(meta = (BindWidgetOptional))
+    UImage* UltRank_2 = nullptr;
+
+    UPROPERTY(meta = (BindWidgetOptional))
+    UImage* UltRank_3 = nullptr;
+
+    UPROPERTY(meta = (BindWidgetOptional))
+    UImage* UltRank_4 = nullptr;
+
+    UPROPERTY(meta = (BindWidgetOptional))
+    UImage* UltRank_5 = nullptr;
+    
     // 스핀
     UPROPERTY(meta = (BindWidgetOptional))
     UProgressBar* FuryGaugeBar = nullptr;
+    
+    UPROPERTY(meta = (BindWidgetOptional))
+    UImage* SpinStack_1 = nullptr;
+
+    UPROPERTY(meta = (BindWidgetOptional))
+    UImage* SpinStack_2 = nullptr;
+
+    UPROPERTY(meta = (BindWidgetOptional))
+    UImage* SpinStack_3 = nullptr;
+
+    UPROPERTY(meta = (BindWidgetOptional))
+    UImage* SpinStack_4 = nullptr;
     
     // ===== 표시/연출 관련 기본값 =====
     UPROPERTY(EditAnywhere, Category = "PF|HUD|HP")
