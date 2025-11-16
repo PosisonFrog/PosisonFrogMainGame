@@ -30,7 +30,9 @@ public class PosisonFrog : ModuleRules
             "RenderCore",
             "SkillBorderFx",
             "MediaAssets",
-            "Media"
+            "Media",
+            "LevelSequence",    
+            "MovieScene"
 		});
 		
 		PrivateDependencyModuleNames.AddRange(new string[] 

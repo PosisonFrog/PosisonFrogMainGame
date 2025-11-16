@@ -8,6 +8,10 @@ class ACPlayerCharacter;
 class UBoxComponent;
 class ACEnemyBossCharacter;
 class ACBossStageBarrier;
+class ULevelSequence;
+class ALevelSequenceActor;
+class ULevelSequencePlayer;        
+class UUserWidget;
 
 /**
  * 플레이어가 진입하면 보스 전투를 시작하는 트리거 볼륨
@@ -33,15 +37,55 @@ private:
 
     /** 플레이어가 트리거에 진입했을 때 보스 전투를 시도 */
     void AttemptStartBossBattle(ACPlayerCharacter* PlayerCharacter);
+
+
+    /** 경고 UI 표시 */
+    void ShowWarningUI();
+    
+    /** 레벨 시퀀스 재생 */
+    void PlayIntroSequence();
+    
+    /** 플레이어를 보스 앞으로 재배치 */
+    void RepositionPlayer(ACPlayerCharacter* PlayerCharacter);
+    
+    /** 시퀀스 종료 시 호출 */
+    UFUNCTION()
+    void OnSequenceFinished();
     
 private:
-    /** 트리거 박스 컴포넌트 */
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
     TObjectPtr<UBoxComponent> TriggerBox;
 
-    /** 시작할 보스 캐릭터 레퍼런스 (레벨에서 설정) */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Boss Battle", meta = (AllowPrivateAccess = "true"))
     TObjectPtr<ACEnemyBossCharacter> TargetBoss;
+
+    UPROPERTY(EditAnywhere, Category = "Boss Battle|Sequence")
+    TObjectPtr<ULevelSequence> IntroSequence;
+    
+    UPROPERTY(Transient)
+    TObjectPtr<ALevelSequenceActor> SequenceActor;
+
+    UPROPERTY(Transient)
+    TWeakObjectPtr<ACPlayerCharacter> CurrentPlayer;
+    
+    UPROPERTY(EditAnywhere, Category = "Boss Battle|UI")
+    TSubclassOf<UUserWidget> WarningWidgetClass;
+    
+    UPROPERTY(Transient)
+    TWeakObjectPtr<APlayerController> PlayerController;
+
+private:
+    
+    UPROPERTY(EditAnywhere, Category = "Boss Battle|UI", meta = (ClampMin = "0.0"))
+    float WarningDisplayDuration = 2.0f;
+    
+    UPROPERTY(EditAnywhere, Category = "Boss Battle|Positioning", meta = (ClampMin = "0.0"))
+    float PlayerDistanceFromBoss = 1500.0f;
+    
+    UPROPERTY(EditAnywhere, Category = "Boss Battle|Timing", meta = (ClampMin = "0.0"))
+    float DelayBeforeSequence = 1.0f;
+
+    
     
     /** 인트로를 스킵할지 여부 */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Boss Battle", meta = (AllowPrivateAccess = "true"))
@@ -67,11 +111,15 @@ private:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Boss Battle", meta = (AllowPrivateAccess = "true"))
     bool bIsEnabled = true;
 
-    /** 초기 보스 이름(리스폰 시 보스 참조 복구용) */
+    bool bOriginalUsePawnControlRotation = true;
+    bool bOriginalUseControllerRotationYaw = false;
+
     FString InitialBossName;
     
+    FTimerHandle WarningTimerHandle;
+    FTimerHandle SequenceTimerHandle;
+    
 public :
-    /** 리스폰 시 트리거 상태 초기화 */
     UFUNCTION(BlueprintCallable, Category = "Boss Battle")
     void ResetTrigger();
 };

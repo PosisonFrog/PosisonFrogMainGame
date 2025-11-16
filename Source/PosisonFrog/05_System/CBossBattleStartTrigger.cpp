@@ -1,8 +1,14 @@
 #include "CBossBattleStartTrigger.h"
+
+#include "LevelSequenceActor.h"
+#include "LevelSequencePlayer.h"
 #include "Components/BoxComponent.h"
 #include "00_Character/01_Enemy/CEnemyBossCharacter.h"
 #include "00_Character/00_Player/CPlayerCharacter.h"
 #include "00_Stage/CStageManager.h"
+#include "Blueprint/UserWidget.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "GameFramework/SpringArmComponent.h"
 #include "Kismet/GameplayStatics.h"
 
 ACBossBattleStartTrigger::ACBossBattleStartTrigger()
@@ -56,6 +62,9 @@ void ACBossBattleStartTrigger::BeginPlay()
 
 void ACBossBattleStartTrigger::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+    GetWorld()->GetTimerManager().ClearTimer(WarningTimerHandle);
+    GetWorld()->GetTimerManager().ClearTimer(SequenceTimerHandle);
+    
     if (IsValid(TriggerBox))
     {
         TriggerBox->OnComponentBeginOverlap.RemoveDynamic(this, &ACBossBattleStartTrigger::OnTriggerBeginOverlap);
@@ -67,7 +76,6 @@ void ACBossBattleStartTrigger::EndPlay(const EEndPlayReason::Type EndPlayReason)
 void ACBossBattleStartTrigger::OnTriggerBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
     UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
-    // 플레이어 캐릭터인지 확인
     ACPlayerCharacter* PlayerCharacter = Cast<ACPlayerCharacter>(OtherActor);
     if (!IsValid(PlayerCharacter))
     {
@@ -83,24 +91,18 @@ void ACBossBattleStartTrigger::AttemptStartBossBattle(ACPlayerCharacter* PlayerC
         return;
     }
     
-    // 트리거 비활성화 상태면 무시
     if (!bIsEnabled)
     {
         return;
     }
 
-    // 이미 트리거되었고 한 번만 작동하는 설정이면 무시
     if (bHasTriggered && bTriggerOnce)
     {
         return;
     }
 
-    UE_LOG(LogTemp, Error, TEXT("================================================================="));
-    UE_LOG(LogTemp, Error, TEXT("[BossTrigger] 플레이어 감지"));
-    UE_LOG(LogTemp, Error, TEXT("[BossTrigger] Player: %s"), *GetNameSafe(PlayerCharacter));
-    UE_LOG(LogTemp, Error, TEXT("[BossTrigger] Boss: %s"), *GetNameSafe(TargetBoss));
+    UE_LOG(LogTemp, Error, TEXT("[BossTrigger] 플레이어 감지 - 경고 UI 표시 시작"));
 
-    // 보스 레퍼런스 유효성 확인
     if (!IsValid(TargetBoss))
     {
         UE_LOG(LogTemp, Warning, TEXT("[BossTrigger] TargetBoss가 유효하지 않음 - 재할당 시도"));
@@ -137,12 +139,197 @@ void ACBossBattleStartTrigger::AttemptStartBossBattle(ACPlayerCharacter* PlayerC
     if (!IsValid(TargetBoss))
     {
         UE_LOG(LogTemp, Error, TEXT("[BossTrigger] TargetBoss 재할당 실패"));
-        UE_LOG(LogTemp, Error, TEXT("================================================================="));
         return;
     }
 
-    // StageManager에 보스 전투 시작 알림
-    UE_LOG(LogTemp, Error, TEXT("[BossTrigger] StageManager 검색"));
+    CurrentPlayer = PlayerCharacter;
+    ShowWarningUI();
+    
+    GetWorld()->GetTimerManager().SetTimer(
+        SequenceTimerHandle,
+        this,
+        &ACBossBattleStartTrigger::PlayIntroSequence,
+        WarningDisplayDuration + DelayBeforeSequence,
+        false
+    );
+    
+    bHasTriggered = true;
+    
+    if (bTriggerOnce)
+    {
+        bIsEnabled = false;
+        if (IsValid(TriggerBox))
+        {
+            TriggerBox->SetGenerateOverlapEvents(false);
+        }
+    }
+}
+
+void ACBossBattleStartTrigger::ShowWarningUI()
+{
+    if (!WarningWidgetClass)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[BossTrigger] WarningWidgetClass가 설정되지 않음"));
+        return;
+    }
+    
+    APlayerController* PC = GetWorld()->GetFirstPlayerController();
+    if (!IsValid(PC))
+    {
+        return;
+    }
+    
+    UUserWidget* WarningWidget = CreateWidget<UUserWidget>(PC, WarningWidgetClass);
+    if (WarningWidget)
+    {
+        WarningWidget->AddToViewport(100); 
+        UE_LOG(LogTemp, Log, TEXT("[BossTrigger] 경고 UI 표시"));
+        
+        FTimerHandle RemoveWidgetTimer;
+        GetWorld()->GetTimerManager().SetTimer(
+            RemoveWidgetTimer,
+            [WarningWidget]()
+            {
+                if (WarningWidget && WarningWidget->IsValidLowLevel())
+                {
+                    WarningWidget->RemoveFromParent();
+                }
+            },
+            WarningDisplayDuration,
+            false
+        );
+    }
+}
+
+void ACBossBattleStartTrigger::PlayIntroSequence()
+{
+    UE_LOG(LogTemp, Log, TEXT("[BossTrigger] 레벨 시퀀스 재생 시작"));
+    
+    APlayerController* PC = GetWorld()->GetFirstPlayerController();
+    if (PC)
+    {
+        PlayerController = PC;
+        PC->DisableInput(PC);
+        
+        PC->bShowMouseCursor = false;
+        
+        UE_LOG(LogTemp, Log, TEXT("[BossTrigger] 플레이어 입력 비활성화"));
+    }
+    
+    if (CurrentPlayer.IsValid())
+    {
+        RepositionPlayer(CurrentPlayer.Get());
+        
+        if (UCharacterMovementComponent* MovementComp = CurrentPlayer->GetCharacterMovement())
+        {
+            MovementComp->StopMovementImmediately();
+            MovementComp->DisableMovement();
+        }
+        
+        if (USpringArmComponent* SpringArm = CurrentPlayer->GetCameraBoom())
+        {
+            bOriginalUsePawnControlRotation = SpringArm->bUsePawnControlRotation;
+            SpringArm->bUsePawnControlRotation = false;  // 카메라 회전 고정
+        }
+        
+        bOriginalUseControllerRotationYaw = CurrentPlayer->bUseControllerRotationYaw;
+        CurrentPlayer->bUseControllerRotationYaw = false;
+    }
+    
+    if (IntroSequence)
+    {
+        FMovieSceneSequencePlaybackSettings PlaybackSettings;
+        PlaybackSettings.bAutoPlay = true;
+        PlaybackSettings.bPauseAtEnd = false;
+        
+        ALevelSequenceActor* OutActor = nullptr;
+        ULevelSequencePlayer* Player = ULevelSequencePlayer::CreateLevelSequencePlayer(
+            GetWorld(),
+            IntroSequence,
+            PlaybackSettings,
+            OutActor
+        );
+        
+        if (Player && OutActor)
+        {
+            SequenceActor = OutActor;
+            
+            // 시퀀스 종료 시 콜백 바인딩
+            Player->OnFinished.AddDynamic(this, &ACBossBattleStartTrigger::OnSequenceFinished);
+            
+            Player->Play();
+            UE_LOG(LogTemp, Log, TEXT("[BossTrigger] 시퀀스 재생 중 - 카메라 회전 고정"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("[BossTrigger] 시퀀스 재생 실패 - 즉시 보스 전투 시작"));
+            OnSequenceFinished();
+        }
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[BossTrigger] IntroSequence가 설정되지 않음 - 즉시 보스 전투 시작"));
+        OnSequenceFinished();
+    }
+}
+
+void ACBossBattleStartTrigger::RepositionPlayer(ACPlayerCharacter* PlayerCharacter)
+{
+    if (!IsValid(PlayerCharacter) || !IsValid(TargetBoss))
+    {
+        return;
+    }
+    
+    FVector BossLocation = TargetBoss->GetActorLocation();
+    FVector BossForward = TargetBoss->GetActorForwardVector();
+    
+    FVector TargetLocation = BossLocation + (BossForward * PlayerDistanceFromBoss);
+    
+    TargetLocation.Z = 82.0f;
+    
+    PlayerCharacter->SetActorLocation(TargetLocation);
+    
+    FRotator LookAtRotation = (BossLocation - TargetLocation).Rotation();
+    FRotator PlayerRotation = FRotator(0.0f, LookAtRotation.Yaw, 0.0f);
+    PlayerCharacter->SetActorRotation(PlayerRotation);
+    
+    if (APlayerController* PC = Cast<APlayerController>(PlayerCharacter->GetController()))
+    {
+        PC->SetControlRotation(PlayerRotation);
+    }
+    
+    UE_LOG(LogTemp, Log, TEXT("[BossTrigger] 플레이어 재배치 완료 - 위치: %s, 회전: %s"), 
+           *TargetLocation.ToString(), 
+           *PlayerRotation.ToString());
+}
+
+void ACBossBattleStartTrigger::OnSequenceFinished()
+{
+    UE_LOG(LogTemp, Log, TEXT("[BossTrigger] 시퀀스 종료 - 보스 전투 시작"));
+    
+    if (PlayerController.IsValid())
+    {
+        PlayerController->EnableInput(PlayerController.Get());
+        UE_LOG(LogTemp, Log, TEXT("[BossTrigger] 플레이어 입력 재활성화"));
+    }
+    
+    if (CurrentPlayer.IsValid())
+    {
+        if (UCharacterMovementComponent* MovementComp = CurrentPlayer->GetCharacterMovement())
+        {
+            MovementComp->SetMovementMode(MOVE_Walking);
+        }
+        
+        if (USpringArmComponent* SpringArm = CurrentPlayer->GetCameraBoom())
+        {
+            SpringArm->bUsePawnControlRotation = bOriginalUsePawnControlRotation;
+        }
+        
+        CurrentPlayer->bUseControllerRotationYaw = bOriginalUseControllerRotationYaw;
+        
+        UE_LOG(LogTemp, Log, TEXT("[BossTrigger] 카메라 회전 입력 복원"));
+    }
+    
     TArray<AActor*> FoundActors;
     UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACStageManager::StaticClass(), FoundActors);
 
@@ -151,38 +338,29 @@ void ACBossBattleStartTrigger::AttemptStartBossBattle(ACPlayerCharacter* PlayerC
         ACStageManager* StageManager = Cast<ACStageManager>(FoundActors[0]);
         if (IsValid(StageManager))
         {
-            UE_LOG(LogTemp, Error, TEXT("[BossTrigger] StageManager 발견: %s"), *StageManager->GetName());
-            UE_LOG(LogTemp, Error, TEXT("[BossTrigger] StageManager에 보스 전투 시작 알림 전송"));
+            UE_LOG(LogTemp, Log, TEXT("[BossTrigger] StageManager에 보스 전투 시작 알림"));
             StageManager->OnBossBattleStartRequested();
-            UE_LOG(LogTemp, Error, TEXT("[BossTrigger] 알림 전송 완료"));
         }
-        else
-        {
-            UE_LOG(LogTemp, Warning, TEXT("[BossTrigger] StageManager 캐스팅 실패"));
-        }
-    }
-    else
-    {
-        UE_LOG(LogTemp, Warning, TEXT("[BossTrigger] StageManager를 찾을 수 없음 - 배리어 제어 건너뜀"));
     }
 
-    // 보스 전투 시작
-    UE_LOG(LogTemp, Error, TEXT("[BossTrigger] 보스 전투 시작"));
-    TargetBoss->StartBossBattle(bSkipIntro);
-    bHasTriggered = true;
-    UE_LOG(LogTemp, Error, TEXT("================================================================="));
-
-    // 한 번만 작동하는 경우 트리거 비활성화
-    if (bTriggerOnce)
+    if (IsValid(TargetBoss))
     {
-        bIsEnabled = false;
-        if (IsValid(TriggerBox))
-        {
-            TriggerBox->SetGenerateOverlapEvents(false);
-        }
-        SetTriggerEnabled(false);
+        TargetBoss->StartBossBattle(bSkipIntro);
+        UE_LOG(LogTemp, Log, TEXT("[BossTrigger] 보스 전투 시작됨"));
     }
+    
+    if (SequenceActor)
+    {
+        SequenceActor->Destroy();
+        SequenceActor = nullptr;
+    }
+    
+    PlayerController.Reset();
+    CurrentPlayer.Reset();
 }
+
+
+
 
 void ACBossBattleStartTrigger::ManualTrigger()
 {
