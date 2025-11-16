@@ -162,14 +162,14 @@ void UCPlayerWidget::UpdateUltimateImage(float Current, float Max)
     UpdateUltimateRankImages(Ratio);
 }
 
-void UCPlayerWidget::UpdateFuryStacksBar(int32 NewStacks, int32 MaxStacks)
+/*void UCPlayerWidget::UpdateFuryStacksBar(int32 NewStacks, int32 MaxStacks)
 {
     if (!FuryGaugeBar)
         return;
 
     const float Ratio = static_cast<float>(NewStacks) / static_cast<float>(MaxStacks);
     FuryGaugeBar->SetPercent(Ratio);
-}
+}*/
 
 void UCPlayerWidget::UpdateFuryStacksImage(int32 NewStacks, int32 MaxStacks)
 {

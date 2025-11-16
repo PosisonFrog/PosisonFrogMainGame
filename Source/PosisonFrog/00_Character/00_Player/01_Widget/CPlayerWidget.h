@@ -52,8 +52,8 @@ public:
     void UpdateUltimateImage(float Current, float Max);
 
     // 스핀 스킬 - 게이지 방식
-    UFUNCTION(BlueprintCallable, Category = "PF|HUD")
-    void UpdateFuryStacksBar(int32 NewStacks, int32 MaxStacks);
+    //UFUNCTION(BlueprintCallable, Category = "PF|HUD")
+    //void UpdateFuryStacksBar(int32 NewStacks, int32 MaxStacks);
 
     // 스핀 스킬 - 이미지 활성화 방식
     UFUNCTION(BlueprintCallable, Category = "PF|HUD")
