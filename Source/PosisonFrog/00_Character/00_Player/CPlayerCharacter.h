@@ -94,8 +94,6 @@ public:
     // 탱커 돌진에 맞았을 때 처리
     UFUNCTION() void OnHitByTankerCharge(AActor* HitPlayer, FVector KnockbackDirection, float KnockbackStrength, AActor* Attacker);
 
-
-
 private:
     // ─────────── Dash ───────────
     // ─ Dash 실행 단일 경로 + 버퍼 소비

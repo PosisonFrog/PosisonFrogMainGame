@@ -200,9 +200,23 @@ void ACPlayerCharacter::BeginPlay()
             PlayerWidget->AddToViewport();
             UpdateHpUI();
             ResetDashCooldown();
-            
+
             if (FuryGaugeComponent)
-                FuryGaugeComponent->OnStacksChanged.AddDynamic(PlayerWidget, &UCPlayerWidget::UpdateFuryStacks);
+            {
+                // 게이지를 사용하게 된다면 주석 풀기
+                // FuryGaugeComponent->OnStacksChanged.AddDynamic(PlayerWidget, &UCPlayerWidget::UpdateFuryStacksBar);
+
+                FuryGaugeComponent->OnStacksChanged.AddDynamic(PlayerWidget, &UCPlayerWidget::UpdateFuryStacksImage);
+            }
+
+            if (ComboStackComponent)
+            {
+                // CSC 변경 시
+                ComboStackComponent->OnCSCChanged.AddDynamic(PlayerWidget, &UCPlayerWidget::UpdateComboStack);
+
+                // 랭크 변경 시
+                ComboStackComponent->OnRankChanged.AddDynamic(PlayerWidget, &UCPlayerWidget::UpdateComboRank);
+            }
         }
         else
         {
@@ -237,7 +251,7 @@ void ACPlayerCharacter::PostInitializeComponents()
 
     
     // TransparentCameraComponent 설정 개선
- /*  if (TransparentCameraComponent)
+    /*if (TransparentCameraComponent)
     {
         // SpringArm 먼저 설정 (CalibrateIdleView 호출하므로)
         if (SpringArm)
@@ -368,6 +382,7 @@ void ACPlayerCharacter::Attack()
     PlayPlayerSound(CachedAttackSound, 0.8f);
     MarkCombatAction();
 }
+
 void ACPlayerCharacter::HandlePlayerComboHit(AActor* HitActor, int32 ComboIndex, float Damage)
 {
     if (!ComboStackComponent || !GetWorld())
@@ -383,6 +398,7 @@ void ACPlayerCharacter::HandlePlayerComboHit(AActor* HitActor, int32 ComboIndex,
 
     MarkCombatAction();
 }
+
 // 무기/애님에서 공격 시작 시점에 호출(있으면 더 견고)
 void ACPlayerCharacter::OnAttackStarted()
 {
@@ -425,8 +441,6 @@ void ACPlayerCharacter::OnAttackDashReady()
     ConsumeDashBufferIfValid(false);  // 같은 프레임 즉발
 }
 
-
-
 // ────────────────────────────────────────────────────────────────────────────
 // 대시 (입력 및 버퍼/락)
 // ────────────────────────────────────────────────────────────────────────────
@@ -456,7 +470,6 @@ void ACPlayerCharacter::DashStart()
     // 즉시 시도
     TryCommitDash();
 }
-
 
 bool ACPlayerCharacter::TryCommitDash()
 {
@@ -719,15 +732,19 @@ void ACPlayerCharacter::UseUltimate()
     if (KnockbackComponent && KnockbackComponent->IsKnockedBack())
         return;
     
-
     static const FName PlayerUltId(TEXT("PlayerUlt"));
 
     bUltActive = true;
     ComboStackComponent->OnUltStarted(PlayerUltId);
     UltimateBuffComponent->ActivateUltimate();
     UE_LOG(LogTemp, Log, TEXT("[ULT] UseUltimate On Gauge=%.1f/%.1f"), CurUltGauge, MaxUltGauge);
-
+    
     MarkCombatAction();
+
+    if (PlayerWidget)
+    {
+        PlayerWidget->OnUltimateActivated();
+    }
     
     GetWorldTimerManager().ClearTimer(TimerHandle_UltDuration);
     GetWorldTimerManager().SetTimer(
@@ -764,6 +781,11 @@ void ACPlayerCharacter::OnUltimateExpired()
     }
     
     CleanupUltVFX();
+
+    if (PlayerWidget)
+    {
+        PlayerWidget->OnUltimateDeactivated();
+    }
     
     CLog::Log(TEXT("[ULT] UseUltimate OFF"));
 
@@ -785,8 +807,17 @@ void ACPlayerCharacter::AddUltimateGain(float Gain)
 // ─ 궁극기 UI 업데이트
 void ACPlayerCharacter::UpdateUltimateUI()
 {
-    if (PlayerWidget)
-        PlayerWidget->UpdateUltimateBar(CurUltGauge, MaxUltGauge);
+    if (!PlayerWidget)
+    {
+        CLog::Log(TEXT("[ULT][UltimateUI] PlayerWidget이 없음"));
+        return;
+    }
+        
+    // 나중에 바를 사용하게 된다면
+    //if (PlayerWidget)
+    //    PlayerWidget->UpdateUltimateBar(CurUltGauge, MaxUltGauge);
+
+    PlayerWidget->UpdateUltimateImage(CurUltGauge, MaxUltGauge);
 }
 
 void ACPlayerCharacter::TickUltimateUI()
