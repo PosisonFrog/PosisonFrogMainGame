@@ -62,9 +62,6 @@ protected:
 
     UPROPERTY(EditDefaultsOnly, Category="Spin|Anim")
     UAnimMontage* HammerSpinMontage = nullptr;
-
-    UPROPERTY(EditDefaultsOnly, Category = "Spin|Anim")
-    UNiagaraSystem* SpinVFX = nullptr;
     
     UPROPERTY(EditDefaultsOnly, Category="Spin|Timing", meta=(ClampMin="0.02", ClampMax="0.2"))
     float TickInterval = 0.05f;
@@ -114,9 +111,6 @@ protected:
     TSubclassOf<UDamageType> FinisherDamageTypeClass;
 
     // 연출(선택 항목)
-    UPROPERTY(EditDefaultsOnly, Category="Finisher|FX")
-    UParticleSystem* FinisherImpactFX = nullptr;
-
     UPROPERTY(EditDefaultsOnly, Category="Finisher|FX")
     USoundBase* FinisherImpactSFX = nullptr;
 

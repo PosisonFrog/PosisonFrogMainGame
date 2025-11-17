@@ -465,8 +465,6 @@ void UCSkill_SpinAttack::DoFinisherImpact()
     }
     
     // 연출(선택)
-    if (FinisherImpactFX)
-        UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), FinisherImpactFX, Owner->GetActorLocation(), FRotator::ZeroRotator);
     if (FinisherImpactSFX)
         UGameplayStatics::PlaySoundAtLocation(GetWorld(), FinisherImpactSFX, Owner->GetActorLocation());
     if (FinisherCameraShake)
