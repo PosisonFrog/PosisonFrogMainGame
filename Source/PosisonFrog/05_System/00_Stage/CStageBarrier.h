@@ -19,21 +19,19 @@ class POSISONFROG_API ACStageBarrier : public AActor
 	GENERATED_BODY()
 
 public:
-	// Sets default values for this actor's properties
 	ACStageBarrier();
 
 protected:
-	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
+	virtual void Tick(float DeltaTime) override;
 
 protected:
 	bool bIsOpen = false;
+	
 
-	// ──────────── 이벤트 ────────────
-	UPROPERTY(EditAnywhere, Category = "Barrier|Events")
-	FOnBarrierOpened OnBarrierOpened;
-
-protected:
+	// 플레이어와의 거리에 따른 투명도 업데이트
+	void UpdateOpacityByDistance();
+	
 	// 열릴 때 애니메이션/VFX 재생
 	UFUNCTION()
 	void PlayOpenEffects();
@@ -44,6 +42,18 @@ protected:
 
 	// 벽이 열린 후 완전히 비활성화
 	void FullyDeactivate();
+
+public:
+
+	// ──────────── 벽 제어 ────────────
+	UFUNCTION()
+	void OpenBarrier();
+
+	UFUNCTION()
+	void CloseBarrier();
+
+	UFUNCTION()
+	bool IsOpen() const { return bIsOpen; }
 	
 public:
 	// ──────────── 구간 설정 ────────────
@@ -57,13 +67,25 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Barrier")
 	TObjectPtr<UStaticMeshComponent> BarrierMesh;
 
-	// ──────────── 벽 제어 ────────────
-	UFUNCTION()
-	void OpenBarrier();
+	UPROPERTY()
+	TObjectPtr<UMaterialInstanceDynamic> DynamicMaterial;
 
-	UFUNCTION()
-	void CloseBarrier();
+protected:
+	
+	// ──────────── 거리 설정 ────────────
+	// 1500이상이면 투명
+	UPROPERTY(EditAnywhere, Category = "Barrier|Visibility", meta = (ClampMin = "0.0"))
+	float MaxVisibilityDistance = 1500.0f;
 
-	UFUNCTION()
-	bool IsOpen() const { return bIsOpen; }
+	// 300 이하면 오퍼시티 최대 값으로 고정. 
+	UPROPERTY(EditAnywhere, Category = "Barrier|Visibility", meta = (ClampMin = "0.0"))
+	float MinVisibilityDistance = 300.0f;
+
+	// 최대 투명도 (0=완전투명, 1=완전불투명)
+	UPROPERTY(EditAnywhere, Category = "Barrier|Visibility", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float MaxOpacity = 0.7f;
+
+	// ──────────── 이벤트 ────────────
+	UPROPERTY(EditAnywhere, Category = "Barrier|Events")
+	FOnBarrierOpened OnBarrierOpened;
 };

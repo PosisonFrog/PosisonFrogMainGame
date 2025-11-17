@@ -9,6 +9,7 @@
 class ACEnemyBossCharacter;
 class ACStageManager;
 class UBoxComponent;
+class UStaticMeshComponent;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnBossBarrierOpened);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnBossBarrierClosed);
@@ -24,24 +25,14 @@ public:
 protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+	virtual void Tick(float DeltaTime) override;
+
+protected:
+
+	// 플레이어와의 거리에 따른 투명도 조절
+	void UpdateOpacityByDistance();
 
 public:
-	// ──────────── 컴포넌트 ────────────
-	UPROPERTY(EditAnywhere, Category = "BossBarrier|Components")
-	TObjectPtr<UBoxComponent> CollisionBox;
-
-	UPROPERTY(EditAnywhere, Category = "BossBarrier|Components")
-	TObjectPtr<UStaticMeshComponent> BarrierMesh;
-	
-	// ──────────── 설정 ────────────
-	// 이 배리어가 열리는 스테이지 ID
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BossBarrier")
-	int32 TriggerStageID = 3;
-
-	// 장벽이 완전히 비활성화되는 시간
-	UPROPERTY(EditAnywhere, Category = "BossBarrier|Settings")
-	float DeactivateDelay = 2.0f;
-	
 	// ──────────── 외부 명령 인터페이스 ────────────
 	// 장벽 열기
 	UFUNCTION()
@@ -63,13 +54,6 @@ public:
 	UFUNCTION(BlueprintPure, Category = "BossBarrier")
 	bool IsBossBattleActive() const { return bIsBossBattleActive; }
 
-	// ──────────── 이벤트 ────────────
-	UPROPERTY(BlueprintAssignable, Category = "BossBarrier|Events")
-	FOnBossBarrierOpened OnBarrierOpened;
-
-	UPROPERTY(BlueprintAssignable, Category = "BossBarrier|Events")
-	FOnBossBarrierClosed OnBarrierClosed;
-
 protected:
 	// 장벽 닫기
 	void CloseBarrier();
@@ -83,6 +67,44 @@ protected:
 	// 완전히 비활성화
 	void FullyDeactivate();
 
+public:
+	UPROPERTY(EditAnywhere, Category = "Barrier")
+	TObjectPtr<UBoxComponent> CollisionBox;
+	
+	UPROPERTY(EditAnywhere, Category = "Barrier")
+	TObjectPtr<UStaticMeshComponent> BarrierMesh;
+
+	UPROPERTY()
+	TObjectPtr<UMaterialInstanceDynamic> DynamicMaterial;
+
+	// 장벽이 완전히 비활성화되는 시간
+	UPROPERTY(EditAnywhere, Category = "BossBarrier|Settings")
+	float DeactivateDelay = 2.0f;
+
+	// ──────────── 설정 ────────────
+	// 이 배리어가 열리는 스테이지 ID
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BossBarrier")
+	int32 TriggerStageID = 3;
+	
+protected:
+	
+	// ──────────── 이벤트 ────────────
+	UPROPERTY(BlueprintAssignable, Category = "BossBarrier|Events")
+	FOnBossBarrierOpened OnBarrierOpened;
+
+	UPROPERTY(BlueprintAssignable, Category = "BossBarrier|Events")
+	FOnBossBarrierClosed OnBarrierClosed;
+	
+	// ──────────── 거리 설정 ────────────
+	UPROPERTY(EditAnywhere, Category = "BossBarrier|Visibility", meta = (ClampMin = "0.0"))
+	float MaxVisibilityDistance = 1500.0f;
+
+	UPROPERTY(EditAnywhere, Category = "BossBarrier|Visibility", meta = (ClampMin = "0.0"))
+	float MinVisibilityDistance = 300.0f;
+
+	UPROPERTY(EditAnywhere, Category = "BossBarrier|Visibility", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float MaxOpacity = 0.7f;
+	
 private:
 	// ──────────── 상태 ────────────
 	bool bIsOpen = false;
