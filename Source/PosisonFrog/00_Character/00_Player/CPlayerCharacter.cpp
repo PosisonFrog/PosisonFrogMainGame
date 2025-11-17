@@ -10,7 +10,6 @@
 #include "Blueprint/UserWidget.h"
 #include "TimerManager.h"
 #include "InputActionValue.h"
-#include "Kismet/GameplayStatics.h"
 
 // ─ 프로젝트 컴포넌트/유틸
 #include "CPlayerController.h"
@@ -32,8 +31,7 @@
 #include "04_Skill/CSkill_CommandLaunchSlam.h"
 #include "04_Skill/CSkill_SpinAttack.h"
 #include "00_Character/01_Enemy/CTankerBrute.h"
-#include "00_Character/02_Component/01_EnemyComponent/CTankerChargeComponent.h"
-#include "00_Character/CMainGameModeBase.h"
+#include "00_Character/02_Component/00_PlayerComponent/CPlayerEffectComponent.h"
 #include "05_System/01_Sound/CSoundManagerSubsystem.h"
 #include "05_System/01_Sound/CSoundDataAsset.h"
 
@@ -59,6 +57,7 @@ ACPlayerCharacter::ACPlayerCharacter()
     SpinAttackComponent = CreateDefaultSubobject<UCSkill_SpinAttack>(TEXT("SkillSpinAttack"));
     CommandLaunchSlamComponent = CreateDefaultSubobject<UCSkill_CommandLaunchSlam>(TEXT("CommandLaunchSlam"));
     KnockbackComponent = CreateDefaultSubobject<UCPlayerKnockbackComponent>(TEXT("KnockbackComponent"));
+    EffectComponent = CreateDefaultSubobject<UCPlayerEffectComponent>(TEXT("EffectComponent"));
     
     check(DashComponent);
     check(WeaponComponent);
@@ -295,6 +294,11 @@ void ACPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
 
 void ACPlayerCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+    if (EffectComponent)
+    {
+        EffectComponent->ClearAllEffectTimers();
+    }
+    
     if (WeaponComponent)
     {
         WeaponComponent->OnPlayerComboHit.RemoveDynamic(this, &ACPlayerCharacter::HandlePlayerComboHit);
@@ -304,6 +308,7 @@ void ACPlayerCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
     {
         ComboStackComponent->OnReset(ECSCResetReason::Reset_Respawn);
     }
+    
     if (IsValid(WeaponComponent))
     {
         if (ACWeaponBase* Weapon = WeaponComponent->GetCurrentWeapon())
@@ -595,9 +600,11 @@ void ACPlayerCharacter::HandleDeath(AActor* DeadActor)
     bIsDead = true;
     CLog::Log(TEXT("[Player] Death processing started"));
 
+    if (EffectComponent)
+        EffectComponent->ClearAllEffectTimers();
+    
     if (SpinAttackComponent && SpinAttackComponent->IsSkillActive())
         SpinAttackComponent->StopSpin();
-
 
     if (ComboStackComponent)
         ComboStackComponent->OnReset(ECSCResetReason::Reset_Respawn);
@@ -738,6 +745,20 @@ void ACPlayerCharacter::UseUltimate()
     static const FName PlayerUltId(TEXT("PlayerUlt"));
 
     bUltActive = true;
+
+    // 궁극기 활성화 플레이어 이펙트 재생
+    if (EffectComponent)
+        EffectComponent->PlayUltimateActivationEffect();
+
+    // 기존 무기 이펙트 정리
+    CleanupUltVFX();
+
+    // 새로운 무기 이펙트 부착
+    if (EffectComponent)
+        HammerUltFXComp = EffectComponent->AttachUltimateWeaponEffect();
+    else
+        SpawnUltVFXOnHammer(); // 기존 방식 유지
+    
     ComboStackComponent->OnUltStarted(PlayerUltId);
     UltimateBuffComponent->ActivateUltimate();
     
@@ -759,8 +780,6 @@ void ACPlayerCharacter::UseUltimate()
         TimerHandle_UltUITick,
         this, &ACPlayerCharacter::TickUltimateUI,
         0.05f, true);
-
-    SpawnUltVFXOnHammer();
     
     TickUltimateUI();
     UpdateHpUI();
@@ -782,7 +801,10 @@ void ACPlayerCharacter::OnUltimateExpired()
         ComboStackComponent->OnUltEnded(PlayerUltId);
     }
     
-    CleanupUltVFX();
+    if (EffectComponent)
+        EffectComponent->DetachUltimateWeaponEffect();
+    else
+        CleanupUltVFX(); // 기본 방식 유지
 
     if (PlayerWidget)
     {
