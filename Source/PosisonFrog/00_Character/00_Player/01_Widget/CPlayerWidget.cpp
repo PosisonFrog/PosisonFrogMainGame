@@ -1,5 +1,7 @@
 #include "CPlayerWidget.h"
 
+#include <ratio>
+
 #include "MediaPlayer.h"
 #include "MediaTexture.h"
 #include "99_Util/CLog.h"
@@ -91,9 +93,9 @@ void UCPlayerWidget::UpdateOverHealHPBar(float CurrentOverHeal, float MaxOverHea
     if (!OverHealHpBar)
         return;
 
-    const float Ratio = SafeRatio(CurrentOverHeal, MaxOverHeal);
+    const float Ratio = SafeRatio(CurrentOverHeal, 100.0f);
     OverHealHpBar->SetPercent(Ratio);
-
+    
     if (CurrentOverHeal > 0.1f)
     {
         OverHealHpBar->SetVisibility(ESlateVisibility::Visible);

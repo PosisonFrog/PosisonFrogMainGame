@@ -46,7 +46,7 @@ private:
 protected:
 	// ──────────── 오버힐 변수 ────────────
 	UPROPERTY(EditAnywhere, Category = "Health|OverHeal", meta = (ClampMin = "0.0"))
-	float OverHealMax = 50.0f;
+	float OverHealMax = 35.0f;
 	
 	UPROPERTY(EditAnywhere, Category = "Health|OverHeal")
 	bool bOverHealDecayEnabled = true;
@@ -55,7 +55,7 @@ protected:
 	float OverHealDecayDelay = 3.0f;
 	
 	UPROPERTY(EditAnywhere, Category = "Health|OverHeal", meta = (EditCondition = "bOverHealDecayEnabled", ClampMin = "0.1"))
-	float OverHealDecayRate = 10.0f; // 초당 감소량
+	float OverHealDecayRate = 5.0f; // 초당 감소량
 	
 	// ──────────── 오버힐 상태 ────────────
 	UPROPERTY(VisibleAnywhere, Category = "Health|OverHeal")
