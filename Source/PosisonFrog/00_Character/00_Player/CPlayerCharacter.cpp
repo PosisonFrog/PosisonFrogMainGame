@@ -687,6 +687,12 @@ void ACPlayerCharacter::OnHitByTankerCharge(AActor* HitPlayer, FVector Knockback
         KnockbackComponent->StartKnockback(Attacker);
     }
     
+    // 넉백 시 모든 활성 이펙트 중단
+    if (EffectComponent)
+    {
+        EffectComponent->StopAllActiveEffects();
+    }
+    
     // 콤보 리셋
     if (ComboStackComponent)
     {
@@ -712,6 +718,12 @@ float ACPlayerCharacter::TakeDamage(float DamageAmount, struct FDamageEvent cons
         HealthComponent->Damage(AppliedDamage);
         PlayPlayerSound(CachedHitSound, 1.0f);
         MarkCombatAction();
+        
+        // 피해를 받으면 모든 활성 이펙트 중단
+        if (EffectComponent)
+        {
+            EffectComponent->StopAllActiveEffects();
+        }
     }
 
     if (bUltActive == false)
@@ -1112,7 +1124,6 @@ bool ACPlayerCharacter::IsBuffActive() const
 // ────────────────────────────────────────────────────────────────────────────
 // Sound
 // ────────────────────────────────────────────────────────────────────────────
-
 void ACPlayerCharacter::CachePlayerSounds()
 {
     if (ACMainGameModeBase* GM = Cast<ACMainGameModeBase>(GetWorld()->GetAuthGameMode()))

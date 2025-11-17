@@ -131,6 +131,13 @@ public:
     // 특정 Timer 정리
     void ClearEffectTimer(FTimerHandle& TimerHandle);
 
+    // ─────────── 이펙트 중단 ───────────
+    // 수동 관리 중인 모든 활성 이펙트 중단 및 제거
+    void StopAllActiveEffects();
+    
+    // 특정 활성 이펙트 중단 및 제거
+    void StopActiveEffect(UNiagaraComponent* EffectComponent);
+
 private:
     // ─────────── 내부 헬퍼 함수 ───────────
     // 현재 상태에 따라 적절한 이펙트 선택
