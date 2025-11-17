@@ -4,6 +4,7 @@
 #include "Animation/AnimMontage.h"
 #include "Components/SkeletalMeshComponent.h"
 
+#include "04_Skill/CSkill_SpinAttack.h"
 #include "00_Character/00_Player/02_Weapon/CHammer.h"
 #include "00_Character/02_Component/00_PlayerComponent/CPlayerWeaponComponent.h"
 #include "GameFramework/Character.h"
@@ -26,6 +27,7 @@ void UCPlayerKnockbackComponent::BeginPlay()
     {
         CachedPC = Cast<APlayerController>(OwnerCharacter->GetController());
         CachedWeaponComponent = OwnerCharacter->FindComponentByClass<UCPlayerWeaponComponent>();
+        CachedSpinSkill = OwnerCharacter->FindComponentByClass<UCSkill_SpinAttack>();
     }
 }
 
@@ -35,6 +37,7 @@ void UCPlayerKnockbackComponent::EndPlay(const EEndPlayReason::Type EndPlayReaso
     OwnerCharacter.Reset();
     CachedPC.Reset();
     CachedWeaponComponent.Reset();
+    CachedSpinSkill.Reset();
     
     Super::EndPlay(EndPlayReason);
 }
@@ -60,6 +63,16 @@ void UCPlayerKnockbackComponent::StartKnockback(AActor* Attacker)
     }
 
     PlayAirAnimation();
+
+    if (!CachedSpinSkill.IsValid() && OwnerCharacter.IsValid())
+    {
+        CachedSpinSkill = OwnerCharacter->FindComponentByClass<UCSkill_SpinAttack>();
+    }
+
+    if (CachedSpinSkill.IsValid())
+    {
+        CachedSpinSkill->StopSpin();
+    }
 
     if (UWorld* World = GetWorld())
     {

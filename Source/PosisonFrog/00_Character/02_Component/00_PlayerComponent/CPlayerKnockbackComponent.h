@@ -4,6 +4,7 @@
 #include "Components/ActorComponent.h"
 #include "CPlayerKnockbackComponent.generated.h"
 
+class UCSkill_SpinAttack;
 class UAnimMontage;
 class ACharacter;
 class APlayerController;
@@ -107,6 +108,7 @@ private:
     TWeakObjectPtr<ACharacter> OwnerCharacter;
     TWeakObjectPtr<APlayerController> CachedPC;
     TWeakObjectPtr<UCPlayerWeaponComponent> CachedWeaponComponent;
+    TWeakObjectPtr<UCSkill_SpinAttack> CachedSpinSkill;
 
     // 타이머
     FTimerHandle TH_TransitionToDown;
