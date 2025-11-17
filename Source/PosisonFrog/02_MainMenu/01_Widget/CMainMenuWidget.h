@@ -17,6 +17,7 @@ class UWorld;
 class UMediaPlayer;
 class UMediaSource;
 class UMediaTexture;
+class UCCutsceneWidget;
 
 /**
  * 메인 메뉴 UMG 위젯 (Start / Settings / Exit)
@@ -29,7 +30,7 @@ class POSISONFROG_API UCMainMenuWidget : public UUserWidget
 protected:
     virtual void NativeConstruct() override;
     virtual void NativeDestruct() override;
-    
+    UFUNCTION() void OnImageCutsceneFinished();
     // ─────────────────────────────
     // UI 바인딩 (디자이너에 놓인 위젯들)
     // ─────────────────────────────
@@ -55,6 +56,14 @@ protected:
 
     UPROPERTY(meta = (BindWidget), BlueprintReadOnly, Category = "MainMenu")
     TObjectPtr<UImage> MainMenu_ExitArrow;
+    
+    // 이미지 컷신 위젯 클래스 (WBP에서 설정)
+    UPROPERTY(EditDefaultsOnly, Category = "Navigation")
+    TSubclassOf<UCCutsceneWidget> ImageCutsceneWidgetClass;
+    
+    // 이미지 컷신 위젯 인스턴스
+    UPROPERTY()
+    TObjectPtr<UCCutsceneWidget> ImageCutsceneWidget;
 
     // ── 버튼 핸들러(Clicked 권장) ──
     UFUNCTION() void OnStartClicked();

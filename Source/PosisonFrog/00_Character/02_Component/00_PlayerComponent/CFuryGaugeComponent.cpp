@@ -132,8 +132,14 @@ void UCFuryGaugeComponent::EndEffectInternal(bool bCanceled, float /*CanceledRem
     ActiveTotalDamage   = 0.f;
     ActiveTierIndex     = -1;
 
-    GetWorld()->GetTimerManager().ClearTimer(TimerHandle_EffectEnd);
-    GetWorld()->GetTimerManager().ClearTimer(TimerHandle_EffectUITick);
+    if (TimerHandle_EffectEnd.IsValid())
+    {
+        GetWorld()->GetTimerManager().ClearTimer(TimerHandle_EffectEnd);
+    }
+    if (TimerHandle_EffectUITick.IsValid())
+    {
+        GetWorld()->GetTimerManager().ClearTimer(TimerHandle_EffectUITick);
+    }
 
     if (!bCanceled)
     {

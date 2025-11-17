@@ -1,6 +1,6 @@
 #include "02_MainMenu/01_Widget/CMainMenuWidget.h"
-#include "02_MainMenu/01_Widget/OptionsMenuWidget.h" // 옵션 위젯 사용 시
-
+#include "02_MainMenu/01_Widget/OptionsMenuWidget.h" 
+#include "02_MainMenu/01_Widget/CCutsceneWidget.h"
 #include "Components/Button.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
@@ -121,6 +121,13 @@ void UCMainMenuWidget::NativeDestruct()
     {
         StartLevelStreamHandle->ReleaseHandle();
         StartLevelStreamHandle.Reset();
+    }
+
+    if (ImageCutsceneWidget)
+    {
+        ImageCutsceneWidget->OnCutsceneFinished.RemoveAll(this);
+        ImageCutsceneWidget->RemoveFromParent();
+        ImageCutsceneWidget = nullptr;
     }
     
     Super::NativeDestruct();
@@ -310,6 +317,41 @@ void UCMainMenuWidget::OnGlitchCutsceneFinished()
     if (CutsceneImage)
     {
         CutsceneImage->SetVisibility(ESlateVisibility::Collapsed);
+    }
+    
+    if (ImageCutsceneWidgetClass)
+    {
+        ImageCutsceneWidget = CreateWidget<UCCutsceneWidget>(GetOwningPlayer(), ImageCutsceneWidgetClass);
+        if (ImageCutsceneWidget)
+        {
+            SetMainPanelVisible(false);
+            
+            // 컷신 종료 델리게이트 바인딩
+            ImageCutsceneWidget->OnCutsceneFinished.AddDynamic(this, &UCMainMenuWidget::OnImageCutsceneFinished);
+            
+            ImageCutsceneWidget->AddToViewport(200);
+            ImageCutsceneWidget->InitializeAndStart();
+        }
+        else
+        {
+            NotifyCutsceneFinished();  // 실패 시 바로 전환
+        }
+    }
+    else
+    {
+        NotifyCutsceneFinished();  // 미설정 시 바로 전환
+    }
+}
+
+void UCMainMenuWidget::OnImageCutsceneFinished()
+{
+    UE_LOG(LogTemp, Log, TEXT("UCMainMenuWidget::OnImageCutsceneFinished - 이미지 컷신 종료됨"));
+    
+    // 이미지 컷신 위젯 제거
+    if (ImageCutsceneWidget)
+    {
+        ImageCutsceneWidget->RemoveFromParent();
+        ImageCutsceneWidget = nullptr;
     }
     
     // 레벨 전환 시도
