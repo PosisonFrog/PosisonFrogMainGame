@@ -265,6 +265,8 @@ private:
     FAnchors UltimateHpBarAnchors = FAnchors(0.f, 0.f, 1.f, 0.f);
 
     FTimerHandle TimerHandle_HpBarChange;
+    FTimerHandle TimerHandle_HpLerp;
+    FTimerHandle TimerHandle_OverHealLerp;
     
     UPROPERTY(Transient)
     bool bUltimateActive = false;
@@ -272,13 +274,13 @@ private:
 private:
     void StopDashFX();
 
-    void HideSpinUltImages();
-
     void UpdateFuryStacksImages(int32 CurrentStacks);
-    
+
+    // ─────────── 궁극기 연출 함수 ───────────
+    // 궁극기 UI 업데이트 관련 함수
+    void HideSpinUltImages();
     // 나중에 궁극기 게이지로 변동되면 사용하기
     //void UpdateUltimateRankImages(float Ratio);
-
     FLinearColor GetColorForRank(EComboRank Rank) const;
     FText GetTextForRank(EComboRank Rank) const;
 
@@ -297,6 +299,32 @@ private:
     void SetHpBarTransform(const FVector2D& Position, const FVector2D& Size);
     void SaveOriginalHpBarAnchors();
     void SetHpBarAnchors(const FAnchors& Anchors);
+
+    // ─────────── 체력 부드럽게 변환하기 위한 Lerp 시스템 ───────────
+    // Lerp 업데이트 함수
+    UFUNCTION() void UpdateHpLerp();
+    UFUNCTION() void UpdateOverHealLerp();
+    
+    // HP Bar
+    UPROPERTY(Transient)
+    float CurrentDisplayHpRatio = 1.0f; // 화면에 표시되는 비율
+    
+    UPROPERTY(Transient)
+    float TargetHpRatio = 1.0f; // 목표 비율
+    
+    UPROPERTY(EditAnywhere, Category = "PF|HUD|Lerp", meta = (ClampMin = "0.1"))
+    float HpLerpSpeed = 5.0f; // 보간 속도
+
+    // OverHeal Bar
+    UPROPERTY(Transient)
+    float CurrentDisplayOverHealRatio = 0.0f;
+    
+    UPROPERTY(Transient)
+    float TargetOverHealRatio = 0.0f;
+    
+    UPROPERTY(EditAnywhere, Category = "PF|HUD|Lerp", meta = (ClampMin = "0.1"))
+    float OverHealLerpSpeed = 5.0f;
+
     
     // 내부 헬퍼
     static float SafeRatio(float Num, float Denom);

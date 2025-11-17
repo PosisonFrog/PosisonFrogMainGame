@@ -75,19 +75,34 @@ void UCPlayerWidget::NativeDestruct()
 
 void UCPlayerWidget::UpdateHpBar(float Current, float Max)
 {
-    const float Ratio = SafeRatio(Current, Max);  // 0~1
+    /*const float Ratio = SafeRatio(Current, Max);  // 0~1
     if (HealthBar)
     {
         HealthBar->SetPercent(Ratio);
         // 색상: 위험 임계치 이하면 Danger 색
         const FLinearColor UseColor = (Ratio <= HpDangerThreshold) ? HpColor_Danger : HpColor_Normal;
         HealthBar->SetFillColorAndOpacity(UseColor);
+    }*/
+
+    // Lerp 목표값 설정
+    TargetHpRatio = SafeRatio(Current, Max);
+    
+    // Timer가 이미 실행 중이 아니면 시작
+    if (!GetWorld()->GetTimerManager().IsTimerActive(TimerHandle_HpLerp))
+    {
+        GetWorld()->GetTimerManager().SetTimer(
+            TimerHandle_HpLerp,
+            this,
+            &UCPlayerWidget::UpdateHpLerp,
+            0.05f,    // 20hz
+            true     // Loop
+        );
     }
 }
 
 void UCPlayerWidget::UpdateOverHealHPBar(float CurrentOverHeal, float MaxOverHeal)
 {
-    if (!OverHealHpBar)
+    /*if (!OverHealHpBar)
         return;
 
     const float Ratio = SafeRatio(CurrentOverHeal, 100.0f);
@@ -100,6 +115,21 @@ void UCPlayerWidget::UpdateOverHealHPBar(float CurrentOverHeal, float MaxOverHea
     else
     {
         OverHealHpBar->SetVisibility(ESlateVisibility::Hidden);
+    }*/
+
+    // Lerp 목표값 설정
+    TargetOverHealRatio = SafeRatio(CurrentOverHeal, 100.0f);
+    
+    // Timer 시작 (실행 중이 아닐 때만)
+    if (!GetWorld()->GetTimerManager().IsTimerActive(TimerHandle_OverHealLerp))
+    {
+        GetWorld()->GetTimerManager().SetTimer(
+            TimerHandle_OverHealLerp,
+            this,
+            &UCPlayerWidget::UpdateOverHealLerp,
+            0.05f,    // 20hz
+            true     // Loop
+        );
     }
 }
 
@@ -259,32 +289,6 @@ void UCPlayerWidget::StopDashFX()
         DashFXImage->SetVisibility(ESlateVisibility::Hidden);
 }
 
-void UCPlayerWidget::HideSpinUltImages()
-{
-    if (Ult_HPIcon)
-        Ult_HPIcon->SetVisibility(ESlateVisibility::Hidden);
-    
-    if (UltRank_1)
-        UltRank_1->SetVisibility(ESlateVisibility::Hidden);
-    if (UltRank_2)
-        UltRank_2->SetVisibility(ESlateVisibility::Hidden);
-    if (UltRank_3)
-        UltRank_3->SetVisibility(ESlateVisibility::Hidden);
-    if (UltRank_4)
-        UltRank_4->SetVisibility(ESlateVisibility::Hidden);
-    if (UltRank_5)
-        UltRank_5->SetVisibility(ESlateVisibility::Hidden);
-    
-    if (SpinStack_1)
-        SpinStack_1->SetVisibility(ESlateVisibility::Hidden);
-    if (SpinStack_2)
-        SpinStack_2->SetVisibility(ESlateVisibility::Hidden);
-    if (SpinStack_3)
-        SpinStack_3->SetVisibility(ESlateVisibility::Hidden);
-    if (SpinStack_4)
-        SpinStack_4->SetVisibility(ESlateVisibility::Hidden);
-}
-
 void UCPlayerWidget::UpdateFuryStacksImages(int32 CurrentStacks)
 {
     if (SpinStack_1)
@@ -310,6 +314,32 @@ void UCPlayerWidget::UpdateFuryStacksImages(int32 CurrentStacks)
         const bool bShouldShow = CurrentStacks >= FuryStack4Threshold;
         SpinStack_4->SetVisibility(bShouldShow ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden);
     }
+}
+
+void UCPlayerWidget::HideSpinUltImages()
+{
+    if (Ult_HPIcon)
+        Ult_HPIcon->SetVisibility(ESlateVisibility::Hidden);
+    
+    if (UltRank_1)
+        UltRank_1->SetVisibility(ESlateVisibility::Hidden);
+    if (UltRank_2)
+        UltRank_2->SetVisibility(ESlateVisibility::Hidden);
+    if (UltRank_3)
+        UltRank_3->SetVisibility(ESlateVisibility::Hidden);
+    if (UltRank_4)
+        UltRank_4->SetVisibility(ESlateVisibility::Hidden);
+    if (UltRank_5)
+        UltRank_5->SetVisibility(ESlateVisibility::Hidden);
+    
+    if (SpinStack_1)
+        SpinStack_1->SetVisibility(ESlateVisibility::Hidden);
+    if (SpinStack_2)
+        SpinStack_2->SetVisibility(ESlateVisibility::Hidden);
+    if (SpinStack_3)
+        SpinStack_3->SetVisibility(ESlateVisibility::Hidden);
+    if (SpinStack_4)
+        SpinStack_4->SetVisibility(ESlateVisibility::Hidden);
 }
 
 /*void UCPlayerWidget::UpdateUltimateRankImages(float Ratio)
@@ -516,6 +546,78 @@ void UCPlayerWidget::SetHpBarAnchors(const FAnchors& Anchors)
     if (CanvasSlot)
     {
         CanvasSlot->SetAnchors(Anchors);
+    }
+}
+
+void UCPlayerWidget::UpdateHpLerp()
+{
+    const float DeltaTime = 0.05f;  // 20hz
+    
+    // 목표값에 도달했는지 확인
+    if (FMath::IsNearlyEqual(CurrentDisplayHpRatio, TargetHpRatio, 0.001f))
+    {
+        // 정확히 목표값으로 설정하고 Timer 중지
+        CurrentDisplayHpRatio = TargetHpRatio;
+        
+        if (HealthBar)
+        {
+            HealthBar->SetPercent(CurrentDisplayHpRatio);
+            const FLinearColor UseColor = (CurrentDisplayHpRatio <= HpDangerThreshold) ? HpColor_Danger : HpColor_Normal;
+            HealthBar->SetFillColorAndOpacity(UseColor);
+        }
+        
+        GetWorld()->GetTimerManager().ClearTimer(TimerHandle_HpLerp);
+        return;
+    }
+    
+    // Lerp 계산
+    CurrentDisplayHpRatio = FMath::FInterpTo(CurrentDisplayHpRatio, TargetHpRatio, DeltaTime, HpLerpSpeed);
+    
+    // UI 업데이트
+    if (HealthBar)
+    {
+        HealthBar->SetPercent(CurrentDisplayHpRatio);
+        const FLinearColor UseColor = (CurrentDisplayHpRatio <= HpDangerThreshold) ? HpColor_Danger : HpColor_Normal;
+        HealthBar->SetFillColorAndOpacity(UseColor);
+    }
+}
+
+void UCPlayerWidget::UpdateOverHealLerp()
+{
+    const float DeltaTime = 0.05f;  // 20hz
+    
+    // 목표값에 도달했는지 확인
+    if (FMath::IsNearlyEqual(CurrentDisplayOverHealRatio, TargetOverHealRatio, 0.001f))
+    {
+        // 정확히 목표값으로 설정하고 Timer 중지
+        CurrentDisplayOverHealRatio = TargetOverHealRatio;
+        
+        if (OverHealHpBar)
+        {
+            OverHealHpBar->SetPercent(CurrentDisplayOverHealRatio);
+            
+            if (CurrentDisplayOverHealRatio > 0.001f)
+                OverHealHpBar->SetVisibility(ESlateVisibility::Visible);
+            else
+                OverHealHpBar->SetVisibility(ESlateVisibility::Hidden);
+        }
+        
+        GetWorld()->GetTimerManager().ClearTimer(TimerHandle_OverHealLerp);
+        return;
+    }
+    
+    // Lerp 계산
+    CurrentDisplayOverHealRatio = FMath::FInterpTo(CurrentDisplayOverHealRatio, TargetOverHealRatio, DeltaTime, OverHealLerpSpeed);
+    
+    // UI 업데이트
+    if (OverHealHpBar)
+    {
+        OverHealHpBar->SetPercent(CurrentDisplayOverHealRatio);
+        
+        if (CurrentDisplayOverHealRatio > 0.001f)
+            OverHealHpBar->SetVisibility(ESlateVisibility::Visible);
+        else
+            OverHealHpBar->SetVisibility(ESlateVisibility::Hidden);
     }
 }
 
