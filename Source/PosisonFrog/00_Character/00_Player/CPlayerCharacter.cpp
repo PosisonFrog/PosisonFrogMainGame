@@ -320,8 +320,6 @@ void ACPlayerCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
         }
     }
 
-    CleanupUltVFX();
-    
     Super::EndPlay(EndPlayReason);
 }
 
@@ -625,8 +623,6 @@ void ACPlayerCharacter::HandleDeath(AActor* DeadActor)
     // 타이머 정리
     GetWorldTimerManager().ClearAllTimersForObject(this);
 
-    CleanupUltVFX();
-
     if (UltimateBuffComponent)
     {
         UltimateBuffComponent->DeactivateUltimate();
@@ -746,18 +742,27 @@ void ACPlayerCharacter::UseUltimate()
 
     bUltActive = true;
 
+    if (UltimatePlayerMontage)
+    {
+        PlayAnimMontage(UltimatePlayerMontage);
+    }
+
+    if (ACHammer* Hammer = WeaponComponent->GetHammer())
+    {
+        if (UltimateHammerMontage && Hammer->GetHammerMesh())
+        {
+            if (UAnimInstance* HammerAnim = Hammer->GetHammerMesh()->GetAnimInstance())
+                HammerAnim->Montage_Play(UltimateHammerMontage);
+        }
+    }
+    
     // 궁극기 활성화 플레이어 이펙트 재생
     if (EffectComponent)
         EffectComponent->PlayUltimateActivationEffect();
 
-    // 기존 무기 이펙트 정리
-    CleanupUltVFX();
-
-    // 새로운 무기 이펙트 부착
+    // 무기 이펙트 부착
     if (EffectComponent)
-        HammerUltFXComp = EffectComponent->AttachUltimateWeaponEffect();
-    else
-        SpawnUltVFXOnHammer(); // 기존 방식 유지
+        EffectComponent->AttachUltimateWeaponEffect();
     
     ComboStackComponent->OnUltStarted(PlayerUltId);
     UltimateBuffComponent->ActivateUltimate();
@@ -775,13 +780,14 @@ void ACPlayerCharacter::UseUltimate()
         this, &ACPlayerCharacter::OnUltimateExpired,
         UltDuration, false);
 
-    GetWorldTimerManager().ClearTimer(TimerHandle_UltUITick);
+    /*GetWorldTimerManager().ClearTimer(TimerHandle_UltUITick);
     GetWorldTimerManager().SetTimer(
         TimerHandle_UltUITick,
         this, &ACPlayerCharacter::TickUltimateUI,
         0.05f, true);
     
-    TickUltimateUI();
+    TickUltimateUI();*/
+
     UpdateHpUI();
 }
 
@@ -803,8 +809,6 @@ void ACPlayerCharacter::OnUltimateExpired()
     
     if (EffectComponent)
         EffectComponent->DetachUltimateWeaponEffect();
-    else
-        CleanupUltVFX(); // 기본 방식 유지
 
     if (PlayerWidget)
     {
@@ -859,42 +863,6 @@ void ACPlayerCharacter::TickUltimateUI()
 
     // 궁극기 활성화 시 남은 시간 기반 UI 업데이트는 유지
     // 필요시 타이머 기반 애니메이션 처리
-}
-
-void ACPlayerCharacter::CleanupUltVFX()
-{
-    if (IsValid(HammerUltFXComp))
-    {
-        HammerUltFXComp->Deactivate();
-        HammerUltFXComp->DestroyComponent();
-    }
-    HammerUltFXComp = nullptr;
-}
-
-void ACPlayerCharacter::SpawnUltVFXOnHammer()
-{
-    if (!HammerUltFX || !WeaponComponent)
-        return;
-
-    CleanupUltVFX();
-    
-    if (ACHammer* Hammer = WeaponComponent->GetHammer())
-    {
-        if (USkeletalMeshComponent* WeaponMesh = Hammer->GetWeaponMesh())
-        {
-            HammerUltFXComp = UNiagaraFunctionLibrary::SpawnSystemAttached(
-                HammerUltFX,
-                WeaponMesh,
-                HammerUltSocketName,
-                FVector::ZeroVector,
-                FRotator::ZeroRotator,
-                EAttachLocation::SnapToTargetIncludingScale,
-                false);
-
-            if (HammerUltFXComp)
-                HammerUltFXComp->Activate(true);
-        }
-    }
 }
 
 /*void ACPlayerCharacter::SetUltimateGauge(float UltGauge)
