@@ -89,18 +89,7 @@ bool UCSkill_SpinAttack::DoActivate()
                 HammerAnim->Montage_Play(HammerSpinMontage);
         }
 
-        // 기존 VFX 코드 주석 처리
-        /*if (SpinVFX && Hammer)
-        {
-            ActiveSpinVFXComponent = UNiagaraFunctionLibrary::SpawnSystemAttached(
-                SpinVFX,
-                Hammer->GetHammerMesh(),
-                FName("Joy_WeaponVFX"),
-                FVector::ZeroVector,
-                FRotator::ZeroRotator,
-                EAttachLocation::SnapToTarget,
-                false);
-        }*/
+        // 새로운 이펙트 시스템 사용
         if (ACPlayerCharacter* Player = Cast<ACPlayerCharacter>(OwnerChar.Get()))
         {
             if (UCPlayerEffectComponent* EffectComp = Player->GetEffectComponent())
@@ -128,7 +117,7 @@ bool UCSkill_SpinAttack::DoCancel()
 
     GetWorld()->GetTimerManager().ClearTimer(TimerHandle_SpinTick);
 
-    // 애니메이션 중지 코드
+    // 애니메이션 중지
     if (OwnerChar.IsValid())
     {
         if (ACPlayerCharacter* PlayerChar = Cast<ACPlayerCharacter>(OwnerChar))
@@ -148,13 +137,13 @@ bool UCSkill_SpinAttack::DoCancel()
                 if (UAnimInstance* HammerAnim = Hammer->GetHammerMesh()->GetAnimInstance())
                     HammerAnim->Montage_Stop(0.2f, HammerSpinMontage);
             }
-        }
-    }
 
-    if (IsValid(ActiveSpinVFXComponent))
-    {
-        ActiveSpinVFXComponent->DestroyComponent();
-        ActiveSpinVFXComponent = nullptr;
+            // 새로운 이펙트 시스템을 통해 모든 활성 이펙트 정리
+            if (UCPlayerEffectComponent* EffectComp = PlayerChar->GetEffectComponent())
+            {
+                EffectComp->StopAllActiveEffects();
+            }
+        }
     }
     
     return true;
@@ -178,10 +167,17 @@ void UCSkill_SpinAttack::OnFuryFinisher(float FinisherDamage)
     if (TimerHandle_SpinTick.IsValid())
         GetWorld()->GetTimerManager().ClearTimer(TimerHandle_SpinTick);
     
-    if (IsValid(ActiveSpinVFXComponent))
+    
+    // 새로운 이펙트 시스템을 통해 모든 활성 이펙트 정리
+    if (OwnerChar.IsValid())
     {
-        ActiveSpinVFXComponent->DestroyComponent();
-        ActiveSpinVFXComponent = nullptr;
+        if (ACPlayerCharacter* PlayerChar = Cast<ACPlayerCharacter>(OwnerChar))
+        {
+            if (UCPlayerEffectComponent* EffectComp = PlayerChar->GetEffectComponent())
+            {
+                EffectComp->StopAllActiveEffects();
+            }
+        }
     }
     
     // Fury 10칸 피니시 발생 → ‘망치 내려찍기’ 연출

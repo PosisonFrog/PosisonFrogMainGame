@@ -291,6 +291,35 @@ void UCPlayerEffectComponent::ClearEffectTimer(FTimerHandle& TimerHandle)
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// 이펙트 중단
+// ────────────────────────────────────────────────────────────────────────────
+void UCPlayerEffectComponent::StopAllActiveEffects()
+{
+    for (UNiagaraComponent* Effect : ActiveEffects)
+    {
+        if (Effect && IsValid(Effect))
+        {
+            Effect->Deactivate();
+            Effect->DestroyComponent();
+        }
+    }
+    ActiveEffects.Empty();
+}
+
+void UCPlayerEffectComponent::StopActiveEffect(UNiagaraComponent* EffectComponent)
+{
+    if (!EffectComponent || !IsValid(EffectComponent))
+        return;
+
+    if (ActiveEffects.Contains(EffectComponent))
+    {
+        EffectComponent->Deactivate();
+        EffectComponent->DestroyComponent();
+        ActiveEffects.Remove(EffectComponent);
+    }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // 내부 헬퍼 함수
 // ────────────────────────────────────────────────────────────────────────────
 const FEffectSpawnSettings& UCPlayerEffectComponent::GetCurrentStateEffect(const FEffectStatePair& EffectPair) const
