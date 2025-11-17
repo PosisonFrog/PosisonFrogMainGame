@@ -329,6 +329,4 @@ private:
     // 내부 헬퍼
     static float SafeRatio(float Num, float Denom);
     static FText SecsTextOneDecimal(float Seconds);
-
 };
-
