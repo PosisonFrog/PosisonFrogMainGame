@@ -158,7 +158,7 @@ void ACBossProjectile::ExplodeAndDestroy(const FVector& Location)
 	// 폭발 이펙트 생성
 	if (ExplosionEffect)
 	{
-		UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, ExplosionEffect, Location, GetActorRotation());
+		UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, ExplosionEffect, Location, ExplosionEffectRotation);
 
 	}
 

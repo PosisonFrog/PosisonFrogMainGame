@@ -11,6 +11,7 @@
 #include "05_System/01_Sound/CSoundManagerSubsystem.h"
 #include "05_System/01_Sound//CSoundDataAsset.h"
 #include "00_Character/CMainGameModeBase.h"
+#include "Components/SkeletalMeshComponent.h"
 
 ACEnemyBossCharacter::ACEnemyBossCharacter()
 {
@@ -44,6 +45,12 @@ void ACEnemyBossCharacter::BeginPlay()
     }
     
     bIsBossDead = false;
+
+    if (USkeletalMeshComponent* MeshComp = this->GetMesh())
+    {
+        MeshComp->SetVisibility(false);
+    }
+
 
     if (IsValid(HealthComponent))
     {

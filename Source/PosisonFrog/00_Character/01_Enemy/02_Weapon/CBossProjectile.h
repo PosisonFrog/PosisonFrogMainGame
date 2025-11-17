@@ -91,6 +91,9 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Projectile|Effects")
 	TObjectPtr<UNiagaraSystem> ExplosionEffect;
 
+	UPROPERTY(EditAnywhere, Category="Projectile|Effects")
+	FRotator ExplosionEffectRotation = FRotator::ZeroRotator;
+
 	/** 발사 사운드 */
 	UPROPERTY(EditAnywhere, Category="Projectile|Sound")
 	TObjectPtr<USoundBase> LaunchSound;

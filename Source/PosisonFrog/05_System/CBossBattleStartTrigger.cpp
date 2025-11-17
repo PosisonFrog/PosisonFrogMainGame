@@ -48,16 +48,16 @@ void ACBossBattleStartTrigger::BeginPlay()
     {
         InitialBossName = TargetBoss->GetName();
     }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[BossTrigger] TargetBoss가 설정되지 않음"));
+    }
     
     if (IsValid(TriggerBox))
     {
         TriggerBox->OnComponentBeginOverlap.AddDynamic(this, &ACBossBattleStartTrigger::OnTriggerBeginOverlap);
     }
 
-    if (!IsValid(TargetBoss))
-    {
-        UE_LOG(LogTemp, Warning, TEXT("[BossTrigger] TargetBoss가 설정되지 않음"));
-    }
 }
 
 void ACBossBattleStartTrigger::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -204,6 +204,11 @@ void ACBossBattleStartTrigger::ShowWarningUI()
 void ACBossBattleStartTrigger::PlayIntroSequence()
 {
     UE_LOG(LogTemp, Log, TEXT("[BossTrigger] 레벨 시퀀스 재생 시작"));
+
+    if (IsValid(TargetBoss))
+    {
+        TargetBoss->GetMesh()->SetVisibility(true);
+    }
     
     APlayerController* PC = GetWorld()->GetFirstPlayerController();
     if (PC)
