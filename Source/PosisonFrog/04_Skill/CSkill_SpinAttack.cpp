@@ -19,6 +19,7 @@
 #include "GameFramework/DamageType.h"
 #include "NiagaraComponent.h"
 #include "00_Character/02_Component/CHitStopComponent.h"
+#include "00_Character/02_Component/00_PlayerComponent/CPlayerEffectComponent.h"
 
 
 UCSkill_SpinAttack::UCSkill_SpinAttack()
@@ -88,7 +89,8 @@ bool UCSkill_SpinAttack::DoActivate()
                 HammerAnim->Montage_Play(HammerSpinMontage);
         }
 
-        if (SpinVFX && Hammer)
+        // 기존 VFX 코드 주석 처리
+        /*if (SpinVFX && Hammer)
         {
             ActiveSpinVFXComponent = UNiagaraFunctionLibrary::SpawnSystemAttached(
                 SpinVFX,
@@ -98,6 +100,13 @@ bool UCSkill_SpinAttack::DoActivate()
                 FRotator::ZeroRotator,
                 EAttachLocation::SnapToTarget,
                 false);
+        }*/
+        if (ACPlayerCharacter* Player = Cast<ACPlayerCharacter>(OwnerChar.Get()))
+        {
+            if (UCPlayerEffectComponent* EffectComp = Player->GetEffectComponent())
+            {
+                EffectComp->PlaySpinAttackEffect();
+            }
         }
     }
     

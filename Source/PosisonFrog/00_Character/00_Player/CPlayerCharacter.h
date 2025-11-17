@@ -5,6 +5,7 @@
 #include "00_Character/02_Component/00_PlayerComponent/Buffable.h"
 #include "CPlayerCharacter.generated.h"
 
+class AActor;
 class UNiagaraComponent;
 class UNiagaraSystem;
 class UCSkill_CommandLaunchSlam;
@@ -21,9 +22,10 @@ class UCPlayerMovementBuffComponent;
 class UCInputConfig;
 class UCPlayerWidget;
 class UCameraShakeBase;
-class AActor;
 class UComboStackComponent;
 class UCPlayerKnockbackComponent;
+class UCPlayerEffectComponent;
+
 struct FInputActionValue;
 
 
@@ -45,6 +47,8 @@ public:
     // ─ 카메라
     FORCEINLINE USpringArmComponent* GetCameraBoom() const { return SpringArm; }
     FORCEINLINE UCameraComponent* GetFollowCamera() const  { return PlayerCamera; }
+
+    FORCEINLINE UCPlayerEffectComponent* GetEffectComponent() const { return EffectComponent; }
     
     // ─ 궁극기
     // 나중에 궁극기 게이지로 사용하게 된다면 사용
@@ -258,7 +262,6 @@ private:
     FTimerHandle TimerHandle_UltUITick;
 
     // ─────────── 구성 컴포넌트 ───────────
-
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
     TObjectPtr<UCPlayerDashComponent> DashComponent = nullptr;
     
@@ -282,6 +285,9 @@ private:
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Skill", meta=(AllowPrivateAccess = "true"))
     TObjectPtr<UCSkill_CommandLaunchSlam> CommandLaunchSlamComponent = nullptr;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+    TObjectPtr<UCPlayerEffectComponent> EffectComponent = nullptr;
     
     // ─────────── 카메라 ───────────
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Camera", meta = (AllowPrivateAccess = "true"))

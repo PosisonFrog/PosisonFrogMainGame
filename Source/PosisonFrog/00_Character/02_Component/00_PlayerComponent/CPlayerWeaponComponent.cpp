@@ -1,4 +1,6 @@
 #include "00_Character/02_Component/00_PlayerComponent/CPlayerWeaponComponent.h"
+
+#include "CPlayerEffectComponent.h"
 #include "00_Character/00_Player/CPlayerCharacter.h"
 #include "00_Character/00_Player/02_Weapon/CHammer.h"
 #include "00_Character/02_Component/00_PlayerComponent/Buffable.h"
@@ -314,6 +316,14 @@ void UCPlayerWeaponComponent::PlayComboAttack()
     
     PlayerAnimInst->Montage_Play(PlayerMontage);
     HammerAnimInst->Montage_Play(HammerMontage);
+
+    if (ACPlayerCharacter* Player = Cast<ACPlayerCharacter>(GetOwner()))
+    {
+        if (UCPlayerEffectComponent* EffectComp = Player->GetEffectComponent())
+        {
+            EffectComp->PlayComboAttackEffect(CurrentCombo);
+        }
+    }
 
     /*if (IsValid(Hammer))
         Hammer->PlayAttackVFX(CurrentCombo);*/

@@ -8,6 +8,7 @@
 #include "01_Item/CHealOrb.h"
 #include "01_Item/CHealOrbPoolSubsystem.h"
 #include "02_Component/00_PlayerComponent/CFuryGaugeComponent.h"
+#include "02_Component/00_PlayerComponent/CPlayerEffectComponent.h"
 #include "02_Component/00_PlayerComponent/CPlayerHealthComponent.h"
 #include "05_System/CBossBattleStartTrigger.h"
 #include "05_System/00_Stage/CCheckPoint.h"
@@ -146,6 +147,14 @@ void ACMainGameModeBase::RestartFromLastCheckpoint(ACPlayerController* PlayerCon
 	
 	GetWorldTimerManager().ClearTimer(TimerHandle_Respawn);
 	GetWorldTimerManager().ClearTimer(TimerHandle_ReturnToMenu);
+
+	if (ACPlayerCharacter* Player = Cast<ACPlayerCharacter>(PlayerController->GetPawn()))
+	{
+		if (UCPlayerEffectComponent* EffectComp = Player->GetEffectComponent())
+		{
+			EffectComp->ClearAllEffectTimers();
+		}
+	}
 	
 	if (UCHealOrbPoolSubsystem* Pool = GetGameInstance()->GetSubsystem<UCHealOrbPoolSubsystem>())
 	{
@@ -330,7 +339,11 @@ void ACMainGameModeBase::RespawnPlayerAtCheckPoint(ACPlayerController* PlayerCon
 				}
 			}
 		}
-		
+
+		if (UCPlayerEffectComponent* EffectComp = NewPlayer->GetEffectComponent())
+		{
+			EffectComp->ClearAllEffectTimers();
+		}
 
 		if (APlayerCameraManager* CameraManager = PlayerController->PlayerCameraManager)
 		{

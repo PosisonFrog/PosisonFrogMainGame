@@ -1,5 +1,6 @@
 #include "CPlayerDashComponent.h"
 
+#include "CPlayerEffectComponent.h"
 #include "CPlayerWeaponComponent.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -37,6 +38,14 @@ void UCPlayerDashComponent::StartDash()
     if (!OwnerChar.IsValid() || !MoveComp.IsValid() || bIsDashing)
         return;
 
+    if (ACPlayerCharacter* Player = Cast<ACPlayerCharacter>(GetOwner()))
+    {
+        if (UCPlayerEffectComponent* EffectComp = Player->GetEffectComponent())
+        {
+            EffectComp->PlayDashEffect();
+        }
+    }
+    
     BeginDash_Internal();
 }
 void UCPlayerDashComponent::CancelDash()
