@@ -211,11 +211,14 @@ void ACPlayerCharacter::BeginPlay()
 
             if (ComboStackComponent)
             {
-                // CSC 변경 시
+                // CSC 변경 시 - 숫자 업데이트
                 ComboStackComponent->OnCSCChanged.AddDynamic(PlayerWidget, &UCPlayerWidget::UpdateComboStack);
 
-                // 랭크 변경 시
+                // 랭크 변경 시 - 이미지 + 숫자 색 업데이트
                 ComboStackComponent->OnRankChanged.AddDynamic(PlayerWidget, &UCPlayerWidget::UpdateComboRank);
+
+                PlayerWidget->UpdateComboStack(ComboStackComponent->GetCurrentCSC());
+                PlayerWidget->UpdateComboRank(EComboRank::D, ComboStackComponent->GetCurrentRank());
             }
         }
         else
@@ -723,7 +726,7 @@ float ACPlayerCharacter::TakeDamage(float DamageAmount, struct FDamageEvent cons
 // ────────────────────────────────────────────────────────────────────────────
 void ACPlayerCharacter::UseUltimate()
 {
-    if (bUltActive || !UltimateBuffComponent || CurUltGauge < MaxUltGauge)
+    if (bUltActive || !UltimateBuffComponent)
         return;
 
     if (!ComboStackComponent || !ComboStackComponent->CanCastUlt())
@@ -737,7 +740,6 @@ void ACPlayerCharacter::UseUltimate()
     bUltActive = true;
     ComboStackComponent->OnUltStarted(PlayerUltId);
     UltimateBuffComponent->ActivateUltimate();
-    UE_LOG(LogTemp, Log, TEXT("[ULT] UseUltimate On Gauge=%.1f/%.1f"), CurUltGauge, MaxUltGauge);
     
     MarkCombatAction();
 
@@ -770,7 +772,7 @@ void ACPlayerCharacter::OnUltimateExpired()
     GetWorldTimerManager().ClearTimer(TimerHandle_UltUITick);
 
     bUltActive = false;
-    CurUltGauge = 0.0f;
+    //CurUltGauge = 0.0f;
     if (UltimateBuffComponent)
         UltimateBuffComponent->DeactivateUltimate();
 
@@ -793,7 +795,7 @@ void ACPlayerCharacter::OnUltimateExpired()
     UpdateHpUI();
 }
 
-void ACPlayerCharacter::AddUltimateGain(float Gain)
+/*void ACPlayerCharacter::AddUltimateGain(float Gain)
 {
     if (bUltActive || CurUltGauge >= MaxUltGauge)
         return;
@@ -802,7 +804,7 @@ void ACPlayerCharacter::AddUltimateGain(float Gain)
     UE_LOG(LogTemp, Log, TEXT("[ULT][Gain] +%.2f -> %.2f/%.2f"), Gain, CurUltGauge, MaxUltGauge);
 
     UpdateUltimateUI();
-}
+}*/
 
 // ─ 궁극기 UI 업데이트
 void ACPlayerCharacter::UpdateUltimateUI()
@@ -817,12 +819,12 @@ void ACPlayerCharacter::UpdateUltimateUI()
     //if (PlayerWidget)
     //    PlayerWidget->UpdateUltimateBar(CurUltGauge, MaxUltGauge);
 
-    PlayerWidget->UpdateUltimateImage(CurUltGauge, MaxUltGauge);
+    PlayerWidget->UpdateComboStack(ComboStackComponent->GetCurrentCSC());
 }
 
 void ACPlayerCharacter::TickUltimateUI()
 {
-    const float RemainingTime = GetWorldTimerManager().GetTimerRemaining(TimerHandle_UltDuration);
+    /*const float RemainingTime = GetWorldTimerManager().GetTimerRemaining(TimerHandle_UltDuration);
     
     if (UltDuration > KINDA_SMALL_NUMBER)
         CurUltGauge = MaxUltGauge * (RemainingTime / UltDuration);
@@ -831,7 +833,10 @@ void ACPlayerCharacter::TickUltimateUI()
     
     CurUltGauge = FMath::Max(0.0f, CurUltGauge);
     
-    UpdateUltimateUI();
+    UpdateUltimateUI();*/
+
+    // 궁극기 활성화 시 남은 시간 기반 UI 업데이트는 유지
+    // 필요시 타이머 기반 애니메이션 처리
 }
 
 void ACPlayerCharacter::CleanupUltVFX()
@@ -870,7 +875,7 @@ void ACPlayerCharacter::SpawnUltVFXOnHammer()
     }
 }
 
-void ACPlayerCharacter::SetUltimateGauge(float UltGauge)
+/*void ACPlayerCharacter::SetUltimateGauge(float UltGauge)
 {
     CurUltGauge = FMath::Clamp(UltGauge, 0.0f, MaxUltGauge);
 
@@ -879,7 +884,7 @@ void ACPlayerCharacter::SetUltimateGauge(float UltGauge)
         ComboStackComponent->ForceUltReady();
     }
     UpdateUltimateUI();
-}
+}*/
 
 // ────────────────────────────────────────────────────────────────────────────
 // 차징 (스핀) 스킬

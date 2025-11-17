@@ -48,8 +48,8 @@ public:
     void UpdateUltimateBar(float Current, float Max);
 
     // 궁극기 - 이미지 활성화 방식
-    UFUNCTION(BlueprintCallable, Category = "PF|HUD")
-    void UpdateUltimateImage(float Current, float Max);
+    /*UFUNCTION(BlueprintCallable, Category = "PF|HUD")
+    void UpdateUltimateImage(float Current, float Max);*/
 
     // 스핀 스킬 - 게이지 방식
     //UFUNCTION(BlueprintCallable, Category = "PF|HUD")
@@ -174,20 +174,17 @@ private:
     int32 FuryStack4Threshold = 10;
 
     // ─────────── Ultimate 게이지 임계값 설정 ───────────
-    UPROPERTY(EditAnywhere, Category = "PF|HUD|Ultimate", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+    // 해당 내용들은 나중에 게이지 사용하면 주석 풀기
+    /*UPROPERTY(EditAnywhere, Category = "PF|HUD|Ultimate", meta = (ClampMin = "0.0", ClampMax = "1.0"))
     float UltRank1Threshold = 0.2f;
-    
     UPROPERTY(EditAnywhere, Category = "PF|HUD|Ultimate", meta = (ClampMin = "0.0", ClampMax = "1.0"))
     float UltRank2Threshold = 0.4f;
-    
     UPROPERTY(EditAnywhere, Category = "PF|HUD|Ultimate", meta = (ClampMin = "0.0", ClampMax = "1.0"))
     float UltRank3Threshold = 0.6f;
-    
     UPROPERTY(EditAnywhere, Category = "PF|HUD|Ultimate", meta = (ClampMin = "0.0", ClampMax = "1.0"))
     float UltRank4Threshold = 0.8f;
-    
     UPROPERTY(EditAnywhere, Category = "PF|HUD|Ultimate", meta = (ClampMin = "0.0", ClampMax = "1.0"))
-    float UltRank5Threshold = 1.0f;
+    float UltRank5Threshold = 1.0f;*/
 
     // ─────────── 콤보 랭크 색상 설정 ───────────
     UPROPERTY(EditAnywhere, Category = "PF|HUD|Combo")
@@ -278,7 +275,9 @@ private:
     void HideSpinUltImages();
 
     void UpdateFuryStacksImages(int32 CurrentStacks);
-    void UpdateUltimateRankImages(float Ratio);
+    
+    // 나중에 궁극기 게이지로 변동되면 사용하기
+    //void UpdateUltimateRankImages(float Ratio);
 
     FLinearColor GetColorForRank(EComboRank Rank) const;
     FText GetTextForRank(EComboRank Rank) const;

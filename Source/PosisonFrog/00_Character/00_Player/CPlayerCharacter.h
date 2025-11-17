@@ -47,9 +47,10 @@ public:
     FORCEINLINE UCameraComponent* GetFollowCamera() const  { return PlayerCamera; }
     
     // ─ 궁극기
-    float GetMaxUltimateGauge() const { return MaxUltGauge; }
-    float GetUltimateGauge() const { return CurUltGauge; }
-    void SetUltimateGauge(float UltGauge);
+    // 나중에 궁극기 게이지로 사용하게 된다면 사용
+    // float GetMaxUltimateGauge() const { return MaxUltGauge; }
+    // float GetUltimateGauge() const { return CurUltGauge; }
+    // void SetUltimateGauge(float UltGauge);
     
     // ─ 애니메이션
     FORCEINLINE UComboStackComponent* GetComboStackComponent() const { return ComboStackComponent; }
@@ -125,7 +126,7 @@ private:
     UFUNCTION() void SpawnUltVFXOnHammer();
     
 public:
-    void AddUltimateGain(float Gain);
+    //void AddUltimateGain(float Gain);
     
 protected:
     // ─────────── Input ───────────
@@ -229,11 +230,11 @@ protected:
     bool bIsDead = false;
     
     // ─────────── ULT ───────────
-    UPROPERTY(EditDefaultsOnly, Category = "Ultimate|State")
-    float MaxUltGauge = 100.0f;
-    
-    UPROPERTY(EditDefaultsOnly, Category = "Ultimate|State")
-    float CurUltGauge = 0.0f;
+    // 나중에 궁극기 게이지로 사용하게 된다면 이거 사용
+    //UPROPERTY(EditDefaultsOnly, Category = "Ultimate|State")
+    //float MaxUltGauge = 100.0f;
+    //UPROPERTY(EditDefaultsOnly, Category = "Ultimate|State")
+    //float CurUltGauge = 0.0f;
 
     UPROPERTY(EditDefaultsOnly, Category = "Ultimate|State")
     bool bUltActive = false;
@@ -250,7 +251,7 @@ protected:
     UPROPERTY(EditDefaultsOnly, Category = "Ultimate|State")
     float UltDuration = 5.0f; // 궁극기 전체 지속 시간 (초)
     
-    float UltDrainTickInterval = 0.05f;
+    // float UltDrainTickInterval = 0.05f;
 
 private:
     FTimerHandle TimerHandle_UltDuration;

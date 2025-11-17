@@ -58,12 +58,13 @@ void UCPlayerWeaponComponent::HandleWeaponHit(AActor* InstigatorActor, AActor* H
     if (HitActor == OwnerChar)
         return;
     
-    
-    if (ACPlayerCharacter* PlayerChar = Cast<ACPlayerCharacter>(GetOwner()))
+
+    // 궁극기 게이지 증가 로직 제거
+    /*if (ACPlayerCharacter* PlayerChar = Cast<ACPlayerCharacter>(GetOwner()))
     {
         const float gain = PlayerChar->GetMaxUltimateGauge() * AddUltGaugeMul;
         PlayerChar->AddUltimateGain(gain);
-    }
+    }*/
     
     // 콤보 배율 적용
     float ComboMultiplier = 1.0f;

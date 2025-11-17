@@ -1,9 +1,6 @@
 #include "CPlayerWidget.h"
 
-#include <ratio>
-
 #include "MediaPlayer.h"
-#include "MediaTexture.h"
 #include "99_Util/CLog.h"
 #include "Components/CanvasPanelSlot.h"
 #include "Components/Image.h"
@@ -157,12 +154,12 @@ void UCPlayerWidget::UpdateUltimateBar(float Current, float Max)
     }
 }
 
-void UCPlayerWidget::UpdateUltimateImage(float Current, float Max)
+/*void UCPlayerWidget::UpdateUltimateImage(float Current, float Max)
 {
     const float Ratio = SafeRatio(Current, Max);
 
     UpdateUltimateRankImages(Ratio);
-}
+}*/
 
 /*void UCPlayerWidget::UpdateFuryStacksBar(int32 NewStacks, int32 MaxStacks)
 {
@@ -180,7 +177,12 @@ void UCPlayerWidget::UpdateFuryStacksImage(int32 NewStacks, int32 MaxStacks)
 
 void UCPlayerWidget::UpdateComboStack(int32 NewCSC)
 {
-    // 일단 지금 Rank로 한번 해보기
+    if (!CSCComboCount)
+        return;
+
+    // CSC 카운트 표시
+    FString CountText = FString::Printf(TEXT("%d"), NewCSC);
+    CSCComboCount->SetText(FText::FromString(CountText));
 }
 
 void UCPlayerWidget::UpdateComboRank(EComboRank OldRank, EComboRank NewRank)
@@ -188,8 +190,21 @@ void UCPlayerWidget::UpdateComboRank(EComboRank OldRank, EComboRank NewRank)
     if (!CSCComboCount)
         return;
 
-    CSCComboCount->SetText(GetTextForRank(NewRank));
+    // 랭크 색상 업데이트
     CSCComboCount->SetColorAndOpacity(GetColorForRank(NewRank));
+
+    // UltRank 이미지들 업데이트 (D=0, C=1, B=2, A=3, S=4)
+    uint8 RankValue = static_cast<uint8>(NewRank);
+    if (UltRank_1)
+        UltRank_1->SetVisibility(RankValue >= 0 ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden);
+    if (UltRank_2)
+        UltRank_2->SetVisibility(RankValue >= 1 ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden);
+    if (UltRank_3)
+        UltRank_3->SetVisibility(RankValue >= 2 ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden);
+    if (UltRank_4)
+        UltRank_4->SetVisibility(RankValue >= 3 ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden);
+    if (UltRank_5)
+        UltRank_5->SetVisibility(RankValue >= 4 ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden);
 }
 
 void UCPlayerWidget::OnUltimateActivated()
@@ -297,7 +312,7 @@ void UCPlayerWidget::UpdateFuryStacksImages(int32 CurrentStacks)
     }
 }
 
-void UCPlayerWidget::UpdateUltimateRankImages(float Ratio)
+/*void UCPlayerWidget::UpdateUltimateRankImages(float Ratio)
 {
     if (UltRank_1)
     {
@@ -328,7 +343,7 @@ void UCPlayerWidget::UpdateUltimateRankImages(float Ratio)
         const bool bShouldShow = Ratio >= UltRank5Threshold;
         UltRank_5->SetVisibility(bShouldShow ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden);
     }
-}
+}*/
 
 FLinearColor UCPlayerWidget::GetColorForRank(EComboRank Rank) const
 {

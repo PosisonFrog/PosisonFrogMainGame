@@ -24,7 +24,7 @@ struct FPlayerStateSnapshot
 	UPROPERTY() float MaxHealth = 100.0f;
 
 	// 궁극기 게이지
-	UPROPERTY() float UltimateGauge = 100.0f;
+	//UPROPERTY() float UltimateGauge = 100.0f;
 
 	// Fury 게이지
 	UPROPERTY() float FuryGauge = 100.0f;

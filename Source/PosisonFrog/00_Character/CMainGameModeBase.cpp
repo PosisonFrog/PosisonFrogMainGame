@@ -364,8 +364,8 @@ void ACMainGameModeBase::SavePlayerState(ACPlayerCharacter* Player)
 	if (UCFuryGaugeComponent* FuryComp = Player->FindComponentByClass<UCFuryGaugeComponent>())
 		PlayerStateSnapshot.FuryGauge = FuryComp->GetCurrentFury();
 	
-	// 궁극기 게이지 저장 
-	PlayerStateSnapshot.UltimateGauge = Player->GetUltimateGauge();
+	// 궁극기 게이지 저장 - 게이지 사용 안함으로 주석 처리 
+	// PlayerStateSnapshot.UltimateGauge = Player->GetUltimateGauge();
 
 	if (IsValid(CurrentCheckPoint))
 	{
@@ -392,7 +392,8 @@ void ACMainGameModeBase::RestorePlayerState(ACPlayerCharacter* Player)
 		FuryComp->SetFury(PlayerStateSnapshot.FuryGauge);
 	}
 	
-	Player->SetUltimateGauge(PlayerStateSnapshot.UltimateGauge);
+	// 궁극기 게이지 복원 - 사용 안함으로 주석 처리 
+	// Player->SetUltimateGauge(PlayerStateSnapshot.UltimateGauge);
 }
 
 void ACMainGameModeBase::RequestStageRespawn()
