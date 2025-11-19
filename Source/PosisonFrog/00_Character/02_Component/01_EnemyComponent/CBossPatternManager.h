@@ -1,5 +1,3 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 #pragma once
 
 #include "CoreMinimal.h"
@@ -13,10 +11,14 @@ class UCEnemyWeaponComponent;
 class AAIController;
 class UCBossPatternBase;
 
-/**
- * 보스 패턴 실행을 전담하는 매니저 컴포넌트
- * BossPhaseComponent의 델리게이트를 바인딩하여 패턴별 로직을 각 패턴 클래스에 위임
- */
+UENUM(BlueprintType)
+enum class EBossManagerState : uint8
+{
+	Idle,       // 대기 중
+	Executing,  // 패턴 실행 중
+	Cooldown    // 패턴 종료 후 쿨다운 대기 중
+};
+
 UCLASS(ClassGroup=(Boss), meta=(BlueprintSpawnableComponent))
 class POSISONFROG_API UCBossPatternManager : public UActorComponent
 {
@@ -29,13 +31,16 @@ public:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
+	/** * ✅ [핵심 수정] 패턴이 종료되었음을 매니저에게 알림
+	 * @param bApplyCooldown true면 패턴의 쿨다운 시간만큼 대기 후 상태 해제, false면 즉시 해제
+	 */
 	UFUNCTION(BlueprintCallable, Category = "Pattern")
-	void NotifyCurrentPatternEnd(bool bSuccess = true);
+	void NotifyCurrentPatternEnd(bool bApplyCooldown = true);
 
+	/** Rush AnimNotify 대응용 (호환성 유지) */
 	UFUNCTION(BlueprintCallable, Category = "Pattern|Rush")
 	void HandleRushMovementStart();
 
-	/** AnimNotify에서 호출 - Rush 이동 종료 */
 	UFUNCTION(BlueprintCallable, Category = "Pattern|Rush")
 	void HandleRushMovementStop();
 	
@@ -43,11 +48,11 @@ public:
 	void CleanupAllPatterns();
 
 protected:
-	/**============ 델리게이트 ============**/
+	/**============ 델리게이트 바인딩 ============**/
 	void BindToBossPhaseComponent();
 	void UnbindFromBossPhaseComponent();
 
-	/**============ 이벤트 핸들 ============**/
+	/**============ 페이즈 컴포넌트 이벤트 핸들러 ============**/
 	UFUNCTION()
 	void HandlePhaseChanged(int32 PhaseIndex, const FBossPhaseDefinition& PhaseData);
 
@@ -60,28 +65,23 @@ protected:
 	UFUNCTION()
 	void HandleShoutStarted(int32 PhaseIndex, FName ShoutId, float Duration);
 
-	/**============ 패턴 관리 ============**/
-	/** 패턴 ID로 패턴 객체 찾기 */
+	/**============ 내부 로직 ============**/
+	void InitializePatterns();
 	UCBossPatternBase* FindPattern(FName PatternId) const;
 
-	void InitializePatterns();
+	void OnCooldownFinished();
+	void SelectNextPattern();
 
-	/**============ 페이즈별 처리 ============**/
-	/** 페이즈 전환 연출 */
+	/**============ 유틸리티 ============**/
 	void PlayPhaseTransition(int32 PhaseIndex);
-
-	/** 페이즈별 스탯 조정 */
 	void UpdatePhaseStats(int32 PhaseIndex);
-
 	AActor* GetPlayerTarget() const;
 	AAIController* GetBossAI() const;
-
-	/** 거리 기반 패턴 검증 */
 	float GetDistanceToPlayer() const;
 	bool ValidatePatternDistance(FName PatternId, float Distance) const;
 	FName GetFallbackPattern(FName OriginalPattern, float Distance) const;
 
-	/**============ 스폰 시스템 ============**/
+	/**============ 스폰 시스템 (구조체 정의) ============**/
 	struct FBossSpawnedActorEntry
 	{
 		TWeakObjectPtr<AActor> Actor;
@@ -106,8 +106,7 @@ protected:
 		FBossPatternMinionSpawnDefinition Definition;
 		FTimerHandle TimerHandle;
 	};
-	
-	/** 패턴 스폰 처리 */
+
 	void SpawnPatternActors(const FBossPatternDefinition& PatternData);
 	void SpawnPatternWeapons(const FBossPatternDefinition& PatternData);
 	void SpawnPatternUtilities(const FBossPatternDefinition& PatternData);
@@ -117,7 +116,6 @@ protected:
 	void CleanupMinionSpawnTimers();
 	
 	FTransform ResolveSpawnTransform(const FBossPatternSpawnTransform& SpawnTransform) const;
-	
 	void RegisterSpawnedActor(AActor* Actor, bool bDestroyOnPatternEnd, TArray<FBossSpawnedActorEntry>& Container);
 	void RegisterSpawnedMinion(APawn* Pawn, bool bDestroyOnPatternEnd);
 	void ApplyInitialVelocity(AActor* SpawnedActor, const FVector& InitialVelocity) const;
@@ -130,7 +128,8 @@ protected:
 	void StopProjectileRain(bool bNotifyPatternEnd = false);
 	void SpawnProjectileRainWave();
 
-	/**============ 오너 & 컴포넌트 ============**/
+private:
+	/**============ 컴포넌트 참조 ============**/
 	UPROPERTY()
 	TObjectPtr<ACEnemyBossCharacter> OwnerBoss;
 
@@ -140,11 +139,10 @@ protected:
 	UPROPERTY()
 	TObjectPtr<UCEnemyWeaponComponent> WeaponComponent;
 
-	/**============ 패턴 객체들 ============**/
+	/**============ 패턴 객체 관리 ============**/
 	UPROPERTY(EditDefaultsOnly, Instanced, Category="Patterns")
 	TMap<FName, TObjectPtr<UCBossPatternBase>> PatternMap;
 	
-	// 서브오브젝트로 생성하기 위한 포인터들
 	UPROPERTY()
 	TObjectPtr<UCBossPatternBase> BasicAttackPattern;
 	UPROPERTY()
@@ -153,39 +151,42 @@ protected:
 	TObjectPtr<UCBossPatternBase> RushPattern;
 	UPROPERTY()
 	TObjectPtr<UCBossPatternBase> SlamPattern;
+	UPROPERTY()
+	TObjectPtr<UCBossPatternBase> CurrentPattern;
 
-
-	/**============ 세팅 ============**/
-	// Phase 설정
+	/**============ 설정값 ============**/
 	UPROPERTY(EditDefaultsOnly, Category="Phase")
 	TArray<float> PhaseWalkSpeeds = {400.f, 500.f, 600.f};
 
 	UPROPERTY(EditDefaultsOnly, Category="Phase")
 	float PhaseTransitionInvulnerabilityDuration = 2.0f;
 
-	// 거리 기반 패턴 조건
 	UPROPERTY(EditDefaultsOnly, Category="Pattern|Distance", meta=(ClampMin="100"))
 	float CloseRangeThreshold = 500.0f;
 
 	UPROPERTY(EditDefaultsOnly, Category="Pattern|Distance", meta=(ClampMin="500"))
-	float MidRangeThreshold = 1500.0f;
+	float MidRangeThreshold = 2000.0f;
 
-	/**============ 이펙트 사운드 ============**/
 	UPROPERTY(EditDefaultsOnly, Category="Effects")
 	TObjectPtr<UParticleSystem> PhaseChangeEffect;
 
 	UPROPERTY(EditDefaultsOnly, Category="Effects")
 	TObjectPtr<USoundBase> PhaseChangeSound;
 
-	/**============ 런타임 변수 ============**/
+	/**============ 런타임 상태 ============**/
 	FName CurrentPatternId;
-	bool bIsPatternActive;
+	bool bIsPatternActive; // PhaseComponent가 이 값을 보고 대기함
+	
+	EBossManagerState State = EBossManagerState::Idle;
+	FTimerHandle CooldownTimerHandle;
+	
+	float MinGlobalCooldown = 0.1f;
 
-	// 타이머 핸들
+	// 기타 타이머 및 상태
 	FTimerHandle PhaseTransitionTimer;
 	FTimerHandle RushTimerHandle;
 
-	// 스폰 시스템
+	// 스폰 액터 관리 컨테이너
 	TArray<FBossSpawnedActorEntry> ActiveWeaponActors;
 	TArray<FBossSpawnedActorEntry> ActiveUtilityActors;
 	TArray<FBossSpawnedMinionEntry> ActiveMinions;

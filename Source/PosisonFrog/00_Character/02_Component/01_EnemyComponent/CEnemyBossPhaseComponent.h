@@ -178,6 +178,10 @@ public:
     UPROPERTY(BlueprintAssignable, Category="Boss|Event")
     FBossShoutEventSignature OnShoutFinished;
 
+public:
+    void BeginPattern(int32 PatternIndex);
+    void FinishPattern(bool bInterrupted);
+    
 protected:
     void InitialiseFromData();
     void InitializePhases();
@@ -198,8 +202,6 @@ protected:
 
     const FBossPhaseDefinition* ResolvePhaseDefinition(int32 PhaseIndex) const;
     bool IsPatternReady(const FBossPatternDefinition& PatternDef) const;
-    void BeginPattern(int32 PatternIndex);
-    void FinishPattern(bool bInterrupted);
     int32 SelectNextPatternIndex() const;
     bool CanUsePattern(int32 PatternIndex) const;
 
@@ -211,6 +213,8 @@ protected:
 
     UFUNCTION()
     void HandleDeath(AActor* DeadActor);
+
+    
 
 protected:
     TWeakObjectPtr<UCEnemyHealthComponent> CachedHealth;

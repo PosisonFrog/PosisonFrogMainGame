@@ -2,6 +2,8 @@
 #include "00_Character/01_Enemy/CEnemyBossCharacter.h"
 #include "00_Character/02_Component/01_EnemyComponent/CEnemyWeaponComponent.h"
 #include "AIController.h"
+#include "CBossPatternManager.h"
+#include "CEnemyBossPhaseComponent.h"
 #include "Animation/AnimInstance.h"
 #include "GameFramework/Character.h"
 #include "Kismet/GameplayStatics.h"
@@ -18,9 +20,10 @@ void UCBossPatternBase::Initialize(ACEnemyBossCharacter* InOwnerBoss, UCEnemyWea
 	WeaponComponent = InWeaponComponent;
 }
 
-void UCBossPatternBase::ExecutePattern(int32 PhaseIndex)
+void UCBossPatternBase::ExecutePattern(int32 PhaseIndex, const FBossPatternDefinition& PatternData)
 {
 	CurrentPhaseIndex = PhaseIndex;
+	RuntimeCooldown = PatternData.Cooldown; // DataAsset에서 쿨다운 값 읽기
 	StartCooldown();
 	// 자식 클래스에서 구현
 }
@@ -38,20 +41,38 @@ void UCBossPatternBase::Cleanup()
 void UCBossPatternBase::UpdatePhaseSettings(int32 PhaseIndex)
 {
 	CurrentPhaseIndex = PhaseIndex;
-	// 자식 클래스에서 구현
+	
+	if (OwnerBoss.IsValid() && OwnerBoss->GetBossPhaseComponent())
+	{
+		const FBossPhaseDefinition* Phase = OwnerBoss->GetBossPhaseComponent()->GetCurrentPhaseDefinition();
+		if (Phase)
+		{
+			for (const FBossPatternDefinition& Pattern : Phase->Patterns)
+			{
+				if (Pattern.PatternId == PatternId)
+				{
+					RuntimeCooldown = Pattern.Cooldown;
+					break;
+				}
+			}
+		}
+	}
 }
 
-void UCBossPatternBase::PlayMontage(UAnimMontage* Montage)
+float UCBossPatternBase::PlayMontage(UAnimMontage* Montage)
 {
 	if (!OwnerBoss.IsValid() || !Montage)
 	{
-		return;
+		return 0.0f;
 	}
 
 	if (UAnimInstance* AnimInstance = OwnerBoss->GetMesh()->GetAnimInstance())
 	{
-		AnimInstance->Montage_Play(Montage);
+		float Duration = AnimInstance->Montage_Play(Montage);
+		return Duration;
 	}
+
+	return 0.0f;
 }
 
 AActor* UCBossPatternBase::GetPlayerTarget() const
@@ -78,14 +99,12 @@ bool UCBossPatternBase::IsOnCooldown() const
 {
 	if (LastUsedTime < 0.f)
 	{
-		return false; // 아직 한 번도 사용되지 않았으므로 쿨다운이 아님
+		return false;
 	}
 
-	// GetWorld()가 안전한지 확인
 	if (OwnerBoss.IsValid() && OwnerBoss->GetWorld())
 	{
-		// (현재 시간 - 마지막 사용 시간)이 쿨다운 시간보다 작으면 쿨다운 상태
-		return (OwnerBoss->GetWorld()->GetTimeSeconds() - LastUsedTime) < CooldownDuration;
+		return (OwnerBoss->GetWorld()->GetTimeSeconds() - LastUsedTime) < RuntimeCooldown;
 	}
 
 	return false;
@@ -93,9 +112,25 @@ bool UCBossPatternBase::IsOnCooldown() const
 
 void UCBossPatternBase::StartCooldown()
 {
-	// GetWorld()가 안전한지 확인
 	if (OwnerBoss.IsValid() && OwnerBoss->GetWorld())
 	{
 		LastUsedTime = OwnerBoss->GetWorld()->GetTimeSeconds();
+	}
+}
+
+
+void UCBossPatternBase::FinishPattern(bool bApplyCooldown)
+{
+	OnPatternEnd();
+
+	if (OwnerBoss.IsValid())
+	{
+		if (UCBossPatternManager* Manager = OwnerBoss->FindComponentByClass<UCBossPatternManager>())
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[%s] FinishPattern Called. Cooldown Applied: %s"), 
+				*PatternId.ToString(), bApplyCooldown ? TEXT("YES") : TEXT("NO"));
+			
+			Manager->NotifyCurrentPatternEnd(bApplyCooldown);
+		}
 	}
 }

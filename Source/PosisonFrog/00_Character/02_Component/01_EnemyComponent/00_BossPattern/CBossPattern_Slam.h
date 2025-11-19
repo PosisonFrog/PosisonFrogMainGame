@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "00_Character/02_Component/01_EnemyComponent/CBossPatternBase.h"
+#include "03_Combat/Boss/BossPhaseDataAsset.h"
 #include "Camera/CameraShakeBase.h"
 #include "CBossPattern_Slam.generated.h"
 
@@ -24,11 +25,14 @@ class POSISONFROG_API UCBossPattern_Slam : public UCBossPatternBase
 public:
 	UCBossPattern_Slam();
 
-	virtual void ExecutePattern(int32 PhaseIndex) override;
+	virtual void ExecutePattern(int32 PhaseIndex, const FBossPatternDefinition& PatternData) override;
 	virtual void OnPatternEnd() override;
 	virtual void Cleanup() override;
-	virtual void UpdatePhaseSettings(int32 PhaseIndex) override;
-	virtual void BeginDestroy() override;  // 추가
+	virtual void BeginDestroy() override;
+
+private:
+	void FinishSlam();
+	void PlayImpactEffectsAndDamage();
 
 protected:
 	/** 공격 애니메이션 몽타주 */
@@ -47,31 +51,6 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Slam|Effects")
 	TSubclassOf<UCameraShakeBase> GroundImpactShake;
 
-	/** P1 경고 시간 */
-	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Slam|Phase1")
-	float Phase1_WarnDuration = 1.0f;
-
-	/** P1 회복 시간 */
-	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Slam|Phase1")
-	float Phase1_RecoveryDuration = 1.5f;
-
-	/** P2 경고 시간 (P1 - 0.10s) */
-	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Slam|Phase2")
-	float Phase2_WarnDuration = 0.9f;
-
-	/** P2 회복 시간 (P1 - 0.20s) */
-	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Slam|Phase2")
-	float Phase2_RecoveryDuration = 1.3f;
-
-	/** 현재 경고 시간 */
-	float CurrentWarnDuration;
-
-	/** 현재 회복 시간 */
-	float CurrentRecoveryDuration;
-
-
-protected:
-	// ...
 	/** 내려찍기 데미지 */
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Slam")
 	float SlamDamage = 30.0f;
@@ -85,7 +64,8 @@ protected:
 	float SlamLaunchPower = 1000.0f;
 
 private:
-	
-	/** 이펙트 및 데미지 적용 */
-	void PlayImpactEffectsAndDamage();
+	FBossPatternDefinition CurrentPatternData;
+	FTimerHandle TH_Finish;
+
+
 };

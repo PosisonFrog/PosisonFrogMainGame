@@ -438,10 +438,21 @@ void UCEnemyBossPhaseComponent::ConsumePower(float Amount)
 
 const FBossPhaseDefinition& UCEnemyBossPhaseComponent::GetCurrentPhase() const
 {
-    if (!PhaseData || !PhaseData->Phases.IsValidIndex(CurrentPhaseIndex))
+    if (!PhaseData)
     {
+        UE_LOG(LogTemp, Error, TEXT("[PhaseComponent] GetCurrentPhase - PhaseData is NULL!"));
         return GDummyPhase;
     }
+    
+    if (!PhaseData->Phases.IsValidIndex(CurrentPhaseIndex))
+    {
+        UE_LOG(LogTemp, Error, TEXT("[PhaseComponent] GetCurrentPhase - CurrentPhaseIndex(%d) is INVALID! Phases.Num=%d"), 
+            CurrentPhaseIndex, PhaseData->Phases.Num());
+        return GDummyPhase;
+    }
+    
+    UE_LOG(LogTemp, Log, TEXT("[PhaseComponent] GetCurrentPhase - CurrentPhaseIndex=%d, Patterns.Num=%d"), 
+        CurrentPhaseIndex, PhaseData->Phases[CurrentPhaseIndex].Patterns.Num());
     return PhaseData->Phases[CurrentPhaseIndex];
 }
 
@@ -456,13 +467,16 @@ void UCEnemyBossPhaseComponent::InitialiseFromData()
    
     if (!PhaseData)
     {
+        UE_LOG(LogTemp, Error, TEXT("[PhaseComponent] InitialiseFromData - PhaseData is NULL!"));
         CurrentPhaseIndex = INDEX_NONE;
         return;
     }
  
+    UE_LOG(LogTemp, Warning, TEXT("[PhaseComponent] InitialiseFromData - PhaseData valid, Phases.Num=%d"), PhaseData->Phases.Num());
     CurrentPhaseIndex = 0;
     if (!PhaseData->Phases.IsEmpty())
     {
+        UE_LOG(LogTemp, Warning, TEXT("[PhaseComponent] InitialiseFromData - Calling HandlePhaseTransition(0)"));
         HandlePhaseTransition(0);
     }
 }
@@ -616,6 +630,18 @@ void UCEnemyBossPhaseComponent::EnterState(EBossBattleState NewState, float Dura
 
 void UCEnemyBossPhaseComponent::TickState(float DeltaTime)
 {
+    // ExecutingPattern 상태 안전장치
+    if (State == EBossBattleState::ExecutingPattern)
+    {
+        // 패턴이 설정되지 않았거나 이미 종료된 경우 강제 advance
+        if (CurrentPatternIndex == INDEX_NONE)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("[PhaseComponent] Safety: ExecutingPattern with no pattern - Force advancing"));
+            AdvanceState();
+            return;
+        }
+    }
+    
     if (StateTimeRemaining > 0.f)
     {
         StateTimeRemaining = FMath::Max(0.f, StateTimeRemaining - DeltaTime);
@@ -639,13 +665,16 @@ void UCEnemyBossPhaseComponent::AdvanceState()
         break;
     case EBossBattleState::Recover:
         {
+            UE_LOG(LogTemp, Warning, TEXT("[PhaseComponent] AdvanceState - Recover: Selecting next pattern..."));
             const int32 NextPattern = SelectNextPatternIndex();
             if (NextPattern != INDEX_NONE)
             {
+                UE_LOG(LogTemp, Warning, TEXT("[PhaseComponent] AdvanceState - Selected pattern index: %d"), NextPattern);
                 BeginPattern(NextPattern);
             }
             else
             {
+                UE_LOG(LogTemp, Error, TEXT("[PhaseComponent] AdvanceState - No pattern selected! Waiting 0.5s..."));
                 EnterState(EBossBattleState::Recover, 0.5f);
             }
         }
@@ -781,9 +810,7 @@ void UCEnemyBossPhaseComponent::BeginPattern(int32 PatternIndex)
 
     CurrentPatternIndex = PatternIndex;
     const FBossPatternDefinition& Pattern = Patterns[PatternIndex];
-
-    PatternCooldowns.FindOrAdd(Pattern.PatternId) = Pattern.Cooldown;
-
+    
     const float Drain = (Pattern.PowerCost + Pattern.RequiredPower) * GetCurrentPhase().PowerDrainMultiplier;
     if (Drain > 0.f)
     {
@@ -792,29 +819,63 @@ void UCEnemyBossPhaseComponent::BeginPattern(int32 PatternIndex)
 
     ForcedPatternId = NAME_None;
 
-    EnterState(EBossBattleState::ExecutingPattern, Pattern.ExecutionTime);
+
+    // 패턴 시작 시 쿨다운 맵에 추가
+    PatternCooldowns.FindOrAdd(Pattern.PatternId) = Pattern.Cooldown;
+
+    // ExecutionTime이 0 이하면 최소값 보장
+    float ExecutionDuration = Pattern.ExecutionTime;
+    if (ExecutionDuration <= 0.f)
+    {
+        ExecutionDuration = 0.5f; 
+        UE_LOG(LogTemp, Warning, TEXT("[PhaseComponent] Pattern %s has ExecutionTime <= 0, using fallback: 0.5s"), 
+            *Pattern.PatternId.ToString());
+    }
+
+    EnterState(EBossBattleState::ExecutingPattern, ExecutionDuration);
 }
 
 void UCEnemyBossPhaseComponent::FinishPattern(bool bInterrupted)
 {
+    // 재진입 방지
+    static bool bIsFinishing = false;
+    if (bIsFinishing)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[PhaseComponent] FinishPattern re-entry blocked"));
+        return;
+    }
+    
+    bIsFinishing = true;
+    
     if (!PhaseData)
     {
+        bIsFinishing = false;
         return;
     }
 
     if (CurrentPatternIndex == INDEX_NONE)
     {
+        UE_LOG(LogTemp, Warning, TEXT("[PhaseComponent] FinishPattern called with no pattern - Forcing Recover"));
+        
+        if (State == EBossBattleState::ExecutingPattern)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("[PhaseComponent] Force advancing from stuck ExecutingPattern"));
+        }
+        
         EnterState(EBossBattleState::Recover, GetCurrentPhase().BaseRecoveryDuration);
+        bIsFinishing = false;
         return;
     }
 
     const FBossPatternDefinition& Pattern = GetCurrentPhase().Patterns[CurrentPatternIndex];
     if (!bInterrupted)
     {
+        PatternCooldowns.FindOrAdd(Pattern.PatternId) = Pattern.Cooldown;
         ApplyPowerDelta(Pattern.PowerReward);
     }
-    else if (PhaseData->PowerLossOnInterrupt > 0.f)
+    else// if (PhaseData->PowerLossOnInterrupt > 0.f)
     {
+        PatternCooldowns.FindOrAdd(Pattern.PatternId) = Pattern.Cooldown * 0.5f;
         ApplyPowerDelta(-PhaseData->PowerLossOnInterrupt);
     }
 
@@ -822,18 +883,25 @@ void UCEnemyBossPhaseComponent::FinishPattern(bool bInterrupted)
 
     CurrentPatternIndex = INDEX_NONE;
     EnterState(EBossBattleState::Recover, FMath::Max(GetCurrentPhase().BaseRecoveryDuration, Pattern.RecoveryTime));
+    
+    bIsFinishing = false;
 }
 
 int32 UCEnemyBossPhaseComponent::SelectNextPatternIndex() const
 {
     if (!PhaseData)
     {
+        UE_LOG(LogTemp, Error, TEXT("[PhaseComponent] SelectNextPatternIndex - PhaseData is NULL!"));
         return INDEX_NONE;
     }
 
     const TArray<FBossPatternDefinition>& Patterns = GetCurrentPhase().Patterns;
+    UE_LOG(LogTemp, Warning, TEXT("[PhaseComponent] SelectNextPatternIndex - Patterns.Num=%d, CurrentPhaseIndex=%d"), 
+        Patterns.Num(), CurrentPhaseIndex);
+    
     if (Patterns.Num() == 0)
     {
+        UE_LOG(LogTemp, Error, TEXT("[PhaseComponent] SelectNextPatternIndex - No patterns available!"));
         return INDEX_NONE;
     }
 
@@ -903,7 +971,6 @@ bool UCEnemyBossPhaseComponent::CanUsePattern(int32 PatternIndex) const
         return false;
     }
 
-    // 3. 기존의 파워 조건을 확인합니다.
     if (CurrentPower < Pattern.RequiredPower)
     {
         return false;
@@ -919,7 +986,7 @@ float UCEnemyBossPhaseComponent::GetEffectivePowerCost(const FBossPatternDefinit
      if (!PhaseDefinition)
          {
                  return PatternDef.PowerCost;
-              }
+         }
    
      return PatternDef.PowerCost * FMath::Max(0.f, PhaseDefinition->PowerDrainMultiplier);
      

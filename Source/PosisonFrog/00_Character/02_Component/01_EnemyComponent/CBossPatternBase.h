@@ -26,9 +26,8 @@ public:
 
 	/** 패턴 초기화 (패턴 실행 전 한번 호출) */
 	virtual void Initialize(ACEnemyBossCharacter* InOwnerBoss, UCEnemyWeaponComponent* InWeaponComponent);
-
-	/** 패턴 실행 */
-	virtual void ExecutePattern(int32 PhaseIndex);
+	
+	virtual void ExecutePattern(int32 PhaseIndex, const struct FBossPatternDefinition& PatternData);
 
 	/** 패턴 종료 처리 */
 	virtual void OnPatternEnd();
@@ -48,9 +47,13 @@ public:
 	/** 패턴의 쿨다운 타이머를 시작합니다. (현재 시간을 기록) */
 	virtual void StartCooldown();
 
+	/** 런타임 쿨다운 값을 반환합니다. */
+	float GetRuntimeCooldown() const { return RuntimeCooldown; }
+
 protected:
-	/** 몽타주 재생 */
-	void PlayMontage(UAnimMontage* Montage);
+	
+	void FinishPattern(bool bApplyCooldown = true);
+	float PlayMontage(UAnimMontage* Montage);
 
 	/** 플레이어 타겟 가져오기 */
 	AActor* GetPlayerTarget() const;
@@ -58,26 +61,16 @@ protected:
 	/** AI 컨트롤러 가져오기 */
 	AAIController* GetBossAI() const;
 
-	/** 오너 보스 */
 	UPROPERTY()
 	TWeakObjectPtr<ACEnemyBossCharacter> OwnerBoss;
 
-	/** 무기 컴포넌트 */
 	UPROPERTY()
 	TWeakObjectPtr<UCEnemyWeaponComponent> WeaponComponent;
 
-	/** 패턴 ID */
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern")
 	FName PatternId;
-
-	/** 현재 페이즈 인덱스 */
-	int32 CurrentPhaseIndex;
-
-	/** 패턴의 쿨다운 시간 */
-	UPROPERTY(EditDefaultsOnly, Category = "Pattern")
-	float CooldownDuration = 5.0f;
-
-	/** 이 패턴이 마지막으로 사용된 게임 시간 */
-	float LastUsedTime = -1.0f;
 	
+	int32 CurrentPhaseIndex;
+	float RuntimeCooldown = 5.0f;
+	float LastUsedTime = -9999.f;
 };

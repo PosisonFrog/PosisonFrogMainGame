@@ -8,9 +8,6 @@
 UCBossPattern_Slam::UCBossPattern_Slam()
 {
 	PatternId = FName("Slam");
-	
-	CurrentWarnDuration = Phase1_WarnDuration;
-	CurrentRecoveryDuration = Phase1_RecoveryDuration;
 }
 
 void UCBossPattern_Slam::BeginDestroy()
@@ -20,13 +17,13 @@ void UCBossPattern_Slam::BeginDestroy()
 	Super::BeginDestroy();
 }
 
-void UCBossPattern_Slam::ExecutePattern(int32 PhaseIndex)
+void UCBossPattern_Slam::ExecutePattern(int32 PhaseIndex, const FBossPatternDefinition& PatternData)
 {
-	Super::ExecutePattern(PhaseIndex);
+	Super::ExecutePattern(PhaseIndex, PatternData);
 
 	UE_LOG(LogTemp, Warning, TEXT("[Slam] Executing slam attack - Phase %d"), PhaseIndex);
-	UE_LOG(LogTemp, Log, TEXT("[Slam] Warn: %.2fs, Recovery: %.2fs"), 
-		   CurrentWarnDuration, CurrentRecoveryDuration);
+	UE_LOG(LogTemp, Log, TEXT("[Slam] ExecutionTime: %.2f, RecoveryTime: %.2f"), 
+		PatternData.ExecutionTime, PatternData.RecoveryTime);
 
 	if (!OwnerBoss.IsValid())  
 	{
@@ -34,17 +31,28 @@ void UCBossPattern_Slam::ExecutePattern(int32 PhaseIndex)
 		return;
 	}
 
-	
+	CurrentPatternData = PatternData;
+
+	float Duration = 0.0f;
+
 	if (SlamMontage)
 	{
-		PlayMontage(SlamMontage);
+		Duration = PlayMontage(SlamMontage);
+		if (Duration <= 0.f) Duration = PatternData.ExecutionTime > 0.f ? PatternData.ExecutionTime : 1.5f;
+
 		FTimerHandle TempTimer;
-		GetWorld()->GetTimerManager().SetTimer(TempTimer, this, &UCBossPattern_Slam::PlayImpactEffectsAndDamage, 1.0f, false);
+		GetWorld()->GetTimerManager().SetTimer(TempTimer, this, &UCBossPattern_Slam::PlayImpactEffectsAndDamage, Duration * 0.6f, false);
 	}
 	else
 	{
 		PlayImpactEffectsAndDamage();
+		Duration = PatternData.ExecutionTime > 0.f ? PatternData.ExecutionTime : 1.0f;
 	}
+
+	float FinishTime = Duration + PatternData.RecoveryTime;
+	GetWorld()->GetTimerManager().SetTimer(TH_Finish, this, &UCBossPattern_Slam::FinishSlam, FinishTime, false);
+	
+	UE_LOG(LogTemp, Log, TEXT("[Slam] Pattern will finish in %.2f seconds"), FinishTime);
 }
 
 void UCBossPattern_Slam::OnPatternEnd()
@@ -57,27 +65,13 @@ void UCBossPattern_Slam::OnPatternEnd()
 void UCBossPattern_Slam::Cleanup()
 {
 	Super::Cleanup();
-	// 필요한 경우 타이머 정리 등 추가
+	if(GetWorld()) GetWorld()->GetTimerManager().ClearTimer(TH_Finish);
 }
 
-void UCBossPattern_Slam::UpdatePhaseSettings(int32 PhaseIndex)
+void UCBossPattern_Slam::FinishSlam()
 {
-	Super::UpdatePhaseSettings(PhaseIndex);
-
-	if (PhaseIndex == 0)
-	{
-		CurrentWarnDuration = Phase1_WarnDuration;
-		CurrentRecoveryDuration = Phase1_RecoveryDuration;
-		UE_LOG(LogTemp, Log, TEXT("[Slam] Updated to Phase 1 settings"));
-	}
-	else if (PhaseIndex >= 1)
-	{
-		CurrentWarnDuration = Phase2_WarnDuration;
-		CurrentRecoveryDuration = Phase2_RecoveryDuration;
-		UE_LOG(LogTemp, Log, TEXT("[Slam] Updated to Phase 2 settings"));
-	}
+	FinishPattern(true);
 }
-
 
 void UCBossPattern_Slam::PlayImpactEffectsAndDamage()
 {
@@ -92,11 +86,11 @@ void UCBossPattern_Slam::PlayImpactEffectsAndDamage()
 		SlamDamage,
 		ImpactLocation,
 		DamageRadius,
-		nullptr, // DamageType Class
-		TArray<AActor*>(), // 무시할 액터
+		nullptr, 
+		TArray<AActor*>(), 
 		OwnerBoss.Get(),
 		OwnerBoss->GetController(),
-		true // bDoFullDamage
+		true 
 	);
 	UE_LOG(LogTemp, Warning, TEXT("[Slam] Applied radial damage at %s"), *ImpactLocation.ToString());
 
@@ -127,4 +121,3 @@ void UCBossPattern_Slam::PlayImpactEffectsAndDamage()
 		}
 	}
 }
-

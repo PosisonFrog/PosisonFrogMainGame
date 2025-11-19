@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "00_Character/02_Component/01_EnemyComponent/CBossPatternBase.h"
+#include "03_Combat/Boss/BossPhaseDataAsset.h"
 #include "CBossPattern_Barrage.generated.h"
 
 class UParticleSystem;
@@ -23,10 +24,9 @@ class POSISONFROG_API UCBossPattern_Barrage : public UCBossPatternBase
 public:
 	UCBossPattern_Barrage();
 
-	virtual void ExecutePattern(int32 PhaseIndex) override;
+	virtual void ExecutePattern(int32 PhaseIndex, const FBossPatternDefinition& PatternData) override;
 	virtual void OnPatternEnd() override;
 	virtual void Cleanup() override;
-	virtual void UpdatePhaseSettings(int32 PhaseIndex) override;
 	virtual void BeginDestroy() override;
 
 protected:
@@ -41,30 +41,6 @@ protected:
 	/** 경고 데칼 클래스 (붉은 원형) */
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Barrage")
 	TSubclassOf<AActor> WarningDecalClass;
-
-	/** P1 발사 수 */
-	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Barrage|Phase1")
-	int32 Phase1_ShotCount = 15;
-
-	/** P1 경고 시간 */
-	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Barrage|Phase1")
-	float Phase1_WarnDuration = 1.0f;
-
-	/** P1 회복 시간 */
-	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Barrage|Phase1")
-	float Phase1_RecoveryDuration = 1.5f;
-
-	/** P2 발사 수 (30발) */
-	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Barrage|Phase2")
-	int32 Phase2_ShotCount = 30;
-
-	/** P2 경고 시간 */
-	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Barrage|Phase2")
-	float Phase2_WarnDuration = 0.9f;
-
-	/** P2 회복 시간  */
-	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Barrage|Phase2")
-	float Phase2_RecoveryDuration = 1.3f;
 
 	/** 발사 간격 */
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Barrage")
@@ -93,37 +69,23 @@ protected:
 	/** 코코넛 떨어지기 시작하는 높이 */
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Barrage")
 	float DropHeight = 2500.0f;
-	
-
-	/** 현재 발사 수 */
-	int32 CurrentMaxShots;
-
-	/** 현재 경고 시간 */
-	float CurrentWarnDuration;
-
-	/** 현재 회복 시간 */
-	float CurrentRecoveryDuration;
 
 private:
-	/** 현재 발사 카운트 */
+	FBossPatternDefinition CurrentPatternData;
+	
+	int32 CurrentMaxShots = 15;
 	int32 BarrageShotCount = 0;
-
-	/** 미리 계획된 낙하 위치들 */
 	TArray<FVector> PrePlannedDropLocations;
 
-	/** 타이머 핸들 */
 	FTimerHandle BarrageLoopTimer;
-	
-	/** 코코넛 스폰 타이머들 - 클린업을 위해 관리 */
 	TArray<FTimerHandle> CoconutSpawnTimers;
-
-	/** 폭격 시작 */
+	FTimerHandle TH_FinishDelay;
+	
+	void FinishBarrage();
 	void StartBarrage();
-
-	/** 발사 처리 */
+	
 	UFUNCTION()
 	void FireBarrageShot();
-	
 	/** 모든 타이머 정리 */
 	void ClearAllTimers();
 };

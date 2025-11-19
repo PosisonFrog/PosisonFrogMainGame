@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "00_Character/02_Component/01_EnemyComponent/CBossPatternBase.h"
+#include "03_Combat/Boss/BossPhaseDataAsset.h"
 #include "CBossPattern_Rush.generated.h"
 
 class UAnimMontage;
@@ -28,7 +29,7 @@ UENUM(BlueprintType)
 enum class ERushEndReason : uint8
 {
 	None,
-	ReachedTarget,    // 목표 지점 도달
+	ReachedTarget,    // 더 이상 사용 안함 
 	HitPlayer,        // 플레이어 충돌
 	MaxTime,          // 최대 시간 초과
 	Aborted           // 강제 중단
@@ -55,10 +56,9 @@ class POSISONFROG_API UCBossPattern_Rush : public UCBossPatternBase
 public:
 	UCBossPattern_Rush();
 
-	virtual void ExecutePattern(int32 PhaseIndex) override;
+	virtual void ExecutePattern(int32 PhaseIndex, const FBossPatternDefinition& PatternData) override;
 	virtual void OnPatternEnd() override;
 	virtual void Cleanup() override;
-	virtual void UpdatePhaseSettings(int32 PhaseIndex) override;
 	virtual void BeginDestroy() override;
 
 	/** Tick에서 호출 - 돌진 이동 처리 */
@@ -120,26 +120,6 @@ protected:
 	bool bAutoStartOnTelegraphEnd = true;
 
 	// ─────────────────────────────────────────────────────────────
-	// Phase Settings
-	// ─────────────────────────────────────────────────────────────
-
-	/** P1 경고 시간 (예고) */
-	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Rush|Phase1")
-	float Phase1_TelegraphDuration = 1.0f;
-
-	/** P1 회복 시간 */
-	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Rush|Phase1")
-	float Phase1_RecoveryDuration = 1.5f;
-
-	/** P2 경고 시간 (P1 - 0.10s) */
-	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Rush|Phase2")
-	float Phase2_TelegraphDuration = 0.9f;
-
-	/** P2 회복 시간 (P1 - 0.20s) */
-	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Rush|Phase2")
-	float Phase2_RecoveryDuration = 1.3f;
-
-	// ─────────────────────────────────────────────────────────────
 	// Rush Movement
 	// ─────────────────────────────────────────────────────────────
 
@@ -151,13 +131,17 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Rush|Movement", meta = (ClampMin = "90"))
 	float TurnRateDegPerSec = 360.f;
 
-	/** 목표 도착 판정 반경 */
+	/** 목표 도착 판정 반경 (사용 안함 - 거리 기반 종료 조건 제거됨) */
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Rush|Movement", meta = (ClampMin = "50"))
 	float RushAcceptanceRadius = 150.0f;
 
 	/** 최대 돌진 시간 */
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Rush|Movement", meta = (ClampMin = "0.5", ClampMax = "5.0"))
 	float MaxRushTime = 2.0f;
+
+	/** [추가] 플레이어를 놓쳤을 때 최대 대기 시간 */
+	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Rush|Movement", meta = (ClampMin = "0.1", ClampMax = "2.0"))
+	float RushMissTimeout = 1.5f;
 
 	// ─────────────────────────────────────────────────────────────
 	// Damage & Collision
@@ -175,13 +159,13 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Rush|Damage", meta = (ClampMin = "0"))
 	float RushLaunchUp = 300.0f;
 
-	/** 충돌 감지 반경 */
+	/** 충돌 감지 반경 (권장: 150) */
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Rush|Collision", meta = (ClampMin = "20"))
-	float CollisionRadius = 100.0f;
+	float CollisionRadius = 150.0f;
 
-	/** 충돌 감지 전방 거리 */
+	/** 충돌 감지 전방 거리 (권장: 250) */
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Rush|Collision", meta = (ClampMin = "60"))
-	float CollisionTraceAhead = 120.0f;
+	float CollisionTraceAhead = 250.0f;
 
 	// ─────────────────────────────────────────────────────────────
 	// Debug
@@ -196,21 +180,23 @@ private:
 	UPROPERTY(Transient)
 	ERushState State = ERushState::Idle;
 
-	/** 현재 경고/회복 시간 */
-	float CurrentTelegraphDuration = 1.0f;
-	float CurrentRecoveryDuration = 1.5f;
+	/** 현재 PatternData (DataAsset에서 받은 값) */
+	FBossPatternDefinition CurrentPatternData;
 
-	/** 돌진 목표 위치 */
-	FVector RushTargetLocation = FVector::ZeroVector;
+	/** 돌진 방향 (Telegraph에서 한 번만 설정되고 고정됨) */
+	FVector LockedRushDirection = FVector::ForwardVector;
 
-	/** 돌진 방향 */
-	FVector RushDirection = FVector::ForwardVector;
+	/** 방향이 고정되었는지 여부 */
+	bool bDirectionLocked = false;
 
 	/** 돌진 시작 시간 */
 	float RushStartTime = 0.f;
 
 	/** 데미지를 입힌 플레이어 목록 (중복 데미지 방지) */
 	TSet<TWeakObjectPtr<AActor>> DamagedPlayers;
+	/** [추가] 마지막 종료 사유 (HandlePatternComplete에서 사용) */
+	ERushEndReason LastEndReason = ERushEndReason::None;
+
 
 	/** Movement 설정 백업 (Recovery 시 복구용) */
 	float SavedMaxWalkSpeed = 400.0f;
@@ -237,6 +223,7 @@ private:
 	void EndRushingInternal(ERushEndReason Reason, AActor* HitActor = nullptr);
 	void BeginRecoveryInternal(ERushEndReason Reason, AActor* HitActor = nullptr);
 	void HandlePatternComplete();
+	
 
 	// ─────────────────────────────────────────────────────────────
 	// Movement & Collision
@@ -245,7 +232,7 @@ private:
 	void UpdateRushing(float DeltaSeconds);
 	void PerformCollisionTrace();
 	bool SweepAhead(FHitResult& OutHit, float Distance) const;
-	void FaceTowards(const FVector& Direction, float DeltaSeconds);
+	void CheckOverlappingActors();
 	void HandleMaxRushTime();
 
 	// ─────────────────────────────────────────────────────────────
@@ -253,5 +240,4 @@ private:
 	// ─────────────────────────────────────────────────────────────
 
 	bool HasValidOwner() const;
-	float DistanceToTarget2D() const;
 };

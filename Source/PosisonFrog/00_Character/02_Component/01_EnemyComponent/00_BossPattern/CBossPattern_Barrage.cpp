@@ -10,10 +10,7 @@
 UCBossPattern_Barrage::UCBossPattern_Barrage()
 {
 	PatternId = FName("Barrage");
-
-	CurrentMaxShots = Phase1_ShotCount;
-	CurrentWarnDuration = Phase1_WarnDuration;
-	CurrentRecoveryDuration = Phase1_RecoveryDuration;
+	CurrentMaxShots = 15;
 }
 
 void UCBossPattern_Barrage::BeginDestroy()
@@ -23,13 +20,13 @@ void UCBossPattern_Barrage::BeginDestroy()
 	Super::BeginDestroy();
 }
 
-void UCBossPattern_Barrage::ExecutePattern(int32 PhaseIndex)
+void UCBossPattern_Barrage::ExecutePattern(int32 PhaseIndex, const FBossPatternDefinition& PatternData)
 {
-	Super::ExecutePattern(PhaseIndex);
+	Super::ExecutePattern(PhaseIndex, PatternData);
 
 	UE_LOG(LogTemp, Warning, TEXT("[Barrage] Executing barrage attack - Phase %d"), PhaseIndex);
-	UE_LOG(LogTemp, Log, TEXT("[Barrage] Max Shots: %d, Warn: %.2fs, Recovery: %.2fs"), 
-		   CurrentMaxShots, CurrentWarnDuration, CurrentRecoveryDuration);
+	UE_LOG(LogTemp, Log, TEXT("[Barrage] ExecutionTime: %.2f, RecoveryTime: %.2f, Cooldown: %.2f"), 
+		PatternData.ExecutionTime, PatternData.RecoveryTime, PatternData.Cooldown);
 
 	if (!OwnerBoss.IsValid())
 	{
@@ -37,14 +34,17 @@ void UCBossPattern_Barrage::ExecutePattern(int32 PhaseIndex)
 		return;
 	}
 
-	// Chase 비활성화
+	CurrentPatternData = PatternData;
+	
+	CurrentMaxShots = FMath::Max(1, FMath::FloorToInt(PatternData.ExecutionTime / ShotInterval));
+	UE_LOG(LogTemp, Log, TEXT("[Barrage] Calculated Max Shots: %d"), CurrentMaxShots);
+
 	if (ABossAIController* BossAI = Cast<ABossAIController>(GetBossAI()))
 	{
 		BossAI->SetChaseEnabled(false);
 		UE_LOG(LogTemp, Log, TEXT("[Barrage] Disabled chase for Barrage"));
 	}
 
-	// 낙하 위치 미리 계획
 	PrePlannedDropLocations.Empty();
 	if (AActor* Player = GetPlayerTarget())
 	{
@@ -84,6 +84,8 @@ void UCBossPattern_Barrage::Cleanup()
 {
 	Super::Cleanup();
 	ClearAllTimers();
+	if(GetWorld()) GetWorld()->GetTimerManager().ClearTimer(TH_FinishDelay);
+
 	PrePlannedDropLocations.Empty();
 	BarrageShotCount = 0;
 }
@@ -102,26 +104,6 @@ void UCBossPattern_Barrage::ClearAllTimers()
 	CoconutSpawnTimers.Empty();
 }
 
-void UCBossPattern_Barrage::UpdatePhaseSettings(int32 PhaseIndex)
-{
-	Super::UpdatePhaseSettings(PhaseIndex);
-
-	if (PhaseIndex == 0)
-	{
-		CurrentMaxShots = Phase1_ShotCount;
-		CurrentWarnDuration = Phase1_WarnDuration;
-		CurrentRecoveryDuration = Phase1_RecoveryDuration;
-		UE_LOG(LogTemp, Log, TEXT("[Barrage] Updated to Phase 1 settings (Shots: %d)"), CurrentMaxShots);
-	}
-	else if (PhaseIndex >= 1)
-	{
-		CurrentMaxShots = Phase2_ShotCount;
-		CurrentWarnDuration = Phase2_WarnDuration;
-		CurrentRecoveryDuration = Phase2_RecoveryDuration;
-		UE_LOG(LogTemp, Log, TEXT("[Barrage] Updated to Phase 2 settings (Shots: %d)"), CurrentMaxShots);
-	}
-}
-
 void UCBossPattern_Barrage::StartBarrage()
 {
 	if (!OwnerBoss.IsValid() || !OwnerBoss->GetWorld())
@@ -133,13 +115,11 @@ void UCBossPattern_Barrage::StartBarrage()
 
 	BarrageShotCount = 0;
 
-	// 애니메이션 재생
 	if (BarrageMontage)
 	{
 		PlayMontage(BarrageMontage);
 	}
 
-	// 반복 발사 타이머 시작
 	OwnerBoss->GetWorld()->GetTimerManager().SetTimer(
 		BarrageLoopTimer,
 		this,
@@ -148,18 +128,24 @@ void UCBossPattern_Barrage::StartBarrage()
 		true
 	);
 
-	// 전체 지속시간 타이머를 제거하여 발사 횟수에만 의존하도록 함
 }
 
 void UCBossPattern_Barrage::FireBarrageShot()
 {
-	// 발사 횟수를 먼저 체크해서 모든 발사를 완료했으면 타이머를 중지
 	if (BarrageShotCount >= CurrentMaxShots)
 	{
 		if (GetWorld())
 		{
 			GetWorld()->GetTimerManager().ClearTimer(BarrageLoopTimer);
 			UE_LOG(LogTemp, Warning, TEXT("[Barrage] All shots fired (%d/%d). Barrage loop stopped."), BarrageShotCount, CurrentMaxShots);
+
+			GetWorld()->GetTimerManager().SetTimer(
+				TH_FinishDelay, 
+				this, 
+				&UCBossPattern_Barrage::FinishBarrage, 
+				CurrentPatternData.RecoveryTime, 
+				false
+			);
 		}
 		return;
 	}
@@ -253,7 +239,11 @@ void UCBossPattern_Barrage::FireBarrageShot()
 	World->GetTimerManager().SetTimer(NewCoconutTimer, CoconutDelegate, CoconutFallDelay, false);
 	CoconutSpawnTimers.Add(NewCoconutTimer);
 
-	// 발사 후 카운트 증가
 	BarrageShotCount++;
 	UE_LOG(LogTemp, Log, TEXT("[Barrage] Fired shot %d/%d"), BarrageShotCount, CurrentMaxShots);
+}
+
+void UCBossPattern_Barrage::FinishBarrage()
+{
+	FinishPattern(true);
 }
