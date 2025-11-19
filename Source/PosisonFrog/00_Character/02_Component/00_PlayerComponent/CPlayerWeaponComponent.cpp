@@ -1,6 +1,7 @@
 #include "00_Character/02_Component/00_PlayerComponent/CPlayerWeaponComponent.h"
 
 #include "CPlayerEffectComponent.h"
+#include "NiagaraFunctionLibrary.h"
 #include "00_Character/00_Player/CPlayerCharacter.h"
 #include "00_Character/00_Player/02_Weapon/CHammer.h"
 #include "00_Character/02_Component/00_PlayerComponent/Buffable.h"
@@ -30,7 +31,6 @@ void UCPlayerWeaponComponent::SpawnWeapon()
     if (!IsValid(World) || !OwnerChar.IsValid())
         return;
     
-
     FActorSpawnParameters Params;
     Params.Owner = OwnerChar.Get();
     Params.Instigator = OwnerChar.Get();
@@ -46,6 +46,12 @@ void UCPlayerWeaponComponent::SpawnWeapon()
     {
         CLog::Log(TEXT("[WeaponComp] SpawnWeapon failed"));
         return;
+    }
+
+    CurrentHammer = Cast<ACHammer>(CurrentWeapon);
+    if (!IsValid(CurrentHammer))
+    {
+        CLog::Log(TEXT("[WeaponComp] CurrentWeapon is not ACHammer"));
     }
 
     CurrentWeapon->DeactivateDamage();
@@ -105,6 +111,8 @@ void UCPlayerWeaponComponent::HandleWeaponHit(AActor* InstigatorActor, AActor* H
     {
         UE_LOG(LogTemp, Error, TEXT("[WeaponComp] OnPlayerComboHit not bound!"));
     }
+
+    SpawnHitEffect(HitActor, Hit);
 
     if (bEnableHitStop && IsValid(HitStopComponent) && CurrentCombo == 2 && !bHitStopTriggeredThisCombo)
     {
@@ -317,13 +325,14 @@ void UCPlayerWeaponComponent::PlayComboAttack()
     PlayerAnimInst->Montage_Play(PlayerMontage);
     HammerAnimInst->Montage_Play(HammerMontage);
 
-    if (ACPlayerCharacter* Player = Cast<ACPlayerCharacter>(GetOwner()))
+    // 나중에 만약 EffectComponent를 사용하게 된다면 주석 풀기
+    /*if (ACPlayerCharacter* Player = Cast<ACPlayerCharacter>(GetOwner()))
     {
         if (UCPlayerEffectComponent* EffectComp = Player->GetEffectComponent())
         {
             EffectComp->PlayComboAttackEffect(CurrentCombo);
         }
-    }
+    }*/
 
     /*if (IsValid(Hammer))
         Hammer->PlayAttackVFX(CurrentCombo);*/
@@ -378,8 +387,6 @@ void UCPlayerWeaponComponent::ResetCombo()
     DisableAttackBoxCollider();
 }
 
-
-
 void UCPlayerWeaponComponent::OnMontageEnded(UAnimMontage* Montage, bool bInterrupted)
 {
     if (bInterrupted)
@@ -391,6 +398,80 @@ void UCPlayerWeaponComponent::OnMontageEnded(UAnimMontage* Montage, bool bInterr
     {
         DisableAttackBoxCollider();
     }
+}
+
+void UCPlayerWeaponComponent::SpawnHitEffect(AActor* HitActor, const FHitResult& HitInfo)
+{
+    if (!HitActor)
+        return;
+
+    ACHammer* Hammer = GetHammer();
+    if (!Hammer)
+    {
+        CLog::Log(TEXT("[HitEffect] Hammer is null"));
+        return;
+    }
+
+    bool bIsUltimateActive = CheckUltimateActive();
+    UNiagaraSystem* SelectedEffect = bIsUltimateActive ? Hammer->GetHitEffect_Normal() : Hammer->GetHitEffect_Ultimate();
+
+    if (!SelectedEffect)
+    {
+        CLog::Log(FString::Printf(TEXT("[HitEffect] Selected effect is NULL (Ultimate: %s)"), 
+            bIsUltimateActive ? TEXT("Yes") : TEXT("No")));
+        return;
+    }
+
+    FVector LocationOffset = Hammer->GetHitEffectLocationOffset();
+    FRotator RotationOffset = Hammer->GetHitEffectRotationOffset();
+    float EffectScale = Hammer->GetHitEffectScale();
+
+    FTransform EffectTransform = CalculateEffectTransform(HitInfo, LocationOffset, RotationOffset);
+
+    UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+        GetWorld(),
+        SelectedEffect,
+        EffectTransform.GetLocation(),
+        EffectTransform.Rotator(),
+        FVector(EffectScale),
+        true,
+        true
+    );
+}
+
+bool UCPlayerWeaponComponent::CheckUltimateActive() const
+{
+    if (!OwnerChar.IsValid())
+    {
+        CLog::Log(TEXT("[CheckUlt] OwnerChar is invalid"));
+        return false;
+    }
+
+    if (ACPlayerCharacter* PlayerChar = Cast<ACPlayerCharacter>(OwnerChar.Get()))
+    {
+        bool bUltActive = PlayerChar->IsUltimateActive();
+        return bUltActive;
+    }
+
+    return false;
+}
+
+FTransform UCPlayerWeaponComponent::CalculateEffectTransform(const FHitResult& HitInfo, const FVector& LocationOffset, const FRotator& RotationOffset) const
+{
+    FVector SpawnLocation = HitInfo.ImpactPoint;
+    
+    if (!LocationOffset.IsZero() && !HitInfo.ImpactNormal.IsZero())
+    {
+        SpawnLocation += HitInfo.ImpactNormal * LocationOffset.Z;
+    }
+    else if (!LocationOffset.IsZero())
+    {
+        SpawnLocation += LocationOffset;
+    }
+
+    FRotator SpawnRotation = HitInfo.ImpactNormal.Rotation() + RotationOffset;
+
+    return FTransform(SpawnRotation, SpawnLocation);
 }
 
 /* ============ 상태기/노티에서 호출 ============ */

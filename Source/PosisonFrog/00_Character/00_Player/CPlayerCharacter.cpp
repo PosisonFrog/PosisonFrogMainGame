@@ -27,14 +27,12 @@
 #include "00_Character/02_Component/00_PlayerComponent/ComboStackComponent.h"
 #include "00_Character/02_Component/00_PlayerComponent/CPlayerKnockbackComponent.h"
 
+#include "00_Character/01_Enemy/CTankerBrute.h"
 #include "01_Widget/CPlayerWidget.h"
 #include "04_Skill/CSkill_CommandLaunchSlam.h"
 #include "04_Skill/CSkill_SpinAttack.h"
-#include "00_Character/01_Enemy/CTankerBrute.h"
-#include "00_Character/02_Component/00_PlayerComponent/CPlayerEffectComponent.h"
 #include "05_System/01_Sound/CSoundManagerSubsystem.h"
 #include "05_System/01_Sound/CSoundDataAsset.h"
-
 
 #include "99_Util/CLog.h"
 
@@ -57,7 +55,7 @@ ACPlayerCharacter::ACPlayerCharacter()
     SpinAttackComponent = CreateDefaultSubobject<UCSkill_SpinAttack>(TEXT("SkillSpinAttack"));
     CommandLaunchSlamComponent = CreateDefaultSubobject<UCSkill_CommandLaunchSlam>(TEXT("CommandLaunchSlam"));
     KnockbackComponent = CreateDefaultSubobject<UCPlayerKnockbackComponent>(TEXT("KnockbackComponent"));
-    EffectComponent = CreateDefaultSubobject<UCPlayerEffectComponent>(TEXT("EffectComponent"));
+    //EffectComponent = CreateDefaultSubobject<UCPlayerEffectComponent>(TEXT("EffectComponent"));
     
     check(DashComponent);
     check(WeaponComponent);
@@ -249,7 +247,7 @@ void ACPlayerCharacter::PostInitializeComponents()
     checkf(FuryGaugeComponent != nullptr, TEXT("FuryGauge missing"));
     checkf(ComboStackComponent != nullptr, TEXT("ComboStackComponent missing"));
     checkf(SpinAttackComponent != nullptr, TEXT("SkillSpinAttack missing"));
-    checkf(KnockbackComponent != nullptr, TEXT("KnockbackComponent missing"));  // ★ 추가
+    checkf(KnockbackComponent != nullptr, TEXT("KnockbackComponent missing"));
 
     
     // TransparentCameraComponent 설정 개선
@@ -294,10 +292,10 @@ void ACPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
 
 void ACPlayerCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-    if (EffectComponent)
+    /*if (EffectComponent)
     {
         EffectComponent->ClearAllEffectTimers();
-    }
+    }*/
     
     if (WeaponComponent)
     {
@@ -598,8 +596,8 @@ void ACPlayerCharacter::HandleDeath(AActor* DeadActor)
     bIsDead = true;
     CLog::Log(TEXT("[Player] Death processing started"));
 
-    if (EffectComponent)
-        EffectComponent->ClearAllEffectTimers();
+    /*if (EffectComponent)
+        EffectComponent->ClearAllEffectTimers();*/
     
     if (SpinAttackComponent && SpinAttackComponent->IsSkillActive())
         SpinAttackComponent->StopSpin();
@@ -627,7 +625,6 @@ void ACPlayerCharacter::HandleDeath(AActor* DeadActor)
     {
         UltimateBuffComponent->DeactivateUltimate();
     }
-    bUltActive = false;
     
     // 죽을 때 사용할 애니메이션 재생
     if (DeathPlayerMontage && DeathHammerMontage)
@@ -688,10 +685,10 @@ void ACPlayerCharacter::OnHitByTankerCharge(AActor* HitPlayer, FVector Knockback
     }
     
     // 넉백 시 모든 활성 이펙트 중단
-    if (EffectComponent)
+    /*if (EffectComponent)
     {
         EffectComponent->StopAllActiveEffects();
-    }
+    }*/
     
     // 콤보 리셋
     if (ComboStackComponent)
@@ -720,7 +717,7 @@ float ACPlayerCharacter::TakeDamage(float DamageAmount, struct FDamageEvent cons
         MarkCombatAction();
     }
 
-    if (bUltActive == false)
+    if (!IsUltimateActive())
     {
         CLog::Log(FString::Printf(TEXT("[PlayerCharacter] Took %.1f Damage from %s"), AppliedDamage, *GetNameSafe(DamageCauser)));
     }
@@ -733,7 +730,7 @@ float ACPlayerCharacter::TakeDamage(float DamageAmount, struct FDamageEvent cons
 // ────────────────────────────────────────────────────────────────────────────
 void ACPlayerCharacter::UseUltimate()
 {
-    if (bUltActive || !UltimateBuffComponent)
+    if (IsUltimateActive() || !UltimateBuffComponent)
         return;
 
     if (!ComboStackComponent || !ComboStackComponent->CanCastUlt())
@@ -743,8 +740,6 @@ void ACPlayerCharacter::UseUltimate()
         return;
     
     static const FName PlayerUltId(TEXT("PlayerUlt"));
-
-    bUltActive = true;
 
     if (UltimatePlayerMontage)
     {
@@ -759,14 +754,22 @@ void ACPlayerCharacter::UseUltimate()
                 HammerAnim->Montage_Play(UltimateHammerMontage);
         }
     }
-    
-    // 궁극기 활성화 플레이어 이펙트 재생
-    if (EffectComponent)
-        EffectComponent->PlayUltimateActivationEffect();
 
+    // 나중에 이펙트 컴포넌트 사용하게 된다면 주석 해제
+    // 궁극기 활성화 플레이어 이펙트 재생
+    /*if (EffectComponent)
+        EffectComponent->PlayUltimateActivationEffect();
     // 무기 이펙트 부착
     if (EffectComponent)
-        EffectComponent->AttachUltimateWeaponEffect();
+        EffectComponent->AttachUltimateWeaponEffect();*/
+
+    // 스핀 이펙트 종료
+    SpinAttackComponent->StopSpin();
+    
+    // 기존 무기 이펙트 정리
+    CleanupUltVFX();
+    // 무기 이펙트 부착
+    SpawnUltVFXOnHammer();
     
     ComboStackComponent->OnUltStarted(PlayerUltId);
     UltimateBuffComponent->ActivateUltimate();
@@ -784,12 +787,12 @@ void ACPlayerCharacter::UseUltimate()
         this, &ACPlayerCharacter::OnUltimateExpired,
         UltDuration, false);
 
+    // 나중에 궁극기 게이지 사용하게 되면 주석 해제
     /*GetWorldTimerManager().ClearTimer(TimerHandle_UltUITick);
     GetWorldTimerManager().SetTimer(
         TimerHandle_UltUITick,
         this, &ACPlayerCharacter::TickUltimateUI,
         0.05f, true);
-    
     TickUltimateUI();*/
 
     UpdateHpUI();
@@ -800,7 +803,6 @@ void ACPlayerCharacter::OnUltimateExpired()
 {
     GetWorldTimerManager().ClearTimer(TimerHandle_UltUITick);
 
-    bUltActive = false;
     //CurUltGauge = 0.0f;
     if (UltimateBuffComponent)
         UltimateBuffComponent->DeactivateUltimate();
@@ -811,8 +813,10 @@ void ACPlayerCharacter::OnUltimateExpired()
         ComboStackComponent->OnUltEnded(PlayerUltId);
     }
     
-    if (EffectComponent)
-        EffectComponent->DetachUltimateWeaponEffect();
+    /*if (EffectComponent)
+        EffectComponent->DetachUltimateWeaponEffect();*/
+
+    CleanupUltVFX();
 
     if (PlayerWidget)
     {
@@ -845,7 +849,7 @@ void ACPlayerCharacter::UpdateUltimateUI()
         return;
     }
         
-    // 나중에 바를 사용하게 된다면
+    // 나중에 바를 사용하게 된다면 주석해제
     //if (PlayerWidget)
     //    PlayerWidget->UpdateUltimateBar(CurUltGauge, MaxUltGauge);
 
@@ -867,6 +871,42 @@ void ACPlayerCharacter::TickUltimateUI()
 
     // 궁극기 활성화 시 남은 시간 기반 UI 업데이트는 유지
     // 필요시 타이머 기반 애니메이션 처리
+}
+
+void ACPlayerCharacter::CleanupUltVFX()
+{
+    if (IsValid(HammerUltVFXComp))
+    {
+        HammerUltVFXComp->Deactivate();
+        HammerUltVFXComp->DestroyComponent();
+    }
+    HammerUltVFXComp = nullptr;
+}
+
+void ACPlayerCharacter::SpawnUltVFXOnHammer()
+{
+    if (!HammerUltVFX || !WeaponComponent)
+        return;
+
+    CleanupUltVFX();
+    
+    if (ACHammer* Hammer = WeaponComponent->GetHammer())
+    {
+        if (USkeletalMeshComponent* WeaponMesh = Hammer->GetWeaponMesh())
+        {
+            HammerUltVFXComp = UNiagaraFunctionLibrary::SpawnSystemAttached(
+                HammerUltVFX,
+                WeaponMesh,
+                HammerUltSocketName,
+                FVector::ZeroVector,
+                FRotator::ZeroRotator,
+                EAttachLocation::SnapToTargetIncludingScale,
+                false);
+
+            if (HammerUltVFXComp)
+                HammerUltVFXComp->Activate(true);
+        }
+    }
 }
 
 /*void ACPlayerCharacter::SetUltimateGauge(float UltGauge)
@@ -1094,7 +1134,7 @@ void ACPlayerCharacter::MarkCombatAction()
 // ────────────────────────────────────────────────────────────────────────────
 float ACPlayerCharacter::GetOutgoingDamageMultiplier() const
 {
-    if (bUltActive && UltimateBuffComponent)
+    if (IsUltimateActive() && UltimateBuffComponent)
         return UltimateBuffComponent->GetOutgoingDamageMultiplier();
     
     return 1.0f;
@@ -1102,7 +1142,7 @@ float ACPlayerCharacter::GetOutgoingDamageMultiplier() const
 
 float ACPlayerCharacter::GetIncomingDamageScale() const
 {
-    if (bUltActive && UltimateBuffComponent)
+    if (IsUltimateActive() && UltimateBuffComponent)
         return UltimateBuffComponent->GetIncomingDamageScale();
     
     return 1.0f;
@@ -1110,7 +1150,7 @@ float ACPlayerCharacter::GetIncomingDamageScale() const
 
 bool ACPlayerCharacter::IsBuffActive() const
 {
-    return bUltActive;
+    return IsUltimateActive();
 }
 
 // ────────────────────────────────────────────────────────────────────────────

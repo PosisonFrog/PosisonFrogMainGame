@@ -390,20 +390,20 @@ void ACRiotRobot::TryPlayIdleMontage() const
 
 void ACRiotRobot::SpawnAttackEffect() const
 {
-    if (!AttackEffect)
+    /*if (!TakeDamageNormal_VFX)
         return;
 
     if (USkeletalMeshComponent* MeshComp = GetMesh())
     {
         UNiagaraFunctionLibrary::SpawnSystemAttached(
-            AttackEffect,
+            TakeDamageNormal_VFX,
             MeshComp,
             RiotRobot::AttackEffectSocketName,
             FVector::ZeroVector,
             FRotator::ZeroRotator,
             EAttachLocation::SnapToTarget,
             true);
-    }
+    }*/
 }
 
 void ACRiotRobot::SpawnHitEffectAtForward() const

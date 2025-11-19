@@ -364,20 +364,20 @@ void ACTankerBrute::ExitState(EEnemyState OldState)
 
 void ACTankerBrute::SpawnAttackEffect() const
 {
-    if (!AttackEffect)
+    /*if (!TakeDamageNormal_VFX)
         return;
 
     if (USkeletalMeshComponent* MeshComp = GetMesh())
     {
         UNiagaraFunctionLibrary::SpawnSystemAttached(
-            AttackEffect,
+            TakeDamageNormal_VFX,
             MeshComp,
             TankerBrute::AttackEffectSocketName,
             FVector::ZeroVector,
             FRotator::ZeroRotator,
             EAttachLocation::SnapToTarget,
             true);
-    }
+    }*/
 }
 
 void ACTankerBrute::SpawnHitEffectAtForward() const

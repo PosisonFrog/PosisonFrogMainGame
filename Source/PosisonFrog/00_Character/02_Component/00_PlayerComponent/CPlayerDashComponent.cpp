@@ -38,13 +38,14 @@ void UCPlayerDashComponent::StartDash()
     if (!OwnerChar.IsValid() || !MoveComp.IsValid() || bIsDashing)
         return;
 
-    if (ACPlayerCharacter* Player = Cast<ACPlayerCharacter>(GetOwner()))
+    // 나중에 만약 EffectComponent를 사용하게 된다면 주석 풀기
+    /*if (ACPlayerCharacter* Player = Cast<ACPlayerCharacter>(GetOwner()))
     {
         if (UCPlayerEffectComponent* EffectComp = Player->GetEffectComponent())
         {
             EffectComp->PlayDashEffect();
         }
-    }
+    }*/
     
     BeginDash_Internal();
 }

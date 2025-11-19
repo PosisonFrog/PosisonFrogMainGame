@@ -3,11 +3,8 @@
 
 #include "00_Character/00_Player/02_Weapon/CHammer.h"
 
-#include "NiagaraFunctionLibrary.h"
 #include "99_Util/CLog.h"
 #include "Components/BoxComponent.h"
-#include "Kismet/GameplayStatics.h"
-#include "GameFramework/Character.h"
 
 // Sets default values
 ACHammer::ACHammer()
