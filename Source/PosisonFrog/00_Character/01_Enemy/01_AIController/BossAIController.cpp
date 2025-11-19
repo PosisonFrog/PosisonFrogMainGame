@@ -33,10 +33,9 @@ void ABossAIController::SetTargetPlayer(AActor* NewTarget)
 
 void ABossAIController::SetChaseEnabled(bool bEnabled)
 {
-	UE_LOG(LogTemp, Error, TEXT("[BossAI] ⚠️ SetChaseEnabled(%s)"), bEnabled ? TEXT("TRUE") : TEXT("FALSE"));
+	UE_LOG(LogTemp, Error, TEXT("[BossAI]  SetChaseEnabled(%s)"), bEnabled ? TEXT("TRUE") : TEXT("FALSE"));
 	bChaseEnabled = bEnabled;
 	
-	// 추적을 비활성화하면 현재 이동 중지
 	if (!bEnabled && bIsMovingToTarget)
 	{
 		StopMovement();
@@ -53,7 +52,6 @@ void ABossAIController::OnPossess(APawn* InPawn)
 {
 	Super::OnPossess(InPawn);
     
-	// 플레이어 찾기
 	TargetPlayer = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
 	if (!IsValid(TargetPlayer))
 	{
@@ -83,7 +81,11 @@ void ABossAIController::Tick(float DeltaTime)
 		return;
 	}
 
-	// ===== 1. 회전 처리 (매 프레임) =====
+	if (!bChaseEnabled)
+	{
+		return;
+	}
+
 	FVector Direction = TargetPlayer->GetActorLocation() - ControlledPawn->GetActorLocation();
 	Direction.Z = 0.f;
 	
@@ -96,29 +98,10 @@ void ABossAIController::Tick(float DeltaTime)
 			CurrentRotation, 
 			TargetRotation, 
 			DeltaTime, 
-			RotationSpeed / 90.f
+			8.0f
 		);
 		
 		SetControlRotation(NewRotation);
-	}
-
-	// ===== 2. 이동 처리 (주기적) =====
-	
-	// 디버깅: Chase 상태 로그
-	static float DebugLogTimer = 0.f;
-	DebugLogTimer += DeltaTime;
-	if (DebugLogTimer >= 1.0f)  // 1초마다 상태 로그
-	{
-		DebugLogTimer = 0.f;
-		UE_LOG(LogTemp, Warning, TEXT("[BossAI] Chase Status - Enabled: %s, IsMoving: %s"), 
-			   bChaseEnabled ? TEXT("TRUE") : TEXT("FALSE"),
-			   bIsMovingToTarget ? TEXT("TRUE") : TEXT("FALSE"));
-	}
-	
-	// 추적이 비활성화되어 있으면 이동 안 함
-	if (!bChaseEnabled)
-	{
-		return;
 	}
 	
 	TimeSinceMoveUpdate += DeltaTime;
@@ -127,14 +110,11 @@ void ABossAIController::Tick(float DeltaTime)
 	{
 		TimeSinceMoveUpdate = 0.f;
 		
-		// 플레이어와의 거리 계산
 		float DistanceToTarget = FVector::Dist(ControlledPawn->GetActorLocation(), TargetPlayer->GetActorLocation());
 		
-		// 디버깅: 거리 로그
 		UE_LOG(LogTemp, Warning, TEXT("[BossAI] Distance to player: %.1f (Stop: %.1f, Chase: %.1f)"), 
 			   DistanceToTarget, StopDistance, ChaseDistance);
 		
-		// 너무 가까우면 이동 중지
 		if (DistanceToTarget <= StopDistance)
 		{
 			if (bIsMovingToTarget)
@@ -144,7 +124,6 @@ void ABossAIController::Tick(float DeltaTime)
 				UE_LOG(LogTemp, Warning, TEXT("[BossAI] Stopped - Close enough (%.1f)"), DistanceToTarget);
 			}
 		}
-		// 멀리 있으면 추적
 		else if (DistanceToTarget > ChaseDistance)
 		{
 			// MoveTo 실행

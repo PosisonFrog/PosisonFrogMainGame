@@ -76,6 +76,11 @@ protected:
 	AActor* GetPlayerTarget() const;
 	AAIController* GetBossAI() const;
 
+	/** 거리 기반 패턴 검증 */
+	float GetDistanceToPlayer() const;
+	bool ValidatePatternDistance(FName PatternId, float Distance) const;
+	FName GetFallbackPattern(FName OriginalPattern, float Distance) const;
+
 	/**============ 스폰 시스템 ============**/
 	struct FBossSpawnedActorEntry
 	{
@@ -158,6 +163,13 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category="Phase")
 	float PhaseTransitionInvulnerabilityDuration = 2.0f;
 
+	// 거리 기반 패턴 조건
+	UPROPERTY(EditDefaultsOnly, Category="Pattern|Distance", meta=(ClampMin="100"))
+	float CloseRangeThreshold = 500.0f;
+
+	UPROPERTY(EditDefaultsOnly, Category="Pattern|Distance", meta=(ClampMin="500"))
+	float MidRangeThreshold = 1500.0f;
+
 	/**============ 이펙트 사운드 ============**/
 	UPROPERTY(EditDefaultsOnly, Category="Effects")
 	TObjectPtr<UParticleSystem> PhaseChangeEffect;
@@ -171,6 +183,7 @@ protected:
 
 	// 타이머 핸들
 	FTimerHandle PhaseTransitionTimer;
+	FTimerHandle RushTimerHandle;
 
 	// 스폰 시스템
 	TArray<FBossSpawnedActorEntry> ActiveWeaponActors;
