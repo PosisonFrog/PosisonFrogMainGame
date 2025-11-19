@@ -32,7 +32,8 @@ public class PosisonFrog : ModuleRules
             "MediaAssets",
             "Media",
             "LevelSequence",    
-            "MovieScene"
+            "MovieScene",
+            "NiagaraAnimNotifies"
 		});
 		
 		PrivateDependencyModuleNames.AddRange(new string[] 

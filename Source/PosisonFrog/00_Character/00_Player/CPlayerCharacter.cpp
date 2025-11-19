@@ -718,20 +718,12 @@ float ACPlayerCharacter::TakeDamage(float DamageAmount, struct FDamageEvent cons
         HealthComponent->Damage(AppliedDamage);
         PlayPlayerSound(CachedHitSound, 1.0f);
         MarkCombatAction();
-        
-        // 피해를 받으면 모든 활성 이펙트 중단
-        if (EffectComponent)
-        {
-            EffectComponent->StopAllActiveEffects();
-        }
     }
 
     if (bUltActive == false)
     {
         CLog::Log(FString::Printf(TEXT("[PlayerCharacter] Took %.1f Damage from %s"), AppliedDamage, *GetNameSafe(DamageCauser)));
     }
-
-    
     
     return AppliedDamage;
 }
