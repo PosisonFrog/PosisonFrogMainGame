@@ -232,7 +232,12 @@ void UCSkill_CommandLaunchSlam::Anim_PerformLaunch()
         if (!IsLaunchableEnemy(C)) continue; // 탱커/보스 면역
         C->LaunchCharacter(FVector(0,0,EnemyLaunchZ), true, true);
 
-      
+        // 띄워질 때 랜덤 애니메이션 재생
+        if (ACEnemyCharacterBase* Enemy = Cast<ACEnemyCharacterBase>(C))
+        {
+            Enemy->PlayRandomLaunchReaction();
+        }
+        
         if (LaunchDamage > 0.f)
         {
             UGameplayStatics::ApplyDamage(

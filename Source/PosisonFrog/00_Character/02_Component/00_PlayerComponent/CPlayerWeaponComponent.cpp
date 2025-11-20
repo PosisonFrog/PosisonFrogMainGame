@@ -413,7 +413,7 @@ void UCPlayerWeaponComponent::SpawnHitEffect(AActor* HitActor, const FHitResult&
     }
 
     bool bIsUltimateActive = CheckUltimateActive();
-    UNiagaraSystem* SelectedEffect = bIsUltimateActive ? Hammer->GetHitEffect_Normal() : Hammer->GetHitEffect_Ultimate();
+    UNiagaraSystem* SelectedEffect = bIsUltimateActive ? Hammer->GetHitEffect_Ultimate() : Hammer->GetHitEffect_Normal();
 
     if (!SelectedEffect)
     {
