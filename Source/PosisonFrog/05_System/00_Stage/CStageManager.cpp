@@ -183,6 +183,24 @@ void ACStageManager::PrepareForRespawn(int32 TargetStageID)
 	}
 }
 
+void ACStageManager::RegisterHordeEnemy(ACEnemyCharacterBase* Enemy, int32 StageID)
+{
+	if (!IsValid(Enemy))
+	{
+		CLog::Log(TEXT("[ACStageManager::RegisterHordeEnemy] Invalid Enemy"));
+		return;
+	}
+
+	if (UCBaseHealthComponent* HealthComp = Enemy->FindComponentByClass<UCBaseHealthComponent>())
+	{
+		HealthComp->OnDeath.AddDynamic(this, &ACStageManager::OnEnemyDied);
+	}
+
+	StageEnemies.FindOrAdd(StageID).Add(Enemy);
+
+	CLog::Log(FString::Printf(TEXT("[ACStageManager::RegisterHordeEnemy] Stage %d - HordeTrigger Enemy registered: %s"), 
+		StageID, *Enemy->GetName()));
+}
 
 void ACStageManager::RegisterBossBarrier(ACBossStageBarrier* Barrier)
 {

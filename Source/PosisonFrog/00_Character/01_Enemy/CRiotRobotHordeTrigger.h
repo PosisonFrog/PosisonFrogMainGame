@@ -9,6 +9,7 @@
 class UBoxComponent;
 class ACEnemyCharacterBase;
 class ACPlayerCharacter;
+class ACStageManager;
 
 /**
  * Horde trigger that spawns a large number of Riot Robots when the player enters a corner of the stage.
@@ -54,6 +55,9 @@ private:
         UPROPERTY(EditAnywhere, Category = "Trigger")
         bool bDebugDrawSpawnArea = false;
 
+        UPROPERTY(EditAnywhere, Category = "Trigger", meta = (ClampMin = "1"))
+        int32 StageID = 1;
+
         UPROPERTY(EditAnywhere, Category = "Spawn|Zone")
         TObjectPtr<ACEnemySpawnZone> LinkedSpawnZone;
         
@@ -65,7 +69,6 @@ private:
        
         UPROPERTY(EditAnywhere, Category = "Spawn|Zone", meta = (EditCondition = "LinkedSpawnZone != nullptr", ClampMin = "0"))
         int32 ZoneSpawnLimit = 0;
-
         
         UPROPERTY(EditAnywhere, Category = "Spawn")
         TSubclassOf<ACEnemyCharacterBase> RiotRobotClass;
@@ -113,4 +116,7 @@ private:
         TArray<TWeakObjectPtr<ACEnemyCharacterBase>> SpawnedEnemies;
 
         FTimerHandle SpawnTimerHandle;
+
+        UPROPERTY(EditAnywhere, Category = "StageManager")
+        TObjectPtr<ACStageManager> CachedStageManager;
 };
