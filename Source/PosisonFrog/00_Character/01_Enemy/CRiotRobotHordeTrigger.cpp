@@ -12,6 +12,8 @@
 #include "00_Character/01_Enemy/CEnemyCharacterBase.h"
 #include "00_Character/01_Enemy/CRiotRobot.h"
 #include "05_System/00_Stage/CEnemySpawnZone.h"
+#include "05_System/00_Stage/CStageManager.h"
+#include "99_Util/CLog.h"
 
 namespace
 {
@@ -60,6 +62,18 @@ void ACRiotRobotHordeTrigger::BeginPlay()
         if (!ensureMsgf(MinSpawnCount <= MaxSpawnCount, TEXT("MinSpawnCount must be <= MaxSpawnCount")))
         {
                 MaxSpawnCount = MinSpawnCount;
+        }
+
+        if (UWorld* World = GetWorld())
+        {
+                if (AActor* FoundActor = UGameplayStatics::GetActorOfClass(World, ACStageManager::StaticClass()))
+                {
+                        CachedStageManager = Cast<ACStageManager>(FoundActor);
+                        if (!CachedStageManager)
+                        {
+                                CLog::Log(TEXT("[CRiotRobotHordeTrigger::BeginPlay] Failed to find StageManager!"));
+                        }
+                }
         }
 }
 
@@ -242,7 +256,7 @@ void ACRiotRobotHordeTrigger::SpawnEnemyFromInfo(const FSpawnTransformInfo& Spaw
         FActorSpawnParameters SpawnParams;
         SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
-      ACEnemyCharacterBase* SpawnedEnemy = World->SpawnActor<ACEnemyCharacterBase>(EnemyClass, SpawnInfo.Transform, SpawnParams);
+        ACEnemyCharacterBase* SpawnedEnemy = World->SpawnActor<ACEnemyCharacterBase>(EnemyClass, SpawnInfo.Transform, SpawnParams);
         if (SpawnedEnemy)
         {
                 ++SpawnedCount;
@@ -251,6 +265,11 @@ void ACRiotRobotHordeTrigger::SpawnEnemyFromInfo(const FSpawnTransformInfo& Spaw
                         return !EnemyPtr.IsValid();
                 });
                 SpawnedEnemies.Add(SpawnedEnemy);
+
+                if (CachedStageManager)
+                {
+                        CachedStageManager->RegisterHordeEnemy(SpawnedEnemy, StageID);
+                }
         }
 }
 

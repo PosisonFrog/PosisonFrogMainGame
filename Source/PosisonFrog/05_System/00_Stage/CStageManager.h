@@ -43,6 +43,7 @@ public:
 	void StartStageSpawn(int32 StageID, bool bForceImmediate = false);
 	void CheckStageComplete(int32 StageID);
 	void PrepareForRespawn(int32 TargetStageID);
+	void RegisterHordeEnemy(ACEnemyCharacterBase* Enemy, int32 StageID);
 
 	// ──────────── 보스 배리어 중앙 제어 ────────────
 	void RegisterBossBarrier(ACBossStageBarrier* Barrier);
