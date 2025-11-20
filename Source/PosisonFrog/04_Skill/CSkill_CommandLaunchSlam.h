@@ -16,7 +16,6 @@ class UCharacterMovementComponent;
 class UAnimMontage;
 class UAnimInstance;
 class ACEnemyCharacterBase;
-class UCHitStopComponent;
 
 // 자기 자신의 중복 입력을 막귀 위해서 Launching을 추가
 UENUM(BlueprintType)
@@ -78,11 +77,7 @@ private:
     void ForceDescend(bool bAsSlam);
     void OnAirWindowExpired();
     void DoShockwaveImpact();
-    void CollectCharactersInRadius(
-     TArray<ACharacter*>& OutChars,
-     float Radius,
-     bool bIncludeLaunchedIgnoringZ = false,
-     bool bRiotOnly = false) const;
+    void CollectCharactersInRadius(TArray<ACharacter*>& OutChars, float Radius, bool bIncludeLaunchedIgnoringZ = false, bool bRiotOnly = false) const;
     bool IsOnGroundNow() const;
     bool IsLaunchableEnemy(ACharacter* C) const;
     void ForceDropEnemiesInRange() ;
@@ -99,6 +94,16 @@ private:
     // 해머 전용
     void PlayHammerMontageSafe(UAnimMontage* Montage, FName Section = NAME_None, float PlayRate = 1.0f);
     void AbortCommand(bool bResetCooldown);
+
+    // ───────── 히트스톱 헬퍼 함수 ─────────
+    // Launch 히트스톱 적용
+    void ApplyLaunchHitStop(const TArray<ACharacter*>& AffectedEnemies);
+    
+    // Slam 히트스톱 적용
+    void ApplySlamHitStop(const TArray<ACharacter*>& AffectedEnemies);
+    
+    // 애니메이션 일시정지 및 재개 예약
+    void PauseAndScheduleResumeAnimation(UAnimInstance* AnimInst, float ResumeDelay);
     
 private:
     // ─ Launch/Range ─
@@ -157,17 +162,41 @@ private:
     UPROPERTY(EditDefaultsOnly, Category="CommandSkill|FX")
     TSubclassOf<UCameraShakeBase> ShockwaveCameraShake;
 
-    // 히트 스톱
-    UPROPERTY(EditAnywhere, Category = "CommandSkill|HitStop", meta = (ClampMin = "0.01", ClampMax = "1.0"))
-    float SlamHitStopDuration = 0.2f;
+    // ───────── Launch 히트 스톱 ─────────
+    UPROPERTY(EditAnywhere, Category = "CommandSkill|HitStop|Launch")
+    bool bEnableLaunchHitStop = true;
 
-    UPROPERTY(EditAnywhere, Category = "CommandSkill|HitStop", meta = (ClampMin = "0.01", ClampMax = "1.0"))
-    float SlamHitStopTimeScale = 0.05f;
+    // 플레이어 히트스톱 설정
+    UPROPERTY(EditAnywhere, Category = "CommandSkill|HitStop|Launch|Player", meta = (ClampMin = "0.01", ClampMax = "1.0"))
+    float LaunchPlayerHitStopDuration = 0.12f;
 
+    UPROPERTY(EditAnywhere, Category = "CommandSkill|HitStop|Launch|Player", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+    float LaunchPlayerHitStopTimeScale = 0.15f;
+
+    // 적 히트스톱 설정
+    UPROPERTY(EditAnywhere, Category = "CommandSkill|HitStop|Launch|Enemy", meta = (ClampMin = "0.01", ClampMax = "1.0"))
+    float LaunchEnemyHitStopDuration = 0.18f;
+
+    UPROPERTY(EditAnywhere, Category = "CommandSkill|HitStop|Launch|Enemy", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+    float LaunchEnemyHitStopTimeScale = 0.1f;
+    
+    // ───────── 슬램 히트 스톱 ─────────
     UPROPERTY(EditAnywhere, Category = "CommandSkill|HitStop")
-    bool bEnableHitStop = true;
+    bool bEnableSlamHitStop = true;
 
-    UPROPERTY() UCHitStopComponent* HitStopComponent = nullptr;
+    // 플레이어 히트스톱 설정
+    UPROPERTY(EditAnywhere, Category = "CommandSkill|HitStop|Player", meta = (ClampMin = "0.01", ClampMax = "1.0"))
+    float SlamPlayerHitStopDuration = 0.15f;
+
+    UPROPERTY(EditAnywhere, Category = "CommandSkill|HitStop|Player", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+    float SlamPlayerHitStopTimeScale = 0.1f;
+
+    // 적 히트스톱 설정
+    UPROPERTY(EditAnywhere, Category = "CommandSkill|HitStop|Enemy", meta = (ClampMin = "0.01", ClampMax = "1.0"))
+    float SlamEnemyHitStopDuration = 0.2f;
+
+    UPROPERTY(EditAnywhere, Category = "CommandSkill|HitStop|Enemy", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+    float SlamEnemyHitStopTimeScale = 0.05f;
 
     // ─ Launch 대상 필터(태그/폴백) ─
     UPROPERTY(EditDefaultsOnly, Category="CommandSkill|Filter|Tags")

@@ -13,6 +13,7 @@
 #include "Animation/AnimMontage.h"
 
 #include "Global.h"
+#include "00_Character/00_Player/CHitStopSubsystem.h"
 #include "00_Character/01_Enemy/CEnemyCharacterBase.h"
 #include "00_Character/02_Component/00_PlayerComponent/CPlayerWeaponComponent.h"
 #include "00_Character/02_Component/CHitStopComponent.h"
@@ -25,8 +26,6 @@ UCSkill_CommandLaunchSlam::UCSkill_CommandLaunchSlam()
 
     LaunchAllowTags = { TEXT("Enemy.Type.Normal"), TEXT("Enemy.Type.Ranged") };
     LaunchDenyTags  = { TEXT("Enemy.Type.Tank"),   TEXT("Enemy.Type.Boss") };
-
-    HitStopComponent = CreateDefaultSubobject<UCHitStopComponent>(TEXT("HitStopComponent"));
 }
 
 void UCSkill_CommandLaunchSlam::BeginPlay()
@@ -249,6 +248,8 @@ void UCSkill_CommandLaunchSlam::Anim_PerformLaunch()
         }
     }
 
+    ApplyLaunchHitStop(Neighbors);
+    
     // 공중 대기 진입 (입력 대기 1초)
     EnterAirborneWaiting();
 }
@@ -378,6 +379,151 @@ void UCSkill_CommandLaunchSlam::AbortCommand(bool bResetCooldown)
         StartCooldown();
 }
 
+void UCSkill_CommandLaunchSlam::ApplyLaunchHitStop(const TArray<ACharacter*>& AffectedEnemies)
+{
+    if (!bEnableLaunchHitStop || AffectedEnemies.Num() == 0)
+        return;
+
+    if (UGameInstance* GameInst = GetWorld()->GetGameInstance())
+    {
+        if (UCHitStopSubsystem* HitStopSys = GameInst->GetSubsystem<UCHitStopSubsystem>())
+        {
+            // 플레이어 애니메이션 명시적 정지
+            if (OwnerChar.IsValid() && OwnerChar->GetMesh())
+            {
+                if (UAnimInstance* PlayerAnimInst = OwnerChar->GetMesh()->GetAnimInstance())
+                {
+                    PauseAndScheduleResumeAnimation(PlayerAnimInst, LaunchPlayerHitStopDuration);
+                }
+            }
+
+            // 해머 애니메이션 명시적 정지
+            if (Hammer.IsValid() && Hammer->GetHammerMesh())
+            {
+                if (UAnimInstance* HammerAnimInst = Hammer->GetHammerMesh()->GetAnimInstance())
+                {
+                    PauseAndScheduleResumeAnimation(HammerAnimInst, LaunchPlayerHitStopDuration);
+                }
+            }
+
+            // 플레이어 히트스톱
+            HitStopSys->StartHitStop(
+                OwnerChar.Get(),
+                LaunchPlayerHitStopDuration,
+                LaunchPlayerHitStopTimeScale
+            );
+
+            // 해머 히트스톱
+            if (Hammer.IsValid())
+            {
+                HitStopSys->StartHitStop(
+                    Hammer.Get(),
+                    LaunchPlayerHitStopDuration,
+                    LaunchPlayerHitStopTimeScale
+                );
+            }
+
+            // 띄워진 적들에게 히트스톱
+            for (ACharacter* C : AffectedEnemies)
+            {
+                if (C && C->IsA(ACEnemyCharacterBase::StaticClass()) && IsLaunchableEnemy(C))
+                {
+                    HitStopSys->StartHitStop(
+                        C,
+                        LaunchEnemyHitStopDuration,
+                        LaunchEnemyHitStopTimeScale
+                    );
+                }
+            }
+        }
+    }
+}
+
+void UCSkill_CommandLaunchSlam::ApplySlamHitStop(const TArray<ACharacter*>& AffectedEnemies)
+{
+    if (!bEnableSlamHitStop || AffectedEnemies.Num() == 0)
+        return;
+
+    if (UGameInstance* GameInst = GetWorld()->GetGameInstance())
+    {
+        if (UCHitStopSubsystem* HitStopSys = GameInst->GetSubsystem<UCHitStopSubsystem>())
+        {
+            // 플레이어 애니메이션 명시적 정지
+            if (OwnerChar.IsValid() && OwnerChar->GetMesh())
+            {
+                if (UAnimInstance* PlayerAnimInst = OwnerChar->GetMesh()->GetAnimInstance())
+                {
+                    PauseAndScheduleResumeAnimation(PlayerAnimInst, SlamPlayerHitStopDuration);
+                }
+            }
+
+            // 해머 애니메이션 명시적 정지
+            if (Hammer.IsValid() && Hammer->GetHammerMesh())
+            {
+                if (UAnimInstance* HammerAnimInst = Hammer->GetHammerMesh()->GetAnimInstance())
+                {
+                    PauseAndScheduleResumeAnimation(HammerAnimInst, SlamPlayerHitStopDuration);
+                }
+            }
+
+            // 플레이어 히트스톱
+            HitStopSys->StartHitStop(
+                OwnerChar.Get(),
+                SlamPlayerHitStopDuration,
+                SlamPlayerHitStopTimeScale
+            );
+
+            // 해머 히트스톱
+            if (Hammer.IsValid())
+            {
+                HitStopSys->StartHitStop(
+                    Hammer.Get(),
+                    SlamPlayerHitStopDuration,
+                    SlamPlayerHitStopTimeScale
+                );
+            }
+
+            // 충격을 받은 적들에게 히트스톱
+            for (ACharacter* C : AffectedEnemies)
+            {
+                if (IsValid(C))
+                {
+                    HitStopSys->StartHitStop(
+                        C,
+                        SlamEnemyHitStopDuration,
+                        SlamEnemyHitStopTimeScale
+                    );
+                }
+            }
+        }
+    }
+}
+
+void UCSkill_CommandLaunchSlam::PauseAndScheduleResumeAnimation(UAnimInstance* AnimInst, float ResumeDelay)
+{
+    if (!AnimInst)
+        return;
+    
+    if (UAnimMontage* CurrentMontage = AnimInst->GetCurrentActiveMontage())
+    {
+        AnimInst->Montage_Pause(CurrentMontage);
+        
+        FTimerHandle ResumeTimer;
+        GetWorld()->GetTimerManager().SetTimer(
+            ResumeTimer,
+            [AnimInst, CurrentMontage]()
+            {
+                if (IsValid(AnimInst) && IsValid(CurrentMontage))
+                {
+                    AnimInst->Montage_Resume(CurrentMontage);
+                }
+            },
+            ResumeDelay,
+            false
+        );
+    }
+}
+
 void UCSkill_CommandLaunchSlam::StartSlamConfirmDelay()
 {
     bAwaitingSlamConfirm = true;
@@ -451,77 +597,7 @@ void UCSkill_CommandLaunchSlam::DoShockwaveImpact()
     }
 
     // 히트스톱 적용
-    if (bEnableHitStop && IsValid(HitStopComponent) && Affected.Num() > 0)
-    {
-        TArray<AActor*> HitStopTargets;
-        HitStopTargets.Add(OwnerChar.Get());
-        
-        for (ACharacter* C : Affected)
-        {
-            if (C && C->IsA(ACEnemyCharacterBase::StaticClass()))
-                HitStopTargets.Add(C);
-        }
-
-        if (Hammer.IsValid())
-            HitStopTargets.Add(Hammer.Get());
-
-        // 플레이어 애니메이션 명시적 정지
-        if (OwnerChar->GetMesh())
-        {
-            if (UAnimInstance* PlayerAnimInst = OwnerChar->GetMesh()->GetAnimInstance())
-            {
-                if (UAnimMontage* CurrentMontage = PlayerAnimInst->GetCurrentActiveMontage())
-                {
-                    PlayerAnimInst->Montage_Pause(CurrentMontage);
-                    
-                    FTimerHandle ResumeTimer;
-                    GetWorld()->GetTimerManager().SetTimer(
-                        ResumeTimer,
-                        [PlayerAnimInst, CurrentMontage]()
-                        {
-                            if (IsValid(PlayerAnimInst) && IsValid(CurrentMontage))
-                            {
-                                PlayerAnimInst->Montage_Resume(CurrentMontage);
-                            }
-                        },
-                        SlamHitStopDuration,
-                        false
-                    );
-                }
-            }
-        }
-
-        // 해머 애니메이션 명시적 정지
-        if (Hammer.IsValid() && Hammer->GetHammerMesh())
-        {
-            if (UAnimInstance* HammerAnimInst = Hammer->GetHammerMesh()->GetAnimInstance())
-            {
-                if (UAnimMontage* CurrentMontage = HammerAnimInst->GetCurrentActiveMontage())
-                {
-                    HammerAnimInst->Montage_Pause(CurrentMontage);
-                    
-                    FTimerHandle ResumeTimer;
-                    GetWorld()->GetTimerManager().SetTimer(
-                        ResumeTimer,
-                        [HammerAnimInst, CurrentMontage]()
-                        {
-                            if (IsValid(HammerAnimInst) && IsValid(CurrentMontage))
-                            {
-                                HammerAnimInst->Montage_Resume(CurrentMontage);
-                            }
-                        },
-                        SlamHitStopDuration,
-                        false
-                    );
-                }
-            }
-        }
-
-        HitStopComponent->StartMultipleHitStop(
-            HitStopTargets,
-            SlamHitStopDuration,
-            SlamHitStopTimeScale);
-    }
+    ApplySlamHitStop(Affected);
 }
 
 void UCSkill_CommandLaunchSlam::CollectCharactersInRadius(TArray<ACharacter*>& OutChars, float Radius,
