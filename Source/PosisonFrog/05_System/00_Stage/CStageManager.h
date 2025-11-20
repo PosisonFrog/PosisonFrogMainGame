@@ -215,6 +215,13 @@ private:
 
 public:
 	// ──────────── 설정 ────────────
+
+	UPROPERTY(EditAnywhere, Category = "Stage|Tutorial")
+	TSubclassOf<UCTutorialPopupWidget> TutorialPopupWidgetClass;
+
+	UPROPERTY(EditAnywhere, Category = "Stage|Tutorial")
+	TArray<FTutorialStep> TutorialSteps;
+	
 	UPROPERTY(EditAnywhere, Category = "Stage|Settings")
 	int32 PreloadTriggerCount = 10;
 	

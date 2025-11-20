@@ -72,6 +72,7 @@ public:
 	UCTutorialManager();
 
 	virtual void Deinitialize() override;
+	void SetTutorialPopupClass(TSubclassOf<UCTutorialPopupWidget> InPopupClass);
 
 public:
 	// 튜토리얼 시퀀스 시작 (DataTable 또는 맵에서 로드)

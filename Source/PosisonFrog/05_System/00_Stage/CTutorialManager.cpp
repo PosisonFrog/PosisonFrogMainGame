@@ -49,6 +49,10 @@ void UCTutorialManager::StartSequence(FName SequenceId, bool bStartFirstStep)
 
 void UCTutorialManager::StartSequenceWithSteps(const TArray<FTutorialStep>& Steps, bool bStartFirstStep)
 {
+	CLog::Log(TEXT("========================================"));
+	CLog::Log(FString::Printf(TEXT("[TutorialManager] StartSequenceWithSteps: %d개 스텝"), Steps.Num()));
+	CLog::Log(TEXT("========================================"));
+
 	ActiveSteps = Steps;
 	ActiveSequenceId = NAME_None;
 	CurrentStepIndex = INDEX_NONE;
@@ -62,11 +66,21 @@ void UCTutorialManager::StartSequenceWithSteps(const TArray<FTutorialStep>& Step
 		return;
 	}
 
+	// ActiveSteps 출력
+	for (int32 i = 0; i < ActiveSteps.Num(); ++i)
+	{
+		CLog::Log(FString::Printf(TEXT("[TutorialManager] Step[%d]: %s"), i, *ActiveSteps[i].StepId.ToString()));
+	}
+
 	OnTutorialSequenceStarted.Broadcast(NAME_None);
 
 	if (bStartFirstStep)
 	{
 		BeginStep(0);
+	}
+	else
+	{
+		CLog::Log(TEXT("[TutorialManager] bStartFirstStep=false, 대기 중"));
 	}
 }
 
@@ -151,41 +165,71 @@ void UCTutorialManager::BeginStep(int32 StepIndex)
 
 	const FName StepId = ActiveSteps[CurrentStepIndex].StepId;
 
-	//튜토리얼
+	// ===== 디버깅 로그 추가 =====
+	CLog::Log(FString::Printf(TEXT("[TutorialManager] BeginStep: StepId=%s"), *StepId.ToString()));
+
+	// 튜토리얼 팝업 표시
 	ShowTutorialPopup(StepId);
 
 	OnTutorialStepStarted.Broadcast(StepId);
 }
 
+
+void UCTutorialManager::SetTutorialPopupClass(TSubclassOf<UCTutorialPopupWidget> InPopupClass)
+{
+	TutorialPopupClass = InPopupClass;
+}
+
 void UCTutorialManager::ShowTutorialPopup(FName StepId)
 {
+	CLog::Log(FString::Printf(TEXT("[TutorialManager] ShowTutorialPopup 시작: StepId=%s"), *StepId.ToString()));
+
 	if (!TutorialPopupClass)
 	{
-		CLog::Log(TEXT("[TutorialManager] TutorialPopupClass가 설정되지 않음!"));
+		CLog::Log(TEXT("[TutorialManager] ✗ TutorialPopupClass가 설정되지 않음!"));
 		return;
 	}
+	
+	CLog::Log(FString::Printf(TEXT("[TutorialManager] ✓ TutorialPopupClass: %s"), *TutorialPopupClass->GetName()));
 
 	UWorld* World = GetWorld();
 	if (!World)
+	{
+		CLog::Log(TEXT("[TutorialManager] ✗ World가 nullptr!"));
 		return;
+	}
 
 	APlayerController* PC = World->GetFirstPlayerController();
 	if (!PC)
+	{
+		CLog::Log(TEXT("[TutorialManager] ✗ PlayerController를 찾을 수 없음!"));
 		return;
+	}
+
+	CLog::Log(TEXT("[TutorialManager] ✓ PlayerController 발견"));
 
 	// 기존 팝업이 있으면 제거
 	if (CurrentPopupWidget)
 	{
+		CLog::Log(TEXT("[TutorialManager] 기존 팝업 제거"));
 		CurrentPopupWidget->RemoveFromParent();
 		CurrentPopupWidget = nullptr;
 	}
 
 	// 새 팝업 생성
+	CLog::Log(TEXT("[TutorialManager] CreateWidget 시도..."));
 	CurrentPopupWidget = CreateWidget<UCTutorialPopupWidget>(PC, TutorialPopupClass);
+	
 	if (CurrentPopupWidget)
 	{
+		CLog::Log(TEXT("[TutorialManager] ✓ Widget 생성 성공!"));
 		CurrentPopupWidget->SetupTutorial(StepId);
-		CurrentPopupWidget->AddToViewport(100); // 높은 ZOrder
+		CurrentPopupWidget->AddToViewport(100);
+		CLog::Log(TEXT("[TutorialManager] ✓ AddToViewport 완료!"));
+	}
+	else
+	{
+		CLog::Log(TEXT("[TutorialManager] ✗ CreateWidget 실패!"));
 	}
 }
 

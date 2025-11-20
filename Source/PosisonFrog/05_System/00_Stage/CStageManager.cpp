@@ -9,6 +9,7 @@
 #include "CCheckPoint.h"
 #include "CEnemySpawnZone.h"
 #include "CStageBarrier.h"
+#include "CTutorialPopupWidget.h"
 #include "00_Character/00_Player/CPlayerCharacter.h"
 #include "00_Character/01_Enemy/CEnemyCharacterBase.h"
 #include "00_Character/02_Component/CBaseHealthComponent.h"
@@ -30,29 +31,69 @@ void ACStageManager::BeginPlay()
 {
 	Super::BeginPlay();
 
+	// ===== 최우선 로그 =====
+	CLog::Log(TEXT("========================================"));
+	CLog::Log(TEXT("[StageManager] BeginPlay 시작!"));
+	CLog::Log(TEXT("========================================"));
+
 	CollectSpawnZones();
 	CollectBarriers();
 	CollectCheckpoints();
 	CollectBossBarrier();
 	CollectHordeTriggers();
 
+	CLog::Log(FString::Printf(TEXT("[StageManager] StageFlowNodes 개수: %d"), StageFlowNodes.Num()));
+	CLog::Log(FString::Printf(TEXT("[StageManager] StartStage: %d"), StartStage));
+	CLog::Log(FString::Printf(TEXT("[StageManager] TutorialPopupWidgetClass: %s"), 
+		TutorialPopupWidgetClass ? *TutorialPopupWidgetClass->GetName() : TEXT("nullptr")));
+
 	if (UGameInstance* GameInstance = GetGameInstance())
 	{
+		CLog::Log(TEXT("[StageManager] GameInstance 발견"));
+		
 		TutorialManager = GameInstance->GetSubsystem<UCTutorialManager>();
 		if (IsValid(TutorialManager))
 		{
+			CLog::Log(TEXT("[StageManager] ✓ TutorialManager 획득 성공!"));
+			
 			TutorialManager->OnTutorialStepCompleted.AddDynamic(this, &ACStageManager::OnTutorialStepCompleted);
+
+			if (TutorialPopupWidgetClass)
+			{
+				TutorialManager->SetTutorialPopupClass(TutorialPopupWidgetClass);
+				CLog::Log(TEXT("[StageManager] ✓ TutorialPopupClass 설정 완료"));
+			}
+			else
+			{
+				CLog::Log(TEXT("[StageManager] ✗ TutorialPopupWidgetClass가 설정되지 않음!"));
+			}
 		}
+		else
+		{
+			CLog::Log(TEXT("[StageManager] ✗ TutorialManager를 찾을 수 없음!"));
+		}
+	}
+	else
+	{
+		CLog::Log(TEXT("[StageManager] ✗ GameInstance를 찾을 수 없음!"));
 	}
 	
 	if (StageFlowNodes.Num() > 0)
 	{
+		CLog::Log(TEXT("[StageManager] InitializeStageFlow 호출!"));
 		InitializeStageFlow();
 	}
 	else if (StartStage > 0)
 	{
+		CLog::Log(FString::Printf(TEXT("[StageManager] StartStageSpawn(%d) 호출!"), StartStage));
 		StartStageSpawn(StartStage);
 	}
+	else
+	{
+		CLog::Log(TEXT("[StageManager] ✗ StageFlowNodes도 없고 StartStage도 0 이하!"));
+	}
+	
+	CLog::Log(TEXT("[StageManager] BeginPlay 완료!"));
 }
 
 void ACStageManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -223,33 +264,75 @@ void ACStageManager::PrepareForRespawn(int32 TargetStageID)
 // ────────────────────────────────────────────────────────────────────────────
 void ACStageManager::InitializeStageFlow()
 {
+	CLog::Log(TEXT("========================================"));
+	CLog::Log(TEXT("[StageManager] InitializeStageFlow 시작!"));
+	CLog::Log(TEXT("========================================"));
+
 	if (!IsValid(TutorialManager) && GetGameInstance())
 	{
+		CLog::Log(TEXT("[StageManager] TutorialManager 재획득 시도..."));
 		TutorialManager = GetGameInstance()->GetSubsystem<UCTutorialManager>();
 	}
 
 	if (IsValid(TutorialManager))
 	{
-		TutorialManager->StartSequence(TutorialSequenceId, false);
+		// ===== 수정: TutorialSteps 직접 전달 =====
+		if (TutorialSteps.Num() > 0)
+		{
+			CLog::Log(FString::Printf(TEXT("[StageManager] TutorialSteps 직접 전달 (%d개)"), TutorialSteps.Num()));
+			TutorialManager->StartSequenceWithSteps(TutorialSteps, false);
+		}
+		else
+		{
+			CLog::Log(FString::Printf(TEXT("[StageManager] TutorialSequenceId로 시작: %s"), *TutorialSequenceId.ToString()));
+			TutorialManager->StartSequence(TutorialSequenceId, false);
+		}
+	}
+	else
+	{
+		CLog::Log(TEXT("[StageManager] ✗ TutorialManager가 여전히 nullptr!"));
 	}
 
 	CurrentNodeId = StartNode;
+	CLog::Log(FString::Printf(TEXT("[StageManager] CurrentNodeId를 %d로 설정"), CurrentNodeId));
+	
+	CLog::Log(TEXT("[StageManager] AdvanceToNode 호출!"));
 	AdvanceToNode(CurrentNodeId);
 }
 
 void ACStageManager::HandleTrigger(FName TriggerTag)
 {
+	CLog::Log(TEXT("========================================"));
+	CLog::Log(FString::Printf(TEXT("[StageManager] HandleTrigger: %s"), *TriggerTag.ToString()));
+	CLog::Log(FString::Printf(TEXT("[StageManager] CurrentNodeId: %d"), CurrentNodeId));
+	CLog::Log(TEXT("========================================"));
+
 	if (CurrentNodeId == INDEX_NONE)
+	{
+		CLog::Log(TEXT("[StageManager] ✗ CurrentNodeId가 INDEX_NONE!"));
 		return;
+	}
 
 	const int32 NodeIndex = FindNodeIndexById(CurrentNodeId);
+	CLog::Log(FString::Printf(TEXT("[StageManager] NodeIndex: %d"), NodeIndex));
+	
 	if (!StageFlowNodes.IsValidIndex(NodeIndex))
+	{
+		CLog::Log(TEXT("[StageManager] ✗ NodeIndex가 유효하지 않음!"));
 		return;
+	}
 
 	const FStageFlowNode& Node = StageFlowNodes[NodeIndex];
+	CLog::Log(FString::Printf(TEXT("[StageManager] Node.TriggerTag: %s"), *Node.TriggerTag.ToString()));
+
 	if (Node.TriggerTag == TriggerTag)
 	{
+		CLog::Log(TEXT("[StageManager] ✓ TriggerTag 일치! EnterNode 호출!"));
 		EnterNode(CurrentNodeId);
+	}
+	else
+	{
+		CLog::Log(TEXT("[StageManager] ✗ TriggerTag 불일치!"));
 	}
 }
 
@@ -341,17 +424,30 @@ int32 ACStageManager::FindNodeIndexById(int32 NodeId) const
 
 void ACStageManager::ApplyTutorialSetup(const FStageFlowNode& Node)
 {
+	CLog::Log(TEXT("========================================"));
+	CLog::Log(FString::Printf(TEXT("[StageManager] ApplyTutorialSetup: StepId=%s"), *Node.TutorialStepId.ToString()));
+	CLog::Log(TEXT("========================================"));
+
 	const FTutorialSpawnRule Rule = GetSpawnRuleForStep(Node.TutorialStepId);
 	const int32 SpawnCount = Rule.EnemyCount > 0 ? Rule.EnemyCount : TutorialEnemyCount;
+	
+	CLog::Log(FString::Printf(TEXT("[StageManager] StageSectionId: %d"), Node.StageSectionId));
+	CLog::Log(FString::Printf(TEXT("[StageManager] EnemyClass: %s"), Rule.EnemyClass ? *Rule.EnemyClass->GetName() : TEXT("nullptr")));
+	CLog::Log(FString::Printf(TEXT("[StageManager] SpawnCount: %d"), SpawnCount));
+	
 	SpawnTutorialEnemies(Node.StageSectionId, Rule.EnemyClass, SpawnCount);
 	FillPlayerForRule(Rule);
 
 	if (IsValid(TutorialManager))
 	{
+		CLog::Log(FString::Printf(TEXT("[StageManager] TutorialManager->RequestStartStepById(%s) 호출!"), *Node.TutorialStepId.ToString()));
 		TutorialManager->RequestStartStepById(Node.TutorialStepId);
 	}
+	else
+	{
+		CLog::Log(TEXT("[StageManager] ✗ TutorialManager가 nullptr!"));
+	}
 }
-
 FTutorialSpawnRule ACStageManager::GetSpawnRuleForStep(FName StepId) const
 {
 	for (const FTutorialSpawnRule& Rule : TutorialSpawnRules)

@@ -11,10 +11,35 @@ void UCTutorialPopupWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
 
-	// 버튼 이벤트 바인딩
-	if (Button_Continue)
+	// ===== 철저한 nullptr 체크 추가 =====
+	if (!IsValid(Button_Continue))
 	{
-		Button_Continue->OnClicked.AddDynamic(this, &UCTutorialPopupWidget::OnContinueButtonClicked);
+		UE_LOG(LogTemp, Error, TEXT("[TutorialPopup] ✗ Button_Continue가 nullptr 또는 유효하지 않음!"));
+		UE_LOG(LogTemp, Error, TEXT("[TutorialPopup] WBP_TutorialPopup에 'Button_Continue' 이름의 Button이 있는지 확인하세요!"));
+		return;
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("[TutorialPopup] ✓ Button_Continue 유효함"));
+
+	// 버튼 이벤트 바인딩
+	if (Button_Continue->OnClicked.IsBound())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[TutorialPopup] OnClicked 이미 바인딩되어 있음 - 클리어"));
+		Button_Continue->OnClicked.Clear();
+	}
+
+	Button_Continue->OnClicked.AddDynamic(this, &UCTutorialPopupWidget::OnContinueButtonClicked);
+	UE_LOG(LogTemp, Warning, TEXT("[TutorialPopup] ✓ OnClicked 바인딩 완료!"));
+
+	// ===== 다른 위젯들도 확인 =====
+	if (!IsValid(Image_TutorialGuide))
+	{
+		UE_LOG(LogTemp, Error, TEXT("[TutorialPopup] ✗ Image_TutorialGuide가 nullptr!"));
+	}
+
+	if (!IsValid(Image_Video))
+	{
+		UE_LOG(LogTemp, Error, TEXT("[TutorialPopup] ✗ Image_Video가 nullptr!"));
 	}
 }
 
@@ -31,6 +56,8 @@ void UCTutorialPopupWidget::NativeDestruct()
 
 void UCTutorialPopupWidget::SetupTutorial(FName TutorialId)
 {
+	UE_LOG(LogTemp, Warning, TEXT("[TutorialPopup] SetupTutorial 시작: %s"), *TutorialId.ToString());
+	
 	CurrentTutorialId = TutorialId;
 
 	// 가이드 이미지 설정
@@ -39,7 +66,16 @@ void UCTutorialPopupWidget::SetupTutorial(FName TutorialId)
 		if (Image_TutorialGuide && *GuideImage)
 		{
 			Image_TutorialGuide->SetBrushFromTexture(*GuideImage);
+			UE_LOG(LogTemp, Warning, TEXT("[TutorialPopup] ✓ 가이드 이미지 설정 완료"));
 		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[TutorialPopup] ✗ Image_TutorialGuide 또는 GuideImage가 nullptr"));
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[TutorialPopup] ✗ TutorialId '%s'에 해당하는 이미지를 찾을 수 없음"), *TutorialId.ToString());
 	}
 
 	// 비디오 설정 및 재생
@@ -47,29 +83,41 @@ void UCTutorialPopupWidget::SetupTutorial(FName TutorialId)
 	{
 		if (MediaPlayer && MediaTexture && *VideoSource)
 		{
+			UE_LOG(LogTemp, Warning, TEXT("[TutorialPopup] ✓ 비디오 소스 발견, 재생 시도"));
+			
 			// Media Texture를 Image에 설정
 			if (Image_Video)
 			{
 				FSlateBrush Brush;
 				Brush.SetResourceObject(MediaTexture);
 				
-				// 16:9 비율 유지를 위한 설정
-				FVector2D TextureSize(1920.0f, 1080.0f); // 또는 실제 영상 크기
+				FVector2D TextureSize(1920.0f, 1080.0f);
 				Brush.ImageSize = TextureSize;
 				Brush.DrawAs = ESlateBrushDrawType::Image;
 				Brush.Tiling = ESlateBrushTileType::NoTile;
 				
 				Image_Video->SetBrush(Brush);
+				UE_LOG(LogTemp, Warning, TEXT("[TutorialPopup] ✓ Video Image 설정 완료"));
 			}
 
 			// 비디오 재생
 			MediaPlayer->OpenSource(*VideoSource);
 			MediaPlayer->Play();
+			UE_LOG(LogTemp, Warning, TEXT("[TutorialPopup] ✓ 비디오 재생 시작"));
 		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[TutorialPopup] ✗ MediaPlayer, MediaTexture, VideoSource 중 하나가 nullptr"));
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[TutorialPopup] ✗ TutorialId '%s'에 해당하는 비디오를 찾을 수 없음"), *TutorialId.ToString());
 	}
 
 	// 게임 일시정지 및 UI 모드 설정
 	PauseGameAndSetUIMode();
+	UE_LOG(LogTemp, Warning, TEXT("[TutorialPopup] ✓ SetupTutorial 완료!"));
 }
 
 void UCTutorialPopupWidget::OnContinueButtonClicked()
