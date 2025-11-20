@@ -55,6 +55,9 @@ bool UCFuryGaugeComponent::ActivateEffect()
     if (bEffectActive)  return false;
     if (CurrentStacks <= 0) return false;
 
+    UWorld* World = GetWorld();
+    if (!World) return false;
+    
     InitialStacksAtActivation = CurrentStacks;
     bFinisherTriggered = false;
 
@@ -68,7 +71,7 @@ bool UCFuryGaugeComponent::ActivateEffect()
     ActiveTotalDuration = Tier.Duration;
     ActiveTotalDamage   = Tier.TotalDamage;
 
-    const float Now = GetWorld()->GetTimeSeconds();
+    const float Now = World->GetTimeSeconds();
     ActiveEndTime = Now + ActiveTotalDuration;
 
     // 발동과 동시에 전량 소모
@@ -76,8 +79,9 @@ bool UCFuryGaugeComponent::ActivateEffect()
     OnStacksChanged.Broadcast(CurrentStacks, MaxStacks);
 
     // 자동 종료 타이머
-    GetWorld()->GetTimerManager().ClearTimer(TimerHandle_EffectEnd);
-    GetWorld()->GetTimerManager().SetTimer(
+    FTimerManager& TimerManager = World->GetTimerManager();
+        TimerManager.ClearTimer(TimerHandle_EffectEnd);
+        TimerManager.SetTimer(
         TimerHandle_EffectEnd,
         [this]() { EndEffectInternal(false, 0.f); },  // 자연 종료
         ActiveTotalDuration, false
@@ -86,8 +90,8 @@ bool UCFuryGaugeComponent::ActivateEffect()
     // UI 틱
     if (EffectUITickInterval > 0.f)
     {
-        GetWorld()->GetTimerManager().ClearTimer(TimerHandle_EffectUITick);
-        GetWorld()->GetTimerManager().SetTimer(
+        TimerManager.ClearTimer(TimerHandle_EffectUITick);
+        TimerManager.SetTimer(
             TimerHandle_EffectUITick,
             this, &UCFuryGaugeComponent::EffectUITick,
             EffectUITickInterval, true
@@ -106,7 +110,12 @@ bool UCFuryGaugeComponent::CancelEffect()
     const float Remain = GetEffectTimeRemaining();
     GetWorld()->GetTimerManager().ClearTimer(TimerHandle_EffectEnd);
     GetWorld()->GetTimerManager().ClearTimer(TimerHandle_EffectUITick);
-
+    if (UWorld* World = GetWorld())
+    {
+        FTimerManager& TimerManager = World->GetTimerManager();
+        TimerManager.ClearTimer(TimerHandle_EffectEnd);
+        TimerManager.ClearTimer(TimerHandle_EffectUITick);
+    }
     EndEffectInternal(true, Remain); // 취소 종료(10칸이면 즉시 피니시)
     OnEffectEnded.Broadcast(true, FMath::Max(0.f, Remain));
     return true;
@@ -134,11 +143,17 @@ void UCFuryGaugeComponent::EndEffectInternal(bool bCanceled, float /*CanceledRem
 
     if (TimerHandle_EffectEnd.IsValid())
     {
-        GetWorld()->GetTimerManager().ClearTimer(TimerHandle_EffectEnd);
+        if (UWorld* World = GetWorld())
+        {
+            World->GetTimerManager().ClearTimer(TimerHandle_EffectEnd);
+        }
     }
     if (TimerHandle_EffectUITick.IsValid())
     {
-        GetWorld()->GetTimerManager().ClearTimer(TimerHandle_EffectUITick);
+        if (UWorld* World = GetWorld())
+        {
+            World->GetTimerManager().ClearTimer(TimerHandle_EffectUITick);
+        }
     }
 
     if (!bCanceled)
