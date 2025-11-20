@@ -7,6 +7,7 @@
 #include "CEnemySpawnZone.h"
 #include "CStageManager.generated.h"
 
+class ACRiotRobotHordeTrigger;
 class ACPlayerCharacter;
 class ACEnemySpawnZone;
 class ACStageBarrier;
@@ -66,6 +67,7 @@ private:
 	void CollectBarriers();
 	void CollectCheckpoints();
 	void CollectBossBarrier();
+	void CollectHordeTriggers();
 
 	// ──────────── 스폰 로직 ────────────
 	// 분산 스폰 시작
@@ -110,6 +112,7 @@ private:
 	// ──────────── 데이터 저장 ────────────
 	TMap<int32, TArray<TObjectPtr<ACEnemySpawnZone>>> StageSpawnZones;
 	TMap<int32, TArray<TObjectPtr<ACEnemyCharacterBase>>> StageEnemies;
+	TMap<int32, TArray<TObjectPtr<ACRiotRobotHordeTrigger>>> StageHordeTriggers;
 
 	UPROPERTY(VisibleAnywhere, Category = "Stage|Info")
 	TMap<int32, TObjectPtr<ACStageBarrier>> StageBarriers;

@@ -37,6 +37,27 @@ ACRiotRobotHordeTrigger::ACRiotRobotHordeTrigger()
         RiotRobotClass = ACRiotRobot::StaticClass();
 }
 
+void ACRiotRobotHordeTrigger::DeactivateTrigger()
+{
+        if (TriggerBox)
+        {
+                TriggerBox->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+        }
+
+        if (SpawnTimerHandle.IsValid())
+        {
+                if (UWorld* World = GetWorld())
+                {
+                        World->GetTimerManager().ClearTimer(SpawnTimerHandle);
+                }
+        }
+
+        PendingSpawnInfos.Empty();
+        bHasTriggered = true;
+
+        CLog::Log(FString::Printf(TEXT("[CRiotRobotHordeTrigger::DeactivateTrigger] Trigger deactivated: %s"), *GetName()));
+}
+
 void ACRiotRobotHordeTrigger::BeginPlay()
 {
         Super::BeginPlay();
@@ -62,18 +83,6 @@ void ACRiotRobotHordeTrigger::BeginPlay()
         if (!ensureMsgf(MinSpawnCount <= MaxSpawnCount, TEXT("MinSpawnCount must be <= MaxSpawnCount")))
         {
                 MaxSpawnCount = MinSpawnCount;
-        }
-
-        if (UWorld* World = GetWorld())
-        {
-                if (AActor* FoundActor = UGameplayStatics::GetActorOfClass(World, ACStageManager::StaticClass()))
-                {
-                        CachedStageManager = Cast<ACStageManager>(FoundActor);
-                        if (!CachedStageManager)
-                        {
-                                CLog::Log(TEXT("[CRiotRobotHordeTrigger::BeginPlay] Failed to find StageManager!"));
-                        }
-                }
         }
 }
 
