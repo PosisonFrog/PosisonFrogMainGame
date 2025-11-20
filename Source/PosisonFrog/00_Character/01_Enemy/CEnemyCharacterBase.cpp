@@ -1180,6 +1180,24 @@ void ACEnemyCharacterBase::PlayRandomLaunchReaction()
 	}
 }
 
+void ACEnemyCharacterBase::PlaySlamImpactReaction()
+{
+	if (!SlamImpactReactionMontage)
+	{
+		CLog::Log(TEXT("SlamImpactReactionMontage가 설정되지 않았습니다."));
+		return;
+	}
+
+	if (USkeletalMeshComponent* MeshComp = GetMesh())
+	{
+		if (UAnimInstance* AnimInstance = MeshComp->GetAnimInstance())
+		{
+			AnimInstance->Montage_Play(SlamImpactReactionMontage, 1.0f);
+			CLog::Log(FString::Printf(TEXT("%s - 내려찍기 애니메이션 재생"), *GetName()));
+		}
+	}
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 전투(스윙 창 + 분할 스윕)
 // ─────────────────────────────────────────────────────────────────────────────

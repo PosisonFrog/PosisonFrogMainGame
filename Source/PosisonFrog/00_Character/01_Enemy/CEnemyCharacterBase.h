@@ -304,6 +304,10 @@ public:
     // 커맨드 공격으로 띄워질 때 랜덤 애니메이션 출력
     UFUNCTION(BlueprintCallable, Category="PF|LaunchReaction")
     void PlayRandomLaunchReaction();
+
+    // 커맨드 공격으로 내려찍힐 때 애니메이션 재생
+    UFUNCTION(BlueprintCallable, Category="PF|LaunchReaction")
+    void PlaySlamImpactReaction();
     
 protected:
     virtual void HandlePlayerRespawned(class ACPlayerCharacter* NewPlayer);
@@ -398,6 +402,10 @@ protected:
     // 커맨드 공격에 의해 띄워질 때 재생할 몽타주
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="PF|Animation|LaunchReaction")
     TArray<UAnimMontage*> LaunchReactionMontages;
+
+    // 커맨드 공격으로 내려찍힐 때 재생할 몽타주
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="PF|Animation|LaunchReaction")
+    UAnimMontage* SlamImpactReactionMontage = nullptr;
     
     UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "PF|Animation")
     int32 PlayerCurrentCombo = 0;
