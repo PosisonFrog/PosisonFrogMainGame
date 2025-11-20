@@ -10,7 +10,6 @@ class UCUltimateBuffComponent;
 class ACharacter;
 class ACHammer;
 class UAnimMontage;
-class UCHitStopComponent;
 
 // 플레이어 콤보 공격 히트 델리게이트
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnPlayerComboHit, AActor*, HitActor, int32, ComboIndex, float, Damage);
@@ -66,7 +65,17 @@ private:
     void SpawnHitEffect(AActor* HitActor, const FHitResult& HitInfo);
     bool CheckUltimateActive() const;
     FTransform CalculateEffectTransform(const FHitResult& HitInfo, const FVector& LocationOffset, const FRotator& RotationOffset) const;
- 
+
+    // ───────── 히트스톱 헬퍼 함수 ─────────
+    // 콤보별 히트스톱 파라미터 가져오기
+    bool GetComboHitStopParams(int32 ComboIndex, float& OutPlayerDuration, float& OutPlayerTimeScale, float& OutEnemyDuration, float& OutEnemyTimeScale) const;
+
+    // 히트스톱 적용 (애니메이션 정지 + 서브시스템 호출)
+    void ApplyComboHitStop(AActor* HitActor, float PlayerDuration, float PlayerTimeScale, float EnemyDuration, float EnemyTimeScale);
+    
+    // 애니메이션 일시정지 및 재개 예약
+    void PauseAndScheduleResumeAnimation(UAnimInstance* AnimInst, float ResumeDelay);
+    
 protected:
     // ───────── 콤보 설정 ─────────
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "PlayerMontages")
@@ -82,14 +91,53 @@ protected:
     TArray<float> ComboAttackRatio = {0.9f, 1.1f, 1.4f}; 
 
     // ───────── 히트 스톱 설정 ─────────
-    UPROPERTY(EditAnywhere, Category = "Attack|HitStop", meta = (ClampMin = "0.01", ClampMax = "1.0"))
-    float ThirdComboHitStopDuration = 0.3f;
+    // 1타 히트스톱
+    UPROPERTY(EditAnywhere, Category = "Attack|HitStop|Combo1")
+    bool bEnableFirstComboHitStop = true;
 
-    UPROPERTY(EditAnywhere, Category = "Attack|HitStop", meta = (ClampMin = "0.01", ClampMax = "1.0"))
-    float ThirdComboHitStopTimeScale = 0.01f;
+    UPROPERTY(EditAnywhere, Category = "Attack|HitStop|Combo1|Player", meta = (ClampMin = "0.01", ClampMax = "1.0"))
+    float FirstComboPlayerHitStopDuration = 0.08f;
 
-    UPROPERTY(EditAnywhere, Category = "Attack|HitStop")
-    bool bEnableHitStop = true;
+    UPROPERTY(EditAnywhere, Category = "Attack|HitStop|Combo1|Player", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+    float FirstComboPlayerHitStopTimeScale = 0.2f;
+
+    UPROPERTY(EditAnywhere, Category = "Attack|HitStop|Combo1|Enemy", meta = (ClampMin = "0.01", ClampMax = "1.0"))
+    float FirstComboEnemyHitStopDuration = 0.12f;
+
+    UPROPERTY(EditAnywhere, Category = "Attack|HitStop|Combo1|Enemy", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+    float FirstComboEnemyHitStopTimeScale = 0.1f;
+
+    // 2타 히트스톱
+    UPROPERTY(EditAnywhere, Category = "Attack|HitStop|Combo2")
+    bool bEnableSecondComboHitStop = true;
+
+    UPROPERTY(EditAnywhere, Category = "Attack|HitStop|Combo2|Player", meta = (ClampMin = "0.01", ClampMax = "1.0"))
+    float SecondComboPlayerHitStopDuration = 0.1f;
+
+    UPROPERTY(EditAnywhere, Category = "Attack|HitStop|Combo2|Player", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+    float SecondComboPlayerHitStopTimeScale = 0.15f;
+
+    UPROPERTY(EditAnywhere, Category = "Attack|HitStop|Combo2|Enemy", meta = (ClampMin = "0.01", ClampMax = "1.0"))
+    float SecondComboEnemyHitStopDuration = 0.15f;
+
+    UPROPERTY(EditAnywhere, Category = "Attack|HitStop|Combo2|Enemy", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+    float SecondComboEnemyHitStopTimeScale = 0.05f;
+
+    // 3타 히트스톱
+    UPROPERTY(EditAnywhere, Category = "Attack|HitStop|Combo3")
+    bool bEnableThirdComboHitStop = true;
+
+    UPROPERTY(EditAnywhere, Category = "Attack|HitStop|Combo3|Player", meta = (ClampMin = "0.01", ClampMax = "1.0"))
+    float ThirdComboPlayerHitStopDuration = 0.15f;
+
+    UPROPERTY(EditAnywhere, Category = "Attack|HitStop|Combo3|Player", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+    float ThirdComboPlayerHitStopTimeScale = 0.1f;
+
+    UPROPERTY(EditAnywhere, Category = "Attack|HitStop|Combo3|Enemy", meta = (ClampMin = "0.01", ClampMax = "1.0"))
+    float ThirdComboEnemyHitStopDuration = 0.3f;
+
+    UPROPERTY(EditAnywhere, Category = "Attack|HitStop|Combo3|Enemy", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+    float ThirdComboEnemyHitStopTimeScale = 0.01f;
     
     // ───────── 궁극기 게이지 ─────────
     UPROPERTY(EditAnywhere, Category = "Ultimate|State")
@@ -116,16 +164,16 @@ protected:
     // ───────── 넉백 설정 ─────────
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Attack|Knockback")
     bool bEnableHitKnockback = true;
-   
+
+    // 각 콤보별 수평 넉백 강도 (1타, 2타, 3타)
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Attack|Knockback", meta = (ClampMin = "0.0"))
-    float HitKnockbackStrength = 650.f;
-   
+    TArray<float> HitKnockbackStrengths = { 500.0f, 650.0f, 800.0f };
+
+    // 각 콤보별 수직 넉백 강도 (1타, 2타, 3타)
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Attack|Knockback", meta = (ClampMin = "0.0"))
-    float HitKnockbackUpStrength = 120.f;
+    TArray<float> HitKnockbackUpStrengths = { 100.0f, 120.0f, 150.0f };
     
 private:
-    UPROPERTY() UCHitStopComponent* HitStopComponent = nullptr;
-    
     // 매번 Cast 연산을 피하기 위한 캐싱된 해머 포인터
     UPROPERTY() ACHammer* CurrentHammer = nullptr;
     

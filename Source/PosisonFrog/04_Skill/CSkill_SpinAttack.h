@@ -11,7 +11,6 @@ class UAnimMontage;
 class USoundBase;
 class UParticleSystem;
 class UCameraShakeBase;
-class UCHitStopComponent;
 
 /**
  * 홀드형 회전 공격 스킬
@@ -60,6 +59,13 @@ private:
     // 이펙트 관리
     void StartSpinEffect();
     void StopSpinEffect();
+
+    // ───────── 히트스톱 헬퍼 함수 ─────────
+    // 스핀 틱 히트스톱 적용
+    void ApplySpinTickHitStop(const TArray<AActor*>& Targets);
+    
+    // 피니셔 히트스톱 적용
+    void ApplyFinisherHitStop(const TArray<AActor*>& Targets);
 
 protected:
     // ───────── 스핀 파라미터 ─────────
@@ -112,7 +118,7 @@ protected:
     UPROPERTY(EditDefaultsOnly, Category="Finisher|Anim")
     UAnimMontage* HammerFinisherMontage = nullptr;
     
-    /** 내려찍기 낙하→충격 타이밍(초). 몽타주를 사용하지 않으면 이 시간 뒤에 피해 발생 */
+    // 내려찍기 낙하→충격 타이밍(초). 몽타주를 사용하지 않으면 이 시간 뒤에 피해 발생
     UPROPERTY(EditDefaultsOnly, Category="Finisher|Anim", meta=(ClampMin="0"))
     float FinisherImpactDelay = 0.35f;
 
@@ -133,15 +139,45 @@ protected:
     UPROPERTY(EditDefaultsOnly, Category="Finisher|FX")
     TSubclassOf<UCameraShakeBase> FinisherCameraShake;
 
-    // 히트 스톱
-    UPROPERTY(EditAnywhere, Category = "Attack|HitStop", meta = (ClampMin = "0.01", ClampMax = "1.0"))
-    float FinisherHitStopDuration = 0.16f;
+    // ───────── 스핀 틱 히트 스톱 (홀드 중) ─────────
+    UPROPERTY(EditAnywhere, Category = "Spin|HitStop")
+    bool bEnableSpinTickHitStop = false;  // 기본값 false (매 틱마다 히트스톱은 과할 수 있음)
 
-    UPROPERTY(EditAnywhere, Category = "Attack|HitStop", meta = (ClampMin = "0.01", ClampMax = "1.0"))
-    float FinisherHitStopTimeScale = 0.03f;
+    // 플레이어 히트스톱 설정
+    UPROPERTY(EditAnywhere, Category = "Spin|HitStop|Player", meta = (ClampMin = "0.01", ClampMax = "0.5"))
+    float SpinTickPlayerHitStopDuration = 0.05f;
 
-    UPROPERTY(EditAnywhere, Category = "Attack|HitStop")
+    UPROPERTY(EditAnywhere, Category = "Spin|HitStop|Player", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+    float SpinTickPlayerHitStopTimeScale = 0.3f;
+
+    // 적 히트스톱 설정
+    UPROPERTY(EditAnywhere, Category = "Spin|HitStop|Enemy", meta = (ClampMin = "0.01", ClampMax = "0.5"))
+    float SpinTickEnemyHitStopDuration = 0.08f;
+
+    UPROPERTY(EditAnywhere, Category = "Spin|HitStop|Enemy", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+    float SpinTickEnemyHitStopTimeScale = 0.2f;
+
+    // 히트스톱 적용 간격 (틱마다 적용하면 과하므로)
+    UPROPERTY(EditAnywhere, Category = "Spin|HitStop", meta = (ClampMin = "0.1", ClampMax = "1.0"))
+    float SpinHitStopInterval = 0.2f;
+    
+    // ───────── 피니셔 히트 스톱 ─────────
+    UPROPERTY(EditAnywhere, Category = "Finisher|HitStop")
     bool bEnableHitStop = true;
+
+    // 플레이어 히트스톱 설정
+    UPROPERTY(EditAnywhere, Category = "Finisher|HitStop|Player", meta = (ClampMin = "0.01", ClampMax = "1.0"))
+    float FinisherPlayerHitStopDuration = 0.12f;
+
+    UPROPERTY(EditAnywhere, Category = "Finisher|HitStop|Player", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+    float FinisherPlayerHitStopTimeScale = 0.1f;
+
+    // 적 히트스톱 설정
+    UPROPERTY(EditAnywhere, Category = "Finisher|HitStop|Enemy", meta = (ClampMin = "0.01", ClampMax = "1.0"))
+    float FinisherEnemyHitStopDuration = 0.16f;
+
+    UPROPERTY(EditAnywhere, Category = "Finisher|HitStop|Enemy", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+    float FinisherEnemyHitStopTimeScale = 0.03f;
 
     // 피니셔 넉백
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Finisher|Knockback")
@@ -153,8 +189,6 @@ protected:
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Finisher|Knockback", meta = (ClampMin = "0.0"))
     float FinisherKnockbackUpStrength = 400.f;
 
-    UPROPERTY() UCHitStopComponent* HitStopComponent = nullptr;
-
 private:
     // 현재 재생 중인 스핀 이펙트 컴포넌트
     UPROPERTY() UNiagaraComponent* ActiveSpinVFXComponent = nullptr;
@@ -163,6 +197,7 @@ private:
     
     FTimerHandle TimerHandle_SpinTick;
     float        LastTickTime = 0.f;
+    float        LastHitStopTime = 0.f;
     bool         bFuryActiveSnapshot = false;
     
     // 피니시 임시 저장

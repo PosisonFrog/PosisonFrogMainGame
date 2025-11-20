@@ -18,6 +18,7 @@
 #include "GameFramework/DamageType.h"
 #include "NiagaraComponent.h"
 #include "NiagaraFunctionLibrary.h"
+#include "00_Character/00_Player/CHitStopSubsystem.h"
 #include "00_Character/02_Component/CHitStopComponent.h"
 #include "00_Character/02_Component/00_PlayerComponent/CUltimateBuffComponent.h"
 
@@ -36,8 +37,6 @@ UCSkill_SpinAttack::UCSkill_SpinAttack()
         DamageTypeClass = UDamageType::StaticClass();
     if (!FinisherDamageTypeClass)
         FinisherDamageTypeClass = UDamageType::StaticClass();
-
-    HitStopComponent = CreateDefaultSubobject<UCHitStopComponent>(TEXT("HitStopComponent"));
 }
 
 void UCSkill_SpinAttack::TryStartSpin()
@@ -77,6 +76,9 @@ bool UCSkill_SpinAttack::DoActivate()
 
     // 발동 시점 Fury 스냅샷(원하시면 OnFuryStarted/Ended에서 동적 갱신)
     bFuryActiveSnapshot = (FuryRef && FuryRef->IsEffectActive());
+
+    // 히트스톱 시간 초기화
+    LastHitStopTime = 0.f;
 
     if (ACPlayerCharacter* PlayerChar = Cast<ACPlayerCharacter>(OwnerChar))
     {
@@ -228,6 +230,8 @@ void UCSkill_SpinAttack::SpinTick()
     {
         ApplyDamageTo(T, DamageThisTick, DamageTypeClass);
     }
+
+    ApplySpinTickHitStop(Targets);
 }
 
 void UCSkill_SpinAttack::CollectTargetsInRadius(TArray<AActor*>& OutTargets, float Radius) const
@@ -353,83 +357,7 @@ void UCSkill_SpinAttack::DoFinisherImpact()
             FinisherDamageTypeClass);
     }
 
-    if (bEnableHitStop && IsValid(HitStopComponent) && Targets.Num() > 0)
-    {
-        TArray<AActor*> HitStopTargets;
-        HitStopTargets.Add(Owner);
-        HitStopTargets.Append(Targets);
-
-        if (ACPlayerCharacter* PlayerChar = Cast<ACPlayerCharacter>(Owner))
-        {
-            if (UCPlayerWeaponComponent* WeaponComp = PlayerChar->FindComponentByClass<UCPlayerWeaponComponent>())
-            {
-                if (ACHammer* Hammer = WeaponComp->GetHammer())
-                    HitStopTargets.Add(Hammer);
-            }
-
-            // 플레이어 및 해머 애니메이션 명시적 정지
-            if (PlayerChar->GetMesh())
-            {
-                if (UAnimInstance* PlayerAnimInst = PlayerChar->GetMesh()->GetAnimInstance())
-                {
-                    if (UAnimMontage* CurrentMontage = PlayerAnimInst->GetCurrentActiveMontage())
-                    {
-                        PlayerAnimInst->Montage_Pause(CurrentMontage);
-                        
-                        FTimerHandle ResumeTimer;
-                        GetWorld()->GetTimerManager().SetTimer(
-                            ResumeTimer,
-                            [PlayerAnimInst, CurrentMontage]()
-                            {
-                                if (IsValid(PlayerAnimInst) && IsValid(CurrentMontage))
-                                {
-                                    PlayerAnimInst->Montage_Resume(CurrentMontage);
-                                }
-                            },
-                            FinisherHitStopDuration,
-                            false
-                        );
-                    }
-                }
-            }
-
-            if (UCPlayerWeaponComponent* WeaponComp = PlayerChar->FindComponentByClass<UCPlayerWeaponComponent>())
-            {
-                if (ACHammer* Hammer = WeaponComp->GetHammer())
-                {
-                    if (Hammer->GetHammerMesh())
-                    {
-                        if (UAnimInstance* HammerAnimInst = Hammer->GetHammerMesh()->GetAnimInstance())
-                        {
-                            if (UAnimMontage* CurrentMontage = HammerAnimInst->GetCurrentActiveMontage())
-                            {
-                                HammerAnimInst->Montage_Pause(CurrentMontage);
-                                
-                                FTimerHandle ResumeTimer;
-                                GetWorld()->GetTimerManager().SetTimer(
-                                    ResumeTimer,
-                                    [HammerAnimInst, CurrentMontage]()
-                                    {
-                                        if (IsValid(HammerAnimInst) && IsValid(CurrentMontage))
-                                        {
-                                            HammerAnimInst->Montage_Resume(CurrentMontage);
-                                        }
-                                    },
-                                    FinisherHitStopDuration,
-                                    false
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        HitStopComponent->StartMultipleHitStop(
-            HitStopTargets,
-            FinisherHitStopDuration,
-            FinisherHitStopTimeScale);
-    }
+    ApplyFinisherHitStop(Targets);
 
     // 피니셔 넉백: 플레이어 정면 방향으로 적들을 Launch
     if (bEnableFinisherKnockback && FinisherKnockbackStrength > 0.f && Targets.Num() > 0)
@@ -464,7 +392,7 @@ void UCSkill_SpinAttack::DoFinisherImpact()
             GetWorld()->GetTimerManager().SetTimer(
                 KnockbackTimer,
                 KnockbackDelegate,
-                FinisherHitStopDuration,
+                FinisherPlayerHitStopDuration,
                 false
             );
         }
@@ -528,5 +456,79 @@ void UCSkill_SpinAttack::StopSpinEffect()
         ActiveSpinVFXComponent = nullptr;
         
         CLog::Log(TEXT("스핀 이펙트 중지"));
+    }
+}
+
+void UCSkill_SpinAttack::ApplySpinTickHitStop(const TArray<AActor*>& Targets)
+{
+    if (!bEnableSpinTickHitStop || Targets.Num() == 0)
+        return;
+
+    AActor* Owner = GetOwner();
+    if (!Owner)
+        return;
+
+    const float Now = GetWorld()->GetTimeSeconds();
+    const float TimeSinceLastHitStop = Now - LastHitStopTime;
+    
+    if (TimeSinceLastHitStop < SpinHitStopInterval)
+        return;
+
+    LastHitStopTime = Now;
+
+    if (UGameInstance* GameInst = GetWorld()->GetGameInstance())
+    {
+        if (UCHitStopSubsystem* HitStopSys = GameInst->GetSubsystem<UCHitStopSubsystem>())
+        {
+            // 플레이어 히트스톱
+            HitStopSys->StartHitStop(
+                Owner,
+                SpinTickPlayerHitStopDuration,
+                SpinTickPlayerHitStopTimeScale
+            );
+
+            // 적들에게 히트스톱
+            for (AActor* T : Targets)
+            {
+                HitStopSys->StartHitStop(
+                    T,
+                    SpinTickEnemyHitStopDuration,
+                    SpinTickEnemyHitStopTimeScale
+                );
+            }
+        }
+    }
+}
+
+void UCSkill_SpinAttack::ApplyFinisherHitStop(const TArray<AActor*>& Targets)
+{
+    if (!bEnableHitStop || Targets.Num() == 0)
+        return;
+
+    AActor* Owner = GetOwner();
+    if (!Owner)
+        return;
+
+    if (UGameInstance* GameInst = GetWorld()->GetGameInstance())
+    {
+        if (UCHitStopSubsystem* HitStopSys = GameInst->GetSubsystem<UCHitStopSubsystem>())
+        {
+            // 플레이어 히트스톱
+            HitStopSys->StartHitStop(
+                Owner,
+                FinisherPlayerHitStopDuration,
+                FinisherPlayerHitStopTimeScale
+            );
+
+            // 적들에게 히트스톱
+            for (AActor* T : Targets)
+            {
+                HitStopSys->StartHitStop(
+                    T,
+                    FinisherEnemyHitStopDuration,
+                    FinisherEnemyHitStopTimeScale
+                );
+            }
+        }
     }
 }

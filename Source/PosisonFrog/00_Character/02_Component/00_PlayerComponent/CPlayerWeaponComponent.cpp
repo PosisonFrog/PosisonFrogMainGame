@@ -10,6 +10,7 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "Animation/AnimInstance.h"
 #include "TimerManager.h"
+#include "00_Character/00_Player/CHitStopSubsystem.h"
 #include "00_Character/02_Component/CHitStopComponent.h"
 #include "Engine/World.h"
 #include "99_Util/CLog.h"
@@ -21,8 +22,6 @@ class IBuffable;
 UCPlayerWeaponComponent::UCPlayerWeaponComponent()
 {
     AttachSocketName = TEXT("Hand_Hammer");
-
-    HitStopComponent = CreateDefaultSubobject<UCHitStopComponent>(TEXT("HitStopComponent"));
 }
 
 void UCPlayerWeaponComponent::SpawnWeapon()
@@ -114,120 +113,68 @@ void UCPlayerWeaponComponent::HandleWeaponHit(AActor* InstigatorActor, AActor* H
 
     SpawnHitEffect(HitActor, Hit);
 
-    if (bEnableHitStop && IsValid(HitStopComponent) && CurrentCombo == 2 && !bHitStopTriggeredThisCombo)
+    float PlayerDuration = 0.f;
+    float PlayerTimeScale = 0.f;
+    float EnemyDuration = 0.f;
+    float EnemyTimeScale = 0.f;
+    // 콤보 인덱스에 따라 히트스톱 설정 선택
+    if (GetComboHitStopParams(CurrentCombo, PlayerDuration, PlayerTimeScale, EnemyDuration, EnemyTimeScale))
     {
-        bHitStopTriggeredThisCombo = true;
-        
-        TArray<AActor*> HitStopTargets;
-        
-        if (OwnerChar.IsValid())
-            HitStopTargets.Add(OwnerChar.Get());
-        if (IsValid(HitActor))
-            HitStopTargets.Add(HitActor);
-        if (IsValid(CurrentWeapon))
-            HitStopTargets.Add(CurrentWeapon);
-
-        // 플레이어 애니메이션 명시적 정지
-        if (OwnerChar.IsValid() && OwnerChar->GetMesh())
-        {
-            UAnimInstance* PlayerAnimInst = OwnerChar->GetMesh()->GetAnimInstance();
-            if (PlayerAnimInst)
-            {
-                if (UAnimMontage* CurrentMontage = PlayerAnimInst->GetCurrentActiveMontage())
-                {
-                    PlayerAnimInst->Montage_Pause(CurrentMontage);
-                    
-                    // 히트스톱 종료 후 재개
-                    FTimerHandle ResumeTimer;
-                    GetWorld()->GetTimerManager().SetTimer(
-                        ResumeTimer,
-                        [PlayerAnimInst, CurrentMontage]()
-                        {
-                            if (IsValid(PlayerAnimInst) && IsValid(CurrentMontage))
-                            {
-                                PlayerAnimInst->Montage_Resume(CurrentMontage);
-                            }
-                        },
-                        ThirdComboHitStopDuration,
-                        false
-                    );
-                }
-            }
-        }
-
-        // 해머 애니메이션 명시적 정지
-        ACHammer* Hammer = GetHammer();
-        if (IsValid(Hammer) && Hammer->GetHammerMesh())
-        {
-            UAnimInstance* HammerAnimInst = Hammer->GetHammerMesh()->GetAnimInstance();
-            if (HammerAnimInst)
-            {
-                // 현재 재생 중인 몽타주 일시정지
-                if (UAnimMontage* CurrentMontage = HammerAnimInst->GetCurrentActiveMontage())
-                {
-                    HammerAnimInst->Montage_Pause(CurrentMontage);
-                    
-                    // 히트스톱 종료 후 재개하기 위한 타이머
-                    FTimerHandle ResumeTimer;
-                    GetWorld()->GetTimerManager().SetTimer(
-                        ResumeTimer,
-                        [HammerAnimInst, CurrentMontage]()
-                        {
-                            if (IsValid(HammerAnimInst) && IsValid(CurrentMontage))
-                            {
-                                HammerAnimInst->Montage_Resume(CurrentMontage);
-                            }
-                        },
-                        ThirdComboHitStopDuration,
-                        false
-                    );
-                }
-            }
-        }
-
-        HitStopComponent->StartMultipleHitStop(
-            HitStopTargets,
-            ThirdComboHitStopDuration,
-            ThirdComboHitStopTimeScale);
+        ApplyComboHitStop(HitActor, PlayerDuration, PlayerTimeScale, EnemyDuration, EnemyTimeScale);
     }
     
-    if (bEnableHitKnockback && HitKnockbackStrength > 0.f)
+    if (bEnableHitKnockback)
     {
-        if (ACharacter* HitCharacter = Cast<ACharacter>(HitActor))
+        // 배열 범위 체크 - 범위를 벗어나면 마지막 값 사용
+        const int32 KnockbackIndex = FMath::Min(CurrentCombo, HitKnockbackStrengths.Num() - 1);
+        const float CurrentKnockbackStrength = HitKnockbackStrengths.IsValidIndex(KnockbackIndex) 
+            ? HitKnockbackStrengths[KnockbackIndex] 
+            : 650.f; // 기본값
+            
+        const float CurrentKnockbackUpStrength = HitKnockbackUpStrengths.IsValidIndex(KnockbackIndex)
+            ? HitKnockbackUpStrengths[KnockbackIndex]
+            : 120.f; // 기본값
+        
+        // 넉백 강도 체크 수정
+        if (CurrentKnockbackStrength > 0.f)
         {
-            if (HitCharacter->FindComponentByClass<UCEnemyHealthComponent>())
+            if (ACharacter* HitCharacter = Cast<ACharacter>(HitActor))
             {
-                FVector KnockDirection = FVector::ZeroVector;
-            
-                // 적 캡슐 컴포넌트 중심 위치 가져오기
-                UCapsuleComponent* HitCapsule = HitCharacter->GetCapsuleComponent();
-                if (HitCapsule && OwnerChar.IsValid())
+                if (HitCharacter->FindComponentByClass<UCEnemyHealthComponent>())
                 {
-                    // 플레이어 → 적 캡슐 중심 방향
-                    FVector PlayerLoc = OwnerChar->GetActorLocation();
-                    FVector EnemyLoc = HitCapsule->GetComponentLocation();
+                    FVector KnockDirection = FVector::ZeroVector;
                 
-                    KnockDirection = (EnemyLoc - PlayerLoc);
-                    KnockDirection.Z = 0.f;  // 수평 방향만
-                    KnockDirection.Normalize();
-                }
-            
-                // 예외 처리: 방향 계산 실패 시 폴백
-                if (KnockDirection.IsNearlyZero())
-                {
-                    KnockDirection = HitCharacter->GetActorForwardVector();
-                    KnockDirection.Z = 0.f;
-                }
-            
-                if (!KnockDirection.IsNearlyZero())
-                {
-                    FVector LaunchVelocity = KnockDirection * HitKnockbackStrength;
-                    if (HitKnockbackUpStrength > 0.f)
+                    // 적 캡슐 컴포넌트 중심 위치 가져오기
+                    UCapsuleComponent* HitCapsule = HitCharacter->GetCapsuleComponent();
+                    if (HitCapsule && OwnerChar.IsValid())
                     {
-                        LaunchVelocity.Z += HitKnockbackUpStrength;
+                        // 플레이어 → 적 캡슐 중심 방향
+                        FVector PlayerLoc = OwnerChar->GetActorLocation();
+                        FVector EnemyLoc = HitCapsule->GetComponentLocation();
+                    
+                        KnockDirection = (EnemyLoc - PlayerLoc);
+                        KnockDirection.Z = 0.f;  // 수평 방향만
+                        KnockDirection.Normalize();
                     }
                 
-                    HitCharacter->LaunchCharacter(LaunchVelocity, true, HitKnockbackUpStrength > 0.f);
+                    // 예외 처리: 방향 계산 실패 시 폴백
+                    if (KnockDirection.IsNearlyZero())
+                    {
+                        KnockDirection = HitCharacter->GetActorForwardVector();
+                        KnockDirection.Z = 0.f;
+                    }
+                
+                    if (!KnockDirection.IsNearlyZero())
+                    {
+                        // 콤보별 넉백 강도 사용
+                        FVector LaunchVelocity = KnockDirection * CurrentKnockbackStrength;
+                        if (CurrentKnockbackUpStrength > 0.f)
+                        {
+                            LaunchVelocity.Z += CurrentKnockbackUpStrength;
+                        }
+                    
+                        HitCharacter->LaunchCharacter(LaunchVelocity, true, CurrentKnockbackUpStrength > 0.f);
+                    }
                 }
             }
         }
@@ -472,6 +419,111 @@ FTransform UCPlayerWeaponComponent::CalculateEffectTransform(const FHitResult& H
     FRotator SpawnRotation = HitInfo.ImpactNormal.Rotation() + RotationOffset;
 
     return FTransform(SpawnRotation, SpawnLocation);
+}
+
+bool UCPlayerWeaponComponent::GetComboHitStopParams(int32 ComboIndex, float& OutPlayerDuration,
+    float& OutPlayerTimeScale, float& OutEnemyDuration, float& OutEnemyTimeScale) const
+{
+    switch (ComboIndex)
+    {
+    case 0:
+        if (!bEnableFirstComboHitStop) return false;
+        OutPlayerDuration = FirstComboPlayerHitStopDuration;
+        OutPlayerTimeScale = FirstComboPlayerHitStopTimeScale;
+        OutEnemyDuration = FirstComboEnemyHitStopDuration;
+        OutEnemyTimeScale = FirstComboEnemyHitStopTimeScale;
+        return true;
+        
+    case 1:
+        if (!bEnableSecondComboHitStop) return false;
+        OutPlayerDuration = SecondComboPlayerHitStopDuration;
+        OutPlayerTimeScale = SecondComboPlayerHitStopTimeScale;
+        OutEnemyDuration = SecondComboEnemyHitStopDuration;
+        OutEnemyTimeScale = SecondComboEnemyHitStopTimeScale;
+        return true;
+        
+    case 2:
+        if (!bEnableThirdComboHitStop) return false;
+        OutPlayerDuration = ThirdComboPlayerHitStopDuration;
+        OutPlayerTimeScale = ThirdComboPlayerHitStopTimeScale;
+        OutEnemyDuration = ThirdComboEnemyHitStopDuration;
+        OutEnemyTimeScale = ThirdComboEnemyHitStopTimeScale;
+        return true;
+        
+    default:
+        return false;
+    }
+}
+
+void UCPlayerWeaponComponent::ApplyComboHitStop(AActor* HitActor, float PlayerDuration, float PlayerTimeScale,
+    float EnemyDuration, float EnemyTimeScale)
+{
+    if (!bHitStopTriggeredThisCombo)
+    {
+        bHitStopTriggeredThisCombo = true;
+        
+        if (UGameInstance* GameInst = GetWorld()->GetGameInstance())
+        {
+            if (UCHitStopSubsystem* HitStopSys = GameInst->GetSubsystem<UCHitStopSubsystem>())
+            {
+                // 플레이어 애니메이션 정지
+                if (OwnerChar.IsValid() && OwnerChar->GetMesh())
+                {
+                    if (UAnimInstance* PlayerAnimInst = OwnerChar->GetMesh()->GetAnimInstance())
+                    {
+                        PauseAndScheduleResumeAnimation(PlayerAnimInst, PlayerDuration);
+                    }
+                }
+
+                // 해머 애니메이션 정지
+                ACHammer* Hammer = GetHammer();
+                if (IsValid(Hammer) && Hammer->GetHammerMesh())
+                {
+                    if (UAnimInstance* HammerAnimInst = Hammer->GetHammerMesh()->GetAnimInstance())
+                    {
+                        PauseAndScheduleResumeAnimation(HammerAnimInst, PlayerDuration);
+                    }
+                }
+
+                // 히트스톱 적용
+                HitStopSys->StartPlayerAndEnemyHitStop(
+                    OwnerChar.Get(), HitActor,
+                    PlayerDuration, PlayerTimeScale,
+                    EnemyDuration, EnemyTimeScale
+                );
+
+                // 해머도 플레이어와 동일한 히트스톱
+                if (IsValid(CurrentWeapon))
+                {
+                    HitStopSys->StartHitStop(CurrentWeapon, PlayerDuration, PlayerTimeScale);
+                }
+            }
+        }
+    }
+}
+
+void UCPlayerWeaponComponent::PauseAndScheduleResumeAnimation(UAnimInstance* AnimInst, float ResumeDelay)
+{
+    if (!AnimInst) return;
+    
+    if (UAnimMontage* CurrentMontage = AnimInst->GetCurrentActiveMontage())
+    {
+        AnimInst->Montage_Pause(CurrentMontage);
+        
+        FTimerHandle ResumeTimer;
+        GetWorld()->GetTimerManager().SetTimer(
+            ResumeTimer,
+            [AnimInst, CurrentMontage]()
+            {
+                if (IsValid(AnimInst) && IsValid(CurrentMontage))
+                {
+                    AnimInst->Montage_Resume(CurrentMontage);
+                }
+            },
+            ResumeDelay,
+            false
+        );
+    }
 }
 
 /* ============ 상태기/노티에서 호출 ============ */

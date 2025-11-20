@@ -23,6 +23,11 @@ class POSISONFROG_API ACRiotRobotHordeTrigger : public AActor
 public:
         ACRiotRobotHordeTrigger();
 
+        void DeactivateTrigger();
+        bool HasTriggered() const { return bHasTriggered; }
+        int32 GetStageID() const { return StageID; }
+        void SetStageManager(ACStageManager* Manager) { CachedStageManager = Manager; }
+
 protected:
         virtual void BeginPlay() override;
         virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -115,8 +120,6 @@ private:
         TArray<FSpawnTransformInfo> PendingSpawnInfos;
         TArray<TWeakObjectPtr<ACEnemyCharacterBase>> SpawnedEnemies;
 
-        FTimerHandle SpawnTimerHandle;
-
-        UPROPERTY(EditAnywhere, Category = "StageManager")
         TObjectPtr<ACStageManager> CachedStageManager;
+        FTimerHandle SpawnTimerHandle;
 };

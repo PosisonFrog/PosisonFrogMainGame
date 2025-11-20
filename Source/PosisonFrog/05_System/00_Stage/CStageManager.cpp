@@ -18,6 +18,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Navigation/PathFollowingComponent.h"
 #include "TimerManager.h"
+#include "00_Character/01_Enemy/CRiotRobotHordeTrigger.h"
 
 ACStageManager::ACStageManager()
 {
@@ -33,6 +34,7 @@ void ACStageManager::BeginPlay()
 	CollectBarriers();
 	CollectCheckpoints();
 	CollectBossBarrier();
+	CollectHordeTriggers();
 
 	if (UGameInstance* GameInstance = GetGameInstance())
 	{
@@ -107,10 +109,28 @@ void ACStageManager::CheckStageComplete(int32 StageID)
 {
 	int32 Remaining = GetRemainingEnemies(StageID);
 
-	if (Remaining == 0)
+	if (Remaining > 0)
 	{
-		OnStageComplete(StageID);
+		return;
 	}
+
+	if (auto* Triggers = StageHordeTriggers.Find(StageID))
+	{
+		for (const TObjectPtr<ACRiotRobotHordeTrigger>& Trigger : *Triggers)
+		{
+			if (IsValid(Trigger.Get()) && !Trigger->HasTriggered())
+			{
+				if (bEnableDebugLogs)
+				{
+					CLog::Log(FString::Printf(TEXT("[ACStageManager::CheckStageComplete] Stage %d - HordeTrigger not activated yet: %s"), 
+						StageID, *Trigger->GetName()));
+				}
+				return;  // 작동 안된 트리거가 있으면 클리어 불가
+			}
+		}
+	}
+	
+	OnStageComplete(StageID);
 }
 
 void ACStageManager::PrepareForRespawn(int32 TargetStageID)
@@ -927,6 +947,19 @@ void ACStageManager::OnStageComplete(int32 StageID)
 	// 핵심 변경: 보스 배리어 체크 추가
 	CLog::Log(TEXT("[StageManager] 4단계: OpenBossBarrier 호출 중 (보스 배리어)"));
 	OpenBossBarrier(StageID);
+
+	CLog::Log(TEXT("[StageManager] 4.5단계: HordeTrigger 비활성화"));
+	if (auto* Triggers = StageHordeTriggers.Find(StageID))
+	{
+		for (TObjectPtr<ACRiotRobotHordeTrigger>& Trigger : *Triggers)
+		{
+			if (IsValid(Trigger.Get()))
+			{
+				Trigger->DeactivateTrigger();
+				CLog::Log(FString::Printf(TEXT("[StageManager] HordeTrigger 비활성화: %s"), *Trigger->GetName()));
+			}
+		}
+	}
 	
 	CLog::Log(TEXT("[StageManager] 5단계: OnStageCleared 델리게이트 브로드캐스트 중"));
 	CLog::Log(FString::Printf(TEXT("[StageManager] OnStageCleared 구독자 있음? %s"), OnStageCleared.IsBound() ? TEXT("Yes") : TEXT("No")));
@@ -1069,6 +1102,41 @@ void ACStageManager::CollectBossBarrier()
 			break;
 		}
 	}
+}
+
+void ACStageManager::CollectHordeTriggers()
+{
+	if (!GetWorld())
+		return;
+
+	TArray<AActor*> FoundActors;
+	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACRiotRobotHordeTrigger::StaticClass(), FoundActors);
+
+	if (FoundActors.Num() == 0)
+	{
+		if (bEnableDebugLogs)
+			CLog::Log(TEXT("[StageManager] CollectHordeTriggers: HordeTrigger가 존재하지 않음"));
+		return;
+	}
+
+	for (AActor* Actor : FoundActors)
+	{
+		ACRiotRobotHordeTrigger* Trigger = Cast<ACRiotRobotHordeTrigger>(Actor);
+		if (!IsValid(Trigger))
+		{
+			CLog::Log(FString::Printf(TEXT("[StageManager] CollectHordeTriggers: Invalid HordeTrigger: %s"), *Actor->GetName()));
+			continue;
+		}
+
+		int32 StageID = Trigger->GetStageID();
+		StageHordeTriggers.FindOrAdd(StageID).Add(Trigger);
+		Trigger->SetStageManager(this);  // StageManager 참조 설정
+
+		CLog::Log(FString::Printf(TEXT("[StageManager] CollectHordeTriggers: Stage %d - HordeTrigger registered: %s"), 
+			StageID, *Trigger->GetName()));
+	}
+
+	CLog::Log(FString::Printf(TEXT("[StageManager] CollectHordeTriggers: 총 %d개의 HordeTrigger 수집 완료"), FoundActors.Num()));
 }
 
 void ACStageManager::OnEnemyDied(AActor* DeadActor)
