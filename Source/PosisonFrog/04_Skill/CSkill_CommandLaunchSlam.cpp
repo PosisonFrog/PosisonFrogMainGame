@@ -232,7 +232,7 @@ void UCSkill_CommandLaunchSlam::Anim_PerformLaunch()
         if (!IsLaunchableEnemy(C)) continue; // 탱커/보스 면역
         C->LaunchCharacter(FVector(0,0,EnemyLaunchZ), true, true);
 
-        // 띄워질 때 랜덤 애니메이션 재생
+        // 적 띄워질 때 랜덤 애니메이션 재생
         if (ACEnemyCharacterBase* Enemy = Cast<ACEnemyCharacterBase>(C))
         {
             Enemy->PlayRandomLaunchReaction();
@@ -410,10 +410,6 @@ bool UCSkill_CommandLaunchSlam::IsOnGroundNow() const
     return GetWorld()->LineTraceSingleByChannel(Hit, S, E, ECC_Visibility, P) && Hit.bBlockingHit;
 }
 
-
-
-
-
 void UCSkill_CommandLaunchSlam::DoShockwaveImpact()
 {
     if (!OwnerChar.IsValid()) return;
@@ -437,6 +433,12 @@ void UCSkill_CommandLaunchSlam::DoShockwaveImpact()
         if (!C || C == OwnerChar.Get()) continue;
         if (!C->IsA(ACEnemyCharacterBase::StaticClass())) continue;
 
+        // 적 내려찍힐 때 애니메이션 재생
+        if (ACEnemyCharacterBase* Enemy = Cast<ACEnemyCharacterBase>(C))
+        {
+            Enemy->PlaySlamImpactReaction();
+        }
+        
         if (!ShockwaveDamageType)
             ShockwaveDamageType = UDamageType::StaticClass();
         
