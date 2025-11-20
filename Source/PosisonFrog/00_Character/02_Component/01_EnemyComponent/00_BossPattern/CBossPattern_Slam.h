@@ -20,13 +20,14 @@ class POSISONFROG_API UCBossPattern_Slam : public UCBossPatternBase
 public:
 	UCBossPattern_Slam();
 
-	virtual void ExecutePattern(int32 PhaseIndex, const FBossPatternDefinition& PatternData) override;
+	virtual bool ExecutePattern(int32 PhaseIndex, const FBossPatternDefinition& PatternData) override;
 	virtual void OnPatternEnd() override;
 	virtual void Cleanup() override;
 
 private:
 	void FinishSlam();
 	void PlayImpactEffectsAndDamage();
+	void ClearTimers();
 
 protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Slam")
@@ -53,4 +54,5 @@ protected:
 private:
 	FBossPatternDefinition CurrentPatternData;
 	FTimerHandle TH_Finish;
+	FTimerHandle TH_ImpactEffect;
 };

@@ -14,7 +14,7 @@ UCBossPattern_Barrage::UCBossPattern_Barrage()
 	PrimaryComponentTick.bCanEverTick = false;
 }
 
-void UCBossPattern_Barrage::ExecutePattern(int32 PhaseIndex, const FBossPatternDefinition& PatternData)
+bool UCBossPattern_Barrage::ExecutePattern(int32 PhaseIndex, const FBossPatternDefinition& PatternData)
 {
 	Super::ExecutePattern(PhaseIndex, PatternData);
 
@@ -25,7 +25,7 @@ void UCBossPattern_Barrage::ExecutePattern(int32 PhaseIndex, const FBossPatternD
 	if (!OwnerBoss.IsValid())
 	{
 		UE_LOG(LogTemp, Error, TEXT("[Barrage] Invalid OwnerBoss"));
-		return;
+		return false;
 	}
 
 	CurrentPatternData = PatternData;
@@ -55,6 +55,8 @@ void UCBossPattern_Barrage::ExecutePattern(int32 PhaseIndex, const FBossPatternD
 	}
 
 	StartBarrage();
+
+	return true;
 }
 
 void UCBossPattern_Barrage::OnPatternEnd()

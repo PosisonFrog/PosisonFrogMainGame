@@ -451,8 +451,8 @@ const FBossPhaseDefinition& UCEnemyBossPhaseComponent::GetCurrentPhase() const
         return GDummyPhase;
     }
     
-    UE_LOG(LogTemp, Log, TEXT("[PhaseComponent] GetCurrentPhase - CurrentPhaseIndex=%d, Patterns.Num=%d"), 
-        CurrentPhaseIndex, PhaseData->Phases[CurrentPhaseIndex].Patterns.Num());
+    //UE_LOG(LogTemp, Log, TEXT("[PhaseComponent] GetCurrentPhase - CurrentPhaseIndex=%d, Patterns.Num=%d"), 
+        //CurrentPhaseIndex, PhaseData->Phases[CurrentPhaseIndex].Patterns.Num());
     return PhaseData->Phases[CurrentPhaseIndex];
 }
 
@@ -467,7 +467,7 @@ void UCEnemyBossPhaseComponent::InitialiseFromData()
    
     if (!PhaseData)
     {
-        UE_LOG(LogTemp, Error, TEXT("[PhaseComponent] InitialiseFromData - PhaseData is NULL!"));
+       // UE_LOG(LogTemp, Error, TEXT("[PhaseComponent] InitialiseFromData - PhaseData is NULL!"));
         CurrentPhaseIndex = INDEX_NONE;
         return;
     }

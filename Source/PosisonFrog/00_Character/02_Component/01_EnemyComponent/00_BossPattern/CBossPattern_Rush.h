@@ -51,7 +51,7 @@ public:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 	
-	virtual void ExecutePattern(int32 PhaseIndex, const FBossPatternDefinition& PatternData) override;
+	virtual bool ExecutePattern(int32 PhaseIndex, const FBossPatternDefinition& PatternData) override;
 	virtual void OnPatternEnd() override;
 	virtual void Cleanup() override;
 
@@ -112,11 +112,8 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Rush|Movement", meta = (ClampMin = "50"))
 	float RushAcceptanceRadius = 150.0f;
 
-	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Rush|Movement", meta = (ClampMin = "0.5", ClampMax = "5.0"))
-	float MaxRushTime = 2.0f;
-
-	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Rush|Movement", meta = (ClampMin = "0.1", ClampMax = "2.0"))
-	float RushMissTimeout = 1.5f;
+	// ❌ MaxRushTime 제거 - DataAsset의 ExecutionTime 사용
+	// ❌ RushMissTimeout 제거 - 사용되지 않음
 
 	// Damage & Collision
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Rush|Damage", meta = (ClampMin = "0"))
@@ -147,7 +144,8 @@ private:
 	FVector LockedRushDirection = FVector::ForwardVector;
 	bool bDirectionLocked = false;
 	float RushStartTime = 0.f;
-
+	float RushElapsedTime = 0.f;
+	
 	TSet<TWeakObjectPtr<AActor>> DamagedPlayers;
 	ERushEndReason LastEndReason = ERushEndReason::None;
 

@@ -168,6 +168,7 @@ void UCBossPatternManager::HandlePatternStarted(int32 PhaseIndex, FName PatternI
 	CurrentPatternId = PatternId;
 	bIsPatternActive = true;
 	State = EBossManagerState::Executing;
+	
 
 	CleanupPatternActors();
 	CleanupUtilitySpawnTimers();
@@ -177,9 +178,28 @@ void UCBossPatternManager::HandlePatternStarted(int32 PhaseIndex, FName PatternI
 	SpawnPatternActors(FinalPatternData);
 
 	CurrentPattern = SelectedPattern;
-	CurrentPattern->ExecutePattern(PhaseIndex, FinalPatternData); 
+	bool bSuccess = CurrentPattern->ExecutePattern(PhaseIndex, FinalPatternData);
 	
-	UE_LOG(LogTemp, Warning, TEXT("[PatternManager] Pattern %s execution started"), *PatternId.ToString());
+	if (bSuccess)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[PatternManager] Pattern %s execution started"), *PatternId.ToString());
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("[PatternManager] Pattern %s execution FAILED"), *PatternId.ToString());
+		
+		// ✅ 실패 시 즉시 정리하고 다음 패턴 선택
+		bIsPatternActive = false;
+		State = EBossManagerState::Idle;
+		CurrentPattern = nullptr;
+		CurrentPatternId = NAME_None;
+		
+		// PhaseComponent에 실패 알림
+		if (PhaseComponent)
+		{
+			PhaseComponent->FinishPattern(true);  // true = interrupted
+		}
+	}
 }
 
 void UCBossPatternManager::NotifyCurrentPatternEnd(bool bApplyCooldown)

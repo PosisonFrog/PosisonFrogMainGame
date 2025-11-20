@@ -55,16 +55,17 @@ void UCBossPatternBase::TickComponent(float DeltaTime, ELevelTick TickType, FAct
 	// 자식 클래스에서 필요시 오버라이드
 }
 
-void UCBossPatternBase::ExecutePattern(int32 PhaseIndex, const FBossPatternDefinition& PatternData)
+bool  UCBossPatternBase::ExecutePattern(int32 PhaseIndex, const FBossPatternDefinition& PatternData)
 {
 	CurrentPhaseIndex = PhaseIndex;
 	RuntimeCooldown = PatternData.Cooldown;
 	
-	// 쿨다운을 PhaseComponent 맵에 추가 (동기화)
-	StartCooldown();
 	
 	UE_LOG(LogTemp, Log, TEXT("[PatternBase:%s] ExecutePattern - Phase %d, Cooldown %.2f"), 
 		*PatternId.ToString(), PhaseIndex, RuntimeCooldown);
+
+	return true;  
+
 }
 
 void UCBossPatternBase::OnPatternEnd()
@@ -153,6 +154,19 @@ void UCBossPatternBase::StartCooldown()
 void UCBossPatternBase::FinishPattern(bool bApplyCooldown)
 {
 	OnPatternEnd();
+	
+	// ✅ 패턴이 성공적으로 끝났으면 쿨다운 적용
+	if (bApplyCooldown)
+	{
+		StartCooldown();
+		UE_LOG(LogTemp, Log, TEXT("[PatternBase:%s] Cooldown applied: %.2f seconds"), 
+			*PatternId.ToString(), RuntimeCooldown);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[PatternBase:%s] Pattern interrupted - No cooldown"), 
+			*PatternId.ToString());
+	}
 	
 	// PhaseComponent에 직접 알림 (Manager 우회)
 	if (PhaseComponent.IsValid())

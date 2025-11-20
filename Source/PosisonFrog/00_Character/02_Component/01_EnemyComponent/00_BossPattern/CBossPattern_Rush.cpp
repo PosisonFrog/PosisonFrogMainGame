@@ -43,13 +43,32 @@ void UCBossPattern_Rush::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 	}
 }
 
-void UCBossPattern_Rush::ExecutePattern(int32 PhaseIndex, const FBossPatternDefinition& PatternData)
+bool UCBossPattern_Rush::ExecutePattern(int32 PhaseIndex, const FBossPatternDefinition& PatternData)
 {
 	Super::ExecutePattern(PhaseIndex, PatternData);
 
+	
 	if (!HasValidOwner())
-		return;
+	{
+		UE_LOG(LogTemp, Error, TEXT("[Rush] ExecutePattern REJECTED - Invalid Owner"));
+		return false;  // ✅ 실패 반환
+	}
 
+	// ✅ Idle 상태가 아니면 실행 거부
+	if (State != ERushState::Idle)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[Rush] ExecutePattern REJECTED - Not in Idle state (Current: %d)"), (int32)State);
+		return false;  // ✅ 실패 반환
+	}
+
+	// ✅ 쿨다운 중이면 실행 거부
+	if (IsOnCooldown())
+	{
+		UE_LOG(LogTemp, Error, TEXT("[Rush] ExecutePattern REJECTED - Pattern is on cooldown"));
+		return false;  // ✅ 실패 반환
+	}
+
+	
 	UE_LOG(LogTemp, Warning, TEXT("[Rush] ========================================"));
 	UE_LOG(LogTemp, Warning, TEXT("[Rush] Executing rush attack - Phase %d"), PhaseIndex);
 	UE_LOG(LogTemp, Warning, TEXT("[Rush] ExecutionTime: %.2f, RecoveryTime: %.2f, Cooldown: %.2f"), 
@@ -59,29 +78,46 @@ void UCBossPattern_Rush::ExecutePattern(int32 PhaseIndex, const FBossPatternDefi
 	// PatternData 저장
 	CurrentPatternData = PatternData;
 
-	if (ABossAIController* BossAI = Cast<ABossAIController>(GetBossAI()))
-	{
-		BossAI->SetChaseEnabled(false);
-	}
-
 	ResetTransientData();
 	BeginTelegraphInternal();
+
+	return true;
 }
 
 void UCBossPattern_Rush::OnPatternEnd()
 {
 	UE_LOG(LogTemp, Log, TEXT("[Rush] Pattern ended"));
-
-	if (ABossAIController* BossAI = Cast<ABossAIController>(GetBossAI()))
+	
+	if (State == ERushState::Idle)
 	{
-		BossAI->SetChaseEnabled(true);
+		UE_LOG(LogTemp, Warning, TEXT("[Rush] OnPatternEnd ignored - already Idle"));
+		return;
+	}
+	
+	UE_LOG(LogTemp, Log, TEXT("[Rush] OnPatternEnd called - Current State: %d"), (int32)State);
+
+	if (State == ERushState::Recovery || State == ERushState::Cooldown)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Rush] OnPatternEnd ignored - Pattern is finishing normally (State: %d)"), (int32)State);
+		return;
+	}
+	
+	ClearTimers();
+	
+	if (State == ERushState::Rushing)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Rush] Force-stopped during Rushing - Forcing Recovery"));
+		EndRushingInternal(ERushEndReason::Aborted, nullptr);
+		return;
 	}
 
-	if (OwnerBoss.IsValid() && OwnerBoss->GetCharacterMovement())
-	{
-		OwnerBoss->GetCharacterMovement()->MaxWalkSpeed = SavedMaxWalkSpeed;
-	}
 
+	if (State == ERushState::Idle)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Rush] OnPatternEnd ignored - already Idle"));
+		return;
+	}
+	
 	if (OwnerBoss.IsValid())
 	{
 		OwnerBoss->SetIsBossRushing(false);
@@ -123,6 +159,7 @@ void UCBossPattern_Rush::ResetTransientData()
 	LockedRushDirection = FVector::ForwardVector;
 	bDirectionLocked = false;
 	RushStartTime = 0.f;
+	RushElapsedTime = 0.f;
 	DamagedPlayers.Empty();
 	LastEndReason = ERushEndReason::None; 
 }
@@ -142,6 +179,8 @@ void UCBossPattern_Rush::ClearTimers()
 // Telegraph Phase
 void UCBossPattern_Rush::BeginTelegraphInternal()
 {
+	ClearTimers();
+	
 	EnterState(ERushState::Telegraph);
 	if (!HasValidOwner()) return;
 
@@ -173,9 +212,10 @@ void UCBossPattern_Rush::BeginTelegraphInternal()
 		UWorld* World = OwnerBoss->GetWorld();
 		if (World)
 		{
-			float TelegraphTime = FMath::Max(0.5f, CurrentPatternData.ExecutionTime * 0.2f);
+			// ✅ DataAsset의 TelegraphTime 사용
+			float TelegraphTime = FMath::Max(0.1f, CurrentPatternData.TelegraphTime);
 			World->GetTimerManager().SetTimer(TH_Telegraph, this, &UCBossPattern_Rush::Anim_RushStart, TelegraphTime, false);
-			UE_LOG(LogTemp, Log, TEXT("[Rush] Telegraph duration: %.2fs"), TelegraphTime);
+			UE_LOG(LogTemp, Log, TEXT("[Rush] Telegraph duration: %.2fs (from DataAsset)"), TelegraphTime);
 		}
 	}
 }
@@ -196,14 +236,18 @@ void UCBossPattern_Rush::BeginRushingInternal()
 
 	UE_LOG(LogTemp, Warning, TEXT("[Rush] Starting rush movement!"));
 
-	if (!bDirectionLocked || LockedRushDirection.IsNearlyZero())
+	RushElapsedTime = 0.f;
+	
+	// 🔥 방향 고정 체크 제거 - 이제 실시간 추적 사용
+	AActor* Player = GetPlayerTarget();
+	if (!Player)
 	{
-		UE_LOG(LogTemp, Error, TEXT("[Rush] Direction not locked! Aborting rush."));
+		UE_LOG(LogTemp, Error, TEXT("[Rush] No player target! Aborting rush."));
 		HandlePatternComplete();
 		return;
 	}
 	
-	UE_LOG(LogTemp, Warning, TEXT("[Rush] Using LOCKED direction: %s"), *LockedRushDirection.ToString());
+	UE_LOG(LogTemp, Warning, TEXT("[Rush] Using REAL-TIME tracking"));
 
 	if (UCharacterMovementComponent* Movement = OwnerBoss->GetCharacterMovement())
 	{
@@ -241,7 +285,13 @@ void UCBossPattern_Rush::BeginRushingInternal()
 
 	if (World)
 	{
-		World->GetTimerManager().SetTimer(TH_MaxRush, this, &UCBossPattern_Rush::HandleMaxRushTime, MaxRushTime, false);
+		// ✅ DataAsset의 ExecutionTime을 순수 Rush 시간으로 사용
+		// (Telegraph는 별도 필드이므로 ExecutionTime과 무관)
+		float ActualRushTime = CurrentPatternData.ExecutionTime;
+		
+		World->GetTimerManager().SetTimer(TH_MaxRush, this, &UCBossPattern_Rush::HandleMaxRushTime, ActualRushTime, false);
+		UE_LOG(LogTemp, Warning, TEXT("[Rush] Rush duration timer set: %.2f seconds (ExecutionTime from DataAsset)"), 
+			ActualRushTime);
 	}
 }
 
@@ -255,16 +305,51 @@ void UCBossPattern_Rush::UpdateRushing(float DeltaSeconds)
 {
 	if (!HasValidOwner()) return;
 
+	RushElapsedTime += DeltaSeconds;
+	
+	// ✅ 타이머가 HandleMaxRushTime을 호출하므로 여기서는 체크 불필요
+	// (RushElapsedTime은 디버깅/로그용으로만 유지)
+	
+	// 플레이어 실시간 추적
+	AActor* Player = GetPlayerTarget();
+	if (!Player)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Rush] Player lost during rush"));
+		EndRushingInternal(ERushEndReason::Aborted, nullptr);
+		return;
+	}
+
+	// 현재 플레이어 방향 계산 (고정 방향 대신)
+	FVector BossLocation = OwnerBoss->GetActorLocation();
+	FVector PlayerLocation = Player->GetActorLocation();
+	FVector ToPlayer = (PlayerLocation - BossLocation).GetSafeNormal2D();
+
+	// 부드러운 회전
+	if (!ToPlayer.IsNearlyZero())
+	{
+		FRotator CurrentRotation = OwnerBoss->GetActorRotation();
+		FRotator TargetRotation = ToPlayer.Rotation();
+		FRotator NewRotation = FMath::RInterpTo(CurrentRotation, TargetRotation, DeltaSeconds, TurnRateDegPerSec);
+		OwnerBoss->SetActorRotation(NewRotation);
+	}
+
+	// 직접 속도 설정 (VInterpTo 제거)
+	if (UCharacterMovementComponent* Movement = OwnerBoss->GetCharacterMovement())
+	{
+		FVector TargetVelocity = ToPlayer * RushSpeed;
+		Movement->Velocity = TargetVelocity; // 직접 설정
+		Movement->UpdateComponentVelocity();
+	}
+
+	// 로그 (0.5초마다)
 	static float LogTimer = 0.f;
 	LogTimer += DeltaSeconds;
-	
 	if (LogTimer >= 0.5f)
 	{
 		LogTimer = 0.f;
 		FVector CurrentVelocity = OwnerBoss->GetVelocity();
-		
-		UE_LOG(LogTemp, Log, TEXT("[Rush] Rushing... Velocity: %.1f, Direction: %s"), 
-			CurrentVelocity.Size(), *LockedRushDirection.ToString());
+		UE_LOG(LogTemp, Log, TEXT("[Rush] Rushing... Velocity: %.1f, ToPlayer: %s"), 
+			CurrentVelocity.Size(), *ToPlayer.ToString());
 	}
 
 	// Overlap 체크
@@ -273,14 +358,6 @@ void UCBossPattern_Rush::UpdateRushing(float DeltaSeconds)
 
 	// 충돌 감지
 	PerformCollisionTrace();
-	if (State != ERushState::Rushing) return;
-
-	// 돌진 방향으로 이동 (고정된 방향 사용)
-	if (UCharacterMovementComponent* Movement = OwnerBoss->GetCharacterMovement())
-	{
-		FVector TargetVelocity = LockedRushDirection * RushSpeed;
-		Movement->Velocity = FMath::VInterpTo(Movement->Velocity, TargetVelocity, DeltaSeconds, 10.0f);
-	}
 }
 
 void UCBossPattern_Rush::PerformCollisionTrace()
@@ -313,11 +390,25 @@ bool UCBossPattern_Rush::SweepAhead(FHitResult& OutHit, float Distance) const
 	if (!HasValidOwner()) return false;
 
 	const FVector Start = OwnerBoss->GetActorLocation();
-	const FVector End = Start + LockedRushDirection * Distance;
+	// 🔥 고정 방향 대신 현재 forward vector 사용
+	const FVector ForwardDir = OwnerBoss->GetActorForwardVector();
+	const FVector End = Start + ForwardDir * Distance;
 	
 	FCollisionQueryParams QueryParams;
 	QueryParams.AddIgnoredActor(OwnerBoss.Get());
 	QueryParams.bTraceComplex = false;
+
+	// 🔥 투사체 무시 (BP_BossProjectile 등)
+	TArray<AActor*> AllActors;
+	UGameplayStatics::GetAllActorsOfClass(GetWorld(), AActor::StaticClass(), AllActors);
+	for (AActor* Actor : AllActors)
+	{
+		if (Actor && (Actor->GetName().Contains(TEXT("Projectile")) || 
+		              Actor->GetName().Contains(TEXT("Coconut"))))
+		{
+			QueryParams.AddIgnoredActor(Actor);
+		}
+	}
 
 	bool bHit = GetWorld()->SweepSingleByChannel(
 		OutHit,
@@ -428,9 +519,20 @@ void UCBossPattern_Rush::CheckOverlappingActors()
 
 void UCBossPattern_Rush::HandleMaxRushTime()
 {
-	if (State == ERushState::Rushing)
+	if (State != ERushState::Rushing)
 	{
-		EndRushingInternal(ERushEndReason::MaxTime, nullptr);
+		return;
+	}
+	
+	UE_LOG(LogTemp, Error, TEXT("[Rush] ========== SAFETY TIMEOUT TRIGGERED =========="));
+	UE_LOG(LogTemp, Error, TEXT("[Rush] Current State: %d"), (int32)State);
+	UE_LOG(LogTemp, Error, TEXT("[Rush] Elapsed Time: %.2f"), RushElapsedTime);
+	
+	EndRushingInternal(ERushEndReason::MaxTime, nullptr);
+	if (State != ERushState::Recovery && State != ERushState::Idle)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[Rush] FORCING RECOVERY STATE!"));
+		BeginRecoveryInternal(ERushEndReason::MaxTime, nullptr);
 	}
 }
 
@@ -450,10 +552,11 @@ void UCBossPattern_Rush::EndRushingInternal(ERushEndReason Reason, AActor* HitAc
 		UWorld* World = OwnerBoss->GetWorld();
 		if (World) World->GetTimerManager().ClearTimer(TH_MaxRush);
 	}
-
+	
 	if (OwnerBoss.IsValid())
 		OwnerBoss->SetIsBossRushing(false);
-
+	
+	
 	OnRushFinished.Broadcast(Reason, HitActor);
 	BeginRecoveryInternal(Reason, HitActor);
 }
@@ -462,6 +565,17 @@ void UCBossPattern_Rush::EndRushingInternal(ERushEndReason Reason, AActor* HitAc
 void UCBossPattern_Rush::BeginRecoveryInternal(ERushEndReason Reason, AActor* HitActor)
 {
 	UE_LOG(LogTemp, Warning, TEXT("[Rush] BeginRecoveryInternal called"));
+	
+	if (State == ERushState::Recovery)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Rush] Already in Recovery state - ignoring duplicate call"));
+		return;
+	}
+
+	if (UWorld* World = OwnerBoss->GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(TH_Recovery);
+	}
 	
 	EnterState(ERushState::Recovery);
 	
@@ -512,6 +626,7 @@ void UCBossPattern_Rush::BeginRecoveryInternal(ERushEndReason Reason, AActor* Hi
 
 	UWorld* World = OwnerBoss->GetWorld();
 	if (World) {
+		World->GetTimerManager().ClearTimer(TH_Recovery); //기존 리커버리 타이머 클리어
 		World->GetTimerManager().SetTimer(TH_Recovery, this, &UCBossPattern_Rush::HandlePatternComplete, CurrentPatternData.RecoveryTime, false);
 		UE_LOG(LogTemp, Log, TEXT("[Rush] Recovery duration: %.2fs"), CurrentPatternData.RecoveryTime);
 	}
@@ -571,27 +686,46 @@ void UCBossPattern_Rush::HandlePatternComplete()
 		return;
 	}
 
+	if (State != ERushState::Recovery)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Rush] HandlePatternComplete ignored - not in Recovery (Current: %d)"), (int32)State);
+		return;
+	}
+
 	EnterState(ERushState::Cooldown);
 	
+	// ✅ 쿨다운 적용 여부 결정
 	bool bApplyCooldown = true;
 	
-	if (LastEndReason == ERushEndReason::MaxTime)
+	if (LastEndReason == ERushEndReason::Aborted)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[Rush] MISSED Player - Ending without cooldown"));
-		bApplyCooldown = true;
+		// 중단된 경우: 쿨다운 없음 (페널티 없이 재시도 가능)
+		UE_LOG(LogTemp, Warning, TEXT("[Rush] ABORTED - No cooldown"));
+		bApplyCooldown = false;
 	}
 	else if (LastEndReason == ERushEndReason::HitPlayer)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[Rush] HIT Player - Ending with cooldown"));
+		// 플레이어 히트: 쿨다운 적용
+		UE_LOG(LogTemp, Warning, TEXT("[Rush] HIT Player - Cooldown applied"));
+		bApplyCooldown = true;
+	}
+	else if (LastEndReason == ERushEndReason::MaxTime)
+	{
+		// 시간 초과 (미스): 쿨다운 적용 (무한 스팸 방지)
+		UE_LOG(LogTemp, Warning, TEXT("[Rush] MISSED Player (MaxTime) - Cooldown applied"));
 		bApplyCooldown = true;
 	}
 	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[Rush] Other reason - Ending without cooldown"));
+		// 기타 (ReachedTarget 등): 쿨다운 적용
+		UE_LOG(LogTemp, Warning, TEXT("[Rush] Ended (Reason: %d) - Cooldown applied"), (int32)LastEndReason);
 		bApplyCooldown = true;
 	}
 	
 	FinishPattern(bApplyCooldown);
+	EnterState(ERushState::Idle);
+	UE_LOG(LogTemp, Warning, TEXT("[Rush] Pattern Complete - Returned to Idle state"));
+
 }
 
 bool UCBossPattern_Rush::HasValidOwner() const
