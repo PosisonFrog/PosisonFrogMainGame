@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "CEnemySpawnZone.h"
+#include "CTutorialManager.h"
 #include "CStageManager.generated.h"
 
 class ACRiotRobotHordeTrigger;
@@ -14,6 +15,7 @@ class ACStageBarrier;
 class ACCheckPoint;
 class ACEnemyCharacterBase;
 class ACBossStageBarrier;
+class UCTutorialManager;
 
 struct FStageSpawnRequest
 {
@@ -26,6 +28,61 @@ struct FStageSpawnRequest
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnStageCleared, int32, StageID);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnCheckPointActivated, ACCheckPoint*, CheckPoint, ACPlayerCharacter*, Player);
+
+
+USTRUCT(BlueprintType)
+struct FStageFlowNode
+{
+	GENERATED_BODY()
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "StageFlow")
+	int32 NodeId = 0;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "StageFlow")
+	FName TriggerTag;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "StageFlow")
+	FName TutorialStepId;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "StageFlow")
+	int32 StageSectionId = 1;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "StageFlow")
+	TArray<int32> ActivateSpawnStages;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "StageFlow")
+	TArray<int32> OpenBarriers;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "StageFlow")
+	TArray<int32> CloseBarriers;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "StageFlow")
+	int32 NextNodeId = INDEX_NONE;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "StageFlow")
+	bool bAutoStart = false;
+};
+
+USTRUCT(BlueprintType)
+struct FTutorialSpawnRule
+{
+	GENERATED_BODY()
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tutorial")
+	FName StepId;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tutorial")
+	TSubclassOf<ACEnemyCharacterBase> EnemyClass;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tutorial", meta = (ClampMin = "1"))
+	int32 EnemyCount = 5;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tutorial")
+	bool bForceUltReady = false;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tutorial")
+	bool bFillFuryToMax = false;
+};
 
 UCLASS()
 class POSISONFROG_API ACStageManager : public AActor
@@ -45,6 +102,12 @@ public:
 	void CheckStageComplete(int32 StageID);
 	void PrepareForRespawn(int32 TargetStageID);
 	void RegisterHordeEnemy(ACEnemyCharacterBase* Enemy, int32 StageID);
+
+	// ──────────── 트리거 & 튜토리얼 ────────────
+	void HandleTrigger(FName TriggerTag);
+	
+	UFUNCTION()
+	void OnTutorialStepCompleted(FName StepId);
 
 	// ──────────── 보스 배리어 중앙 제어 ────────────
 	void RegisterBossBarrier(ACBossStageBarrier* Barrier);
@@ -67,37 +130,34 @@ private:
 	void CollectBarriers();
 	void CollectCheckpoints();
 	void CollectBossBarrier();
-	void CollectHordeTriggers();
+	void CollectHordeTriggers();  // ← HordeTrigger 기능
+	
+	// ──────────── 튜토리얼 플로우 ────────────
+	void InitializeStageFlow();
+	void EnterNode(int32 NodeId);
+	void AdvanceToNode(int32 NodeId);
+	int32 FindNodeIndexById(int32 NodeId) const;
+	void ApplyTutorialSetup(const FStageFlowNode& Node);
+	FTutorialSpawnRule GetSpawnRuleForStep(FName StepId) const;
+	void SpawnTutorialEnemies(int32 StageID, TSubclassOf<ACEnemyCharacterBase> EnemyClass, int32 Count);
+	void FillPlayerForRule(const FTutorialSpawnRule& Rule);
 
 	// ──────────── 스폰 로직 ────────────
-	// 분산 스폰 시작
 	void StartDistributedSpawn(int32 StageID, bool bIsPreload = false, bool bForceImmediate = false);
- 
-	// 스폰 배치 처리
 	void ProcessSpawnBatch();
-
-	// 다음 스폰 요청 처리
 	void ProcessNextSpawnRequest();
-	
-	// 선제적 로딩된 적들 활성화
 	void ActivatePreloadedStage(int32 StageID);
 
 	// ──────────── 스테이지 완료 ────────────
 	void OnStageComplete(int32 StageID);
 	void OpenStageBarrier(int32 StageID);
 	void ActivateStageCheckPoint(int32 StageID);
-
-	// 보스 배리어 제어
 	void OpenBossBarrier(int32 StageID);
 
 	// ──────────── 적 추적 ────────────
-	// 적 사망 콜백
 	UFUNCTION()
 	void OnEnemyDied(AActor* DeadActor);
-
-	// 선제적 로딩 트리거 체크
 	void CheckPreloadTrigger();
-
 	void ResetEnemy(ACEnemyCharacterBase* Enemy);
 	
 	// ──────────── 메모리 정리 ────────────
@@ -112,8 +172,11 @@ private:
 	// ──────────── 데이터 저장 ────────────
 	TMap<int32, TArray<TObjectPtr<ACEnemySpawnZone>>> StageSpawnZones;
 	TMap<int32, TArray<TObjectPtr<ACEnemyCharacterBase>>> StageEnemies;
-	TMap<int32, TArray<TObjectPtr<ACRiotRobotHordeTrigger>>> StageHordeTriggers;
+	TMap<int32, TArray<TObjectPtr<ACRiotRobotHordeTrigger>>> StageHordeTriggers;  // ← HordeTrigger 기능
 
+	UPROPERTY(EditAnywhere, Category = "Stage|Flow")
+	TArray<FStageFlowNode> StageFlowNodes;
+	
 	UPROPERTY(VisibleAnywhere, Category = "Stage|Info")
 	TMap<int32, TObjectPtr<ACStageBarrier>> StageBarriers;
 	
@@ -127,7 +190,13 @@ private:
 	int32 CurrentStage = 1;
 
 	UPROPERTY(VisibleAnywhere, Category = "Stage|Info")
+	int32 CurrentNodeId = INDEX_NONE;
+	
+	UPROPERTY(VisibleAnywhere, Category = "Stage|Info")
 	TObjectPtr<ACBossStageBarrier> BossBarrier;
+	
+	UPROPERTY()
+	TObjectPtr<UCTutorialManager> TutorialManager;
 	
 	// ──────────── 분산 스폰 상태 ────────────
 	int32 SpawningStage = -1;
@@ -142,31 +211,43 @@ private:
 
 	TArray<FStageSpawnRequest> SpawnRequestQueue;
 	
-	// 분산 스폰에서 사용할 타이머
 	FTimerHandle SpawnTimer;
 
 public:
 	// ──────────── 설정 ────────────
-	// 선제적 로딩 트리거 (남은 적 수)
 	UPROPERTY(EditAnywhere, Category = "Stage|Settings")
 	int32 PreloadTriggerCount = 10;
+	
+	UPROPERTY(EditAnywhere, Category = "Stage|Flow")
+	int32 StartNode = 0;
+	
+	UPROPERTY(EditAnywhere, Category = "Stage|Flow")
+	FName TutorialSequenceId = TEXT("Stage1");
+	
+	UPROPERTY(EditAnywhere, Category = "Stage|Tutorial")
+	int32 TutorialEnemyCount = 5;
+	
+	UPROPERTY(EditAnywhere, Category = "Stage|Tutorial")
+	TSubclassOf<ACEnemyCharacterBase> DefaultTutorialEnemyClass;
+	
+	UPROPERTY(EditAnywhere, Category = "Stage|Tutorial")
+	TSubclassOf<ACEnemyCharacterBase> TankerEnemyClass;
+	
+	UPROPERTY(EditAnywhere, Category = "Stage|Tutorial")
+	TArray<FTutorialSpawnRule> TutorialSpawnRules;
 
-	// 분산 스폰 분할 수
-	UPROPERTY(EditAnywhere, Category = "Stage|Settings", meta = (ClapMin = "1"))
+	UPROPERTY(EditAnywhere, Category = "Stage|Settings", meta = (ClampMin = "1"))
 	int32 SpawnDivision = 5;
 
-	// 게임 시작 시 자동 스폰할 스테이지
 	UPROPERTY(EditAnywhere, Category = "Stage|Settings")
 	int32 StartStage = 1;
 
-	// 분산 스폰 간격
 	float SpawnInterval = 0.016f;
 
 	UPROPERTY(EditAnywhere, Category = "Stage|Debug")
 	bool bEnableDebugLogs = false;
 
 private:
-	// 핫픽스 변수
 	UPROPERTY(EditAnywhere, Category = "Stage|Hotfix")
 	float DeathHideDelay = 1.2f;
 
