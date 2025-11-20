@@ -8,13 +8,7 @@
 UCBossPattern_Slam::UCBossPattern_Slam()
 {
 	PatternId = FName("Slam");
-}
-
-void UCBossPattern_Slam::BeginDestroy()
-{
-	UE_LOG(LogTemp, Log, TEXT("[Slam] BeginDestroy called"));
-	Cleanup();
-	Super::BeginDestroy();
+	PrimaryComponentTick.bCanEverTick = false;
 }
 
 void UCBossPattern_Slam::ExecutePattern(int32 PhaseIndex, const FBossPatternDefinition& PatternData)

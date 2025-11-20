@@ -10,13 +10,7 @@ UCBossPattern_BasicAttack::UCBossPattern_BasicAttack()
 {
 	PatternId = FName("BasicAttack");
 	AttackIndex = 0;
-}
-
-void UCBossPattern_BasicAttack::BeginDestroy()
-{
-	UE_LOG(LogTemp, Log, TEXT("[BasicAttack] BeginDestroy called"));
-	ClearTimers();
-	Super::BeginDestroy();
+	PrimaryComponentTick.bCanEverTick = false;
 }
 
 void UCBossPattern_BasicAttack::ExecutePattern(int32 PhaseIndex, const FBossPatternDefinition& PatternData)
@@ -85,7 +79,7 @@ void UCBossPattern_BasicAttack::Anim_AttackStart()
 	UE_LOG(LogTemp, Warning, TEXT("[BasicAttack] Attack collision ACTIVATED"));
 	
 	bCollisionActive = true;
-	HitActors.Empty(); // 새로운 공격이므로 히트 리스트 초기화
+	HitActors.Empty();
 	
 	UWorld* World = GetWorld();
 	if (World)
@@ -131,7 +125,6 @@ void UCBossPattern_BasicAttack::CheckCollision()
 	UWorld* World = GetWorld();
 	if (!World) return;
 
-	// 오른손 소켓 위치 가져오기
 	USkeletalMeshComponent* mesh = OwnerBoss->GetMesh();
 	if (!mesh || !mesh->DoesSocketExist(RightHandSocketName))
 	{
@@ -144,7 +137,6 @@ void UCBossPattern_BasicAttack::CheckCollision()
 
 	FVector SocketLocation = mesh->GetSocketLocation(RightHandSocketName);
 	
-	// 구체 트레이스로 충돌 감지
 	TArray<FHitResult> HitResults;
 	FCollisionQueryParams QueryParams;
 	QueryParams.AddIgnoredActor(OwnerBoss.Get());
@@ -153,14 +145,13 @@ void UCBossPattern_BasicAttack::CheckCollision()
 	bool bHit = World->SweepMultiByChannel(
 		HitResults,
 		SocketLocation,
-		SocketLocation, // 시작과 끝이 같음 (구체 오버랩)
+		SocketLocation,
 		FQuat::Identity,
-		ECC_Pawn, // 플레이어 채널
+		ECC_Pawn,
 		FCollisionShape::MakeSphere(AttackSphereRadius),
 		QueryParams
 	);
 
-	
 	if (bDrawDebug)
 	{
 		DrawDebugSphere(
@@ -181,7 +172,6 @@ void UCBossPattern_BasicAttack::CheckCollision()
 		AActor* HitActor = Hit.GetActor();
 		if (!HitActor) continue;
 
-		// 이미 데미지를 입힌 액터는 건너뛰기
 		if (HitActors.Contains(HitActor))
 		{
 			continue;

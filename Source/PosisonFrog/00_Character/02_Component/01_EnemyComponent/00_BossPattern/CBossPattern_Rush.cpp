@@ -1,7 +1,7 @@
 #include "CBossPattern_Rush.h"
 #include "00_Character/01_Enemy/CEnemyBossCharacter.h"
 #include "00_Character/02_Component/01_EnemyComponent/CEnemyWeaponComponent.h"
-#include "00_Character/02_Component/01_EnemyComponent/CBossPatternManager.h"
+#include "00_Character/02_Component/01_EnemyComponent/CEnemyBossPhaseComponent.h"
 #include "00_Character/01_Enemy/01_AIController/BossAIController.h"
 #include "00_Character/02_Component/00_PlayerComponent/CPlayerKnockbackComponent.h"
 #include "AIController.h"
@@ -16,13 +16,31 @@
 UCBossPattern_Rush::UCBossPattern_Rush()
 {
 	PatternId = FName("Rush");
+	PrimaryComponentTick.bCanEverTick = true;
 }
 
-void UCBossPattern_Rush::BeginDestroy()
+void UCBossPattern_Rush::BeginPlay()
 {
-	UE_LOG(LogTemp, Log, TEXT("[Rush] BeginDestroy called"));
+	Super::BeginPlay();
+	UE_LOG(LogTemp, Log, TEXT("[Rush] BeginPlay called"));
+}
+
+void UCBossPattern_Rush::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	UE_LOG(LogTemp, Log, TEXT("[Rush] EndPlay called"));
 	Cleanup();
-	Super::BeginDestroy();
+	Super::EndPlay(EndPlayReason);
+}
+
+void UCBossPattern_Rush::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+{
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	
+	// Rushing 상태일 때만 이동 처리
+	if (State == ERushState::Rushing)
+	{
+		TickRushMovement(DeltaTime);
+	}
 }
 
 void UCBossPattern_Rush::ExecutePattern(int32 PhaseIndex, const FBossPatternDefinition& PatternData)
@@ -36,14 +54,6 @@ void UCBossPattern_Rush::ExecutePattern(int32 PhaseIndex, const FBossPatternDefi
 	UE_LOG(LogTemp, Warning, TEXT("[Rush] Executing rush attack - Phase %d"), PhaseIndex);
 	UE_LOG(LogTemp, Warning, TEXT("[Rush] ExecutionTime: %.2f, RecoveryTime: %.2f, Cooldown: %.2f"), 
 		PatternData.ExecutionTime, PatternData.RecoveryTime, PatternData.Cooldown);
-	UE_LOG(LogTemp, Warning, TEXT("[Rush] Last Used Time: %.1fs"), LastUsedTime);
-	
-	if (OwnerBoss->GetWorld())
-	{
-		float CurrentTime = OwnerBoss->GetWorld()->GetTimeSeconds();
-		float TimeSinceLastUse = CurrentTime - LastUsedTime;
-		UE_LOG(LogTemp, Warning, TEXT("[Rush] Time Since Last Use: %.1fs"), TimeSinceLastUse);
-	}
 	UE_LOG(LogTemp, Warning, TEXT("[Rush] ========================================"));
 
 	// PatternData 저장
@@ -79,7 +89,6 @@ void UCBossPattern_Rush::OnPatternEnd()
 	
 	Super::OnPatternEnd();
 	EnterState(ERushState::Idle);
-	
 }
 
 void UCBossPattern_Rush::Cleanup()
@@ -93,10 +102,7 @@ void UCBossPattern_Rush::Cleanup()
 	ResetTransientData();
 }
 
-// ─────────────────────────────────────────────────────────────
 // State Management
-// ─────────────────────────────────────────────────────────────
-
 void UCBossPattern_Rush::EnterState(ERushState NewState)
 {
 	if (State == NewState)
@@ -105,7 +111,6 @@ void UCBossPattern_Rush::EnterState(ERushState NewState)
 	ERushState PrevState = State;
 	State = NewState;
 	
-	// 상태 이름 출력
 	const TCHAR* StateNames[] = {TEXT("Idle"), TEXT("Telegraph"), TEXT("Rushing"), TEXT("Recovery"), TEXT("Cooldown")};
 	UE_LOG(LogTemp, Warning, TEXT("[Rush] State Changed: %s -> %s"), 
 		StateNames[(int32)PrevState], StateNames[(int32)NewState]);
@@ -134,10 +139,7 @@ void UCBossPattern_Rush::ClearTimers()
 	TM.ClearTimer(TH_Recovery);
 }
 
-// ─────────────────────────────────────────────────────────────
 // Telegraph Phase
-// ─────────────────────────────────────────────────────────────
-
 void UCBossPattern_Rush::BeginTelegraphInternal()
 {
 	EnterState(ERushState::Telegraph);
@@ -171,7 +173,6 @@ void UCBossPattern_Rush::BeginTelegraphInternal()
 		UWorld* World = OwnerBoss->GetWorld();
 		if (World)
 		{
-			// ExecutionTime의 일부를 Telegraph로 사용 (20% 또는 최소 0.5초)
 			float TelegraphTime = FMath::Max(0.5f, CurrentPatternData.ExecutionTime * 0.2f);
 			World->GetTimerManager().SetTimer(TH_Telegraph, this, &UCBossPattern_Rush::Anim_RushStart, TelegraphTime, false);
 			UE_LOG(LogTemp, Log, TEXT("[Rush] Telegraph duration: %.2fs"), TelegraphTime);
@@ -179,10 +180,7 @@ void UCBossPattern_Rush::BeginTelegraphInternal()
 	}
 }
 
-// ─────────────────────────────────────────────────────────────
 // Rushing Phase
-// ─────────────────────────────────────────────────────────────
-
 void UCBossPattern_Rush::Anim_RushStart()
 {
 	if (State != ERushState::Telegraph)
@@ -198,7 +196,6 @@ void UCBossPattern_Rush::BeginRushingInternal()
 
 	UE_LOG(LogTemp, Warning, TEXT("[Rush] Starting rush movement!"));
 
-	// Telegraph에서 이미 고정된 방향을 사용
 	if (!bDirectionLocked || LockedRushDirection.IsNearlyZero())
 	{
 		UE_LOG(LogTemp, Error, TEXT("[Rush] Direction not locked! Aborting rush."));
@@ -216,7 +213,7 @@ void UCBossPattern_Rush::BeginRushingInternal()
 		SavedGroundFriction = Movement->GroundFriction;
 		bSavedOrientRotationToMovement = Movement->bOrientRotationToMovement;
 		
-		UE_LOG(LogTemp, Log, TEXT("[Rush]  Saved Movement Settings: Speed=%.1f, Accel=%.1f, Braking=%.1f"), 
+		UE_LOG(LogTemp, Log, TEXT("[Rush] Saved Movement Settings: Speed=%.1f, Accel=%.1f, Braking=%.1f"), 
 			SavedMaxWalkSpeed, SavedMaxAcceleration, SavedBrakingDeceleration);
 		
 		Movement->SetMovementMode(MOVE_Walking);
@@ -224,7 +221,7 @@ void UCBossPattern_Rush::BeginRushingInternal()
 		Movement->MaxAcceleration = 10000.0f;
 		Movement->BrakingDecelerationWalking = 0.0f;
 		Movement->GroundFriction = 0.0f;
-		Movement->bOrientRotationToMovement = false;  // 돌진 방향 고정
+		Movement->bOrientRotationToMovement = false;
 		
 		UE_LOG(LogTemp, Log, TEXT("[Rush] Rush Movement Settings Applied: Speed=%.1f"), RushSpeed);
 	}
@@ -270,144 +267,80 @@ void UCBossPattern_Rush::UpdateRushing(float DeltaSeconds)
 			CurrentVelocity.Size(), *LockedRushDirection.ToString());
 	}
 
-	// 매 프레임 Overlap 체크
+	// Overlap 체크
 	CheckOverlappingActors();
 	if (State != ERushState::Rushing) return;
 
-	// 충돌 감지 (Sweep)
+	// 충돌 감지
 	PerformCollisionTrace();
 	if (State != ERushState::Rushing) return;
 
-	float CurrentTime = OwnerBoss->GetWorld()->GetTimeSeconds();
-	if (CurrentTime - RushStartTime >= RushMissTimeout) 
+	// 돌진 방향으로 이동 (고정된 방향 사용)
+	if (UCharacterMovementComponent* Movement = OwnerBoss->GetCharacterMovement())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[Rush] Player Missed (Timeout: %.2f), ending rush."), RushMissTimeout);
-		EndRushingInternal(ERushEndReason::MaxTime, nullptr);
-		return; 
-	}
-	
-	// 고정된 방향으로 이동
-	if (!LockedRushDirection.IsNearlyZero())
-	{
-		OwnerBoss->AddMovementInput(LockedRushDirection, 1.0f);
+		FVector TargetVelocity = LockedRushDirection * RushSpeed;
+		Movement->Velocity = FMath::VInterpTo(Movement->Velocity, TargetVelocity, DeltaSeconds, 10.0f);
 	}
 }
 
 void UCBossPattern_Rush::PerformCollisionTrace()
 {
-	if (!HasValidOwner())
-		return;
+	if (!HasValidOwner()) return;
 
-	FHitResult HitResult;
-	bool bHit = SweepAhead(HitResult, CollisionTraceAhead);
-	
-	if (!bHit)
-		return;
-
-	AActor* HitActor = HitResult.GetActor();
-	if (!HitActor)
-		return;
-
-	if (HitResult.Component.IsValid() && HitResult.Component->GetCollisionObjectType() == ECC_WorldStatic)
+	FHitResult Hit;
+	if (SweepAhead(Hit, CollisionTraceAhead))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[Rush] Hit Wall: %s"), *HitActor->GetName());
-		EndRushingInternal(ERushEndReason::MaxTime, HitActor); // 벽에 박으면 종료
-		return;
-	}
+		AActor* HitActor = Hit.GetActor();
+		if (!HitActor) return;
 
-	TWeakObjectPtr<AActor> WeakHit = HitActor;
-	if (DamagedPlayers.Contains(WeakHit))
-	{
-		UE_LOG(LogTemp, Log, TEXT("[Rush] Already damaged: %s"), *HitActor->GetName());
-		return;
-	}
-	
-	if (HitActor == OwnerBoss.Get())
-		return;
-
-	ACharacter* HitCharacter = Cast<ACharacter>(HitActor);
-	if (!HitCharacter)
-		return;
-
-	AController* HitController = HitCharacter->GetController();
-	if (Cast<AAIController>(HitController))
-		return;
-
-	UE_LOG(LogTemp, Warning, TEXT("[Rush] Hit Player: %s"), *HitActor->GetName());
-
-	// 데미지 적용
-	float ActualDamage = UGameplayStatics::ApplyDamage
-	(
-		HitActor, 
-		RushDamage, 
-		OwnerBoss->GetController(), 
-		OwnerBoss.Get(), 
-		nullptr
-	);
-	UE_LOG(LogTemp, Warning, TEXT("[Rush] Damage Applied: %.1f"), ActualDamage);
-
-	FVector KnockDirection = LockedRushDirection;
-	if (KnockDirection.IsNearlyZero())
-	{
-		// Fallback: 보스에서 플레이어 방향으로
-		KnockDirection = (HitCharacter->GetActorLocation() - OwnerBoss->GetActorLocation()).GetSafeNormal2D();
-		if (KnockDirection.IsNearlyZero())
+		if (Cast<ACharacter>(HitActor))
 		{
-			KnockDirection = FVector::ForwardVector;
+			AController* HitController = Cast<ACharacter>(HitActor)->GetController();
+			if (!Cast<AAIController>(HitController))
+			{
+				TWeakObjectPtr<AActor> WeakHit = HitActor;
+				if (!DamagedPlayers.Contains(WeakHit))
+				{
+					UE_LOG(LogTemp, Warning, TEXT("[Rush] Sweep detected player ahead: %s"), *HitActor->GetName());
+				}
+			}
 		}
 	}
-
-	FVector LaunchVelocity = KnockDirection * RushLaunchPower;
-	LaunchVelocity.Z += RushLaunchUp;
-	HitCharacter->LaunchCharacter(LaunchVelocity, true, true);
-	
-	UE_LOG(LogTemp, Warning, TEXT("[Rush] Launch Applied: Power=%.1f, Up=%.1f, Direction=%s"), 
-		RushLaunchPower, RushLaunchUp, *KnockDirection.ToString());
-
-	if (UCPlayerKnockbackComponent* KnockbackComp = HitCharacter->FindComponentByClass<UCPlayerKnockbackComponent>())
-	{
-		KnockbackComp->StartKnockback(OwnerBoss.Get());
-		UE_LOG(LogTemp, Warning, TEXT("[Rush] Knockback Component Triggered"));
-	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[Rush]  No Knockback Component Found"));
-	}
-
-	// 중복 데미지 방지를 위해 리스트에 추가
-	DamagedPlayers.Add(WeakHit);
-	
-	// 플레이어와 충돌했으므로 돌진 종료
-	EndRushingInternal(ERushEndReason::HitPlayer, HitActor);
 }
 
 bool UCBossPattern_Rush::SweepAhead(FHitResult& OutHit, float Distance) const
 {
-	if (!HasValidOwner())
-		return false;
+	if (!HasValidOwner()) return false;
+
+	const FVector Start = OwnerBoss->GetActorLocation();
+	const FVector End = Start + LockedRushDirection * Distance;
 	
-	FVector Start = OwnerBoss->GetActorLocation();
-	FVector End = Start + OwnerBoss->GetActorForwardVector() * Distance;
-	
-	TArray<AActor*> ActorsToIgnore;
-	ActorsToIgnore.Add(OwnerBoss.Get());
-	
-	EDrawDebugTrace::Type DebugType = (State == ERushState::Rushing) ? EDrawDebugTrace::ForOneFrame : EDrawDebugTrace::None;
-	
-	bool bHit = UKismetSystemLibrary::SphereTraceSingle(
-		OwnerBoss->GetWorld(), 
-		Start, 
-		End, 
-		CollisionRadius, 
-		UEngineTypes::ConvertToTraceType(ECC_Pawn), 
-		false, 
-		ActorsToIgnore, 
-		DebugType, 
-		OutHit, 
-		true
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(OwnerBoss.Get());
+	QueryParams.bTraceComplex = false;
+
+	bool bHit = GetWorld()->SweepSingleByChannel(
+		OutHit,
+		Start,
+		End,
+		FQuat::Identity,
+		ECC_Pawn,
+		FCollisionShape::MakeSphere(CollisionRadius),
+		QueryParams
 	);
+
+	if (bDrawDebug)
+	{
+		DrawDebugSphere(GetWorld(), Start, CollisionRadius, 12, bHit ? FColor::Red : FColor::Green, false, 0.1f);
+		DrawDebugLine(GetWorld(), Start, End, bHit ? FColor::Red : FColor::Green, false, 0.1f, 0, 2.0f);
+		
+		if (bHit)
+		{
+			DrawDebugSphere(GetWorld(), OutHit.ImpactPoint, 30.0f, 8, FColor::Orange, false, 0.1f);
+		}
+	}
 	
-	if (bHit && State == ERushState::Rushing)
+	if (bHit)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[Rush] SweepAhead HIT: %s at distance %.1f"), 
 			*GetNameSafe(OutHit.GetActor()), OutHit.Distance);
@@ -415,11 +348,6 @@ bool UCBossPattern_Rush::SweepAhead(FHitResult& OutHit, float Distance) const
 	
 	return bHit;
 }
-
-
-// ─────────────────────────────────────────────────────────────
-// Overlap Detection (매 프레임 체크)
-// ─────────────────────────────────────────────────────────────
 
 void UCBossPattern_Rush::CheckOverlappingActors()
 {
@@ -438,7 +366,6 @@ void UCBossPattern_Rush::CheckOverlappingActors()
 			continue;
 		}
 
-		// 중복 데미지 방지
 		TWeakObjectPtr<AActor> WeakOther = OtherActor;
 		if (DamagedPlayers.Contains(WeakOther))
 		{
@@ -459,7 +386,6 @@ void UCBossPattern_Rush::CheckOverlappingActors()
 
 		UE_LOG(LogTemp, Warning, TEXT("[Rush] OVERLAP DETECTED Player: %s"), *OtherActor->GetName());
 
-		// 데미지 적용
 		float ActualDamage = UGameplayStatics::ApplyDamage
 		(
 			OtherActor, 
@@ -470,7 +396,6 @@ void UCBossPattern_Rush::CheckOverlappingActors()
 		);
 		UE_LOG(LogTemp, Warning, TEXT("[Rush] OVERLAP Damage Applied: %.1f"), ActualDamage);
 
-		// 넉백 방향 계산
 		FVector KnockDirection = LockedRushDirection;
 		if (KnockDirection.IsNearlyZero())
 		{
@@ -494,7 +419,6 @@ void UCBossPattern_Rush::CheckOverlappingActors()
 			UE_LOG(LogTemp, Warning, TEXT("[Rush] OVERLAP Knockback Component Triggered"));
 		}
 
-		// 중복 데미지 방지
 		DamagedPlayers.Add(WeakOther);
 
 		EndRushingInternal(ERushEndReason::HitPlayer, OtherActor);
@@ -515,7 +439,6 @@ void UCBossPattern_Rush::EndRushingInternal(ERushEndReason Reason, AActor* HitAc
 	if (State != ERushState::Rushing)
 		return;
 
-	// 종료 사유 로그
 	LastEndReason = Reason;
 	
 	const TCHAR* ReasonNames[] = {TEXT("None"), TEXT("ReachedTarget"), TEXT("HitPlayer"), TEXT("MaxTime"), TEXT("Aborted")};
@@ -535,26 +458,21 @@ void UCBossPattern_Rush::EndRushingInternal(ERushEndReason Reason, AActor* HitAc
 	BeginRecoveryInternal(Reason, HitActor);
 }
 
-// ─────────────────────────────────────────────────────────────
 // Recovery Phase
-// ─────────────────────────────────────────────────────────────
-
 void UCBossPattern_Rush::BeginRecoveryInternal(ERushEndReason Reason, AActor* HitActor)
 {
-	UE_LOG(LogTemp, Warning, TEXT("[Rush] ⚡ BeginRecoveryInternal called"));
+	UE_LOG(LogTemp, Warning, TEXT("[Rush] BeginRecoveryInternal called"));
 	
 	EnterState(ERushState::Recovery);
 	
 	if (!HasValidOwner())
 		return;
 
-	// 즉시 정지 - Velocity를 직접 0으로 설정
 	if (UCharacterMovementComponent* Movement = OwnerBoss->GetCharacterMovement())
 	{
 		Movement->StopMovementImmediately();
 		Movement->Velocity = FVector::ZeroVector;
 		
-		// 스냅샷 복구
 		Movement->MaxWalkSpeed = SavedMaxWalkSpeed;
 		Movement->MaxAcceleration = SavedMaxAcceleration;
 		Movement->BrakingDecelerationWalking = SavedBrakingDeceleration;
@@ -568,8 +486,7 @@ void UCBossPattern_Rush::BeginRecoveryInternal(ERushEndReason Reason, AActor* Hi
 	if (OwnerBoss->GetMesh())
 	{
 		if (UAnimInstance* AnimInstance = OwnerBoss->GetMesh()->GetAnimInstance())
-			{
-			// 모든 몽타주 즉시 정지
+		{
 			AnimInstance->StopAllMontages(0.0f);
 			
 			if (RecoveryMontage)
@@ -580,7 +497,7 @@ void UCBossPattern_Rush::BeginRecoveryInternal(ERushEndReason Reason, AActor* Hi
 			}
 			else
 			{
-				UE_LOG(LogTemp, Error, TEXT("[Rush]  RecoveryMontage is NULL! Cannot play recovery animation!"));
+				UE_LOG(LogTemp, Error, TEXT("[Rush] RecoveryMontage is NULL! Cannot play recovery animation!"));
 			}
 		}
 		else
@@ -608,10 +525,7 @@ void UCBossPattern_Rush::Anim_RecoveryEnd()
 	}
 }
 
-// ─────────────────────────────────────────────────────────────
-// Deprecated -> Updated Compatibility Methods
-// ─────────────────────────────────────────────────────────────
-
+// Compatibility Methods
 void UCBossPattern_Rush::HandleRushMovementStart()
 {
 	if (!IsOnCooldown())
@@ -637,10 +551,7 @@ void UCBossPattern_Rush::HandleRushMovementStop()
 	BeginRecoveryInternal(ERushEndReason::MaxTime, nullptr);
 }
 
-// ─────────────────────────────────────────────────────────────
 // Helper Functions
-// ─────────────────────────────────────────────────────────────
-
 void UCBossPattern_Rush::HandlePatternComplete()
 {
 	if (OwnerBoss.IsValid() && OwnerBoss->GetWorld())
@@ -666,7 +577,7 @@ void UCBossPattern_Rush::HandlePatternComplete()
 	
 	if (LastEndReason == ERushEndReason::MaxTime)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[Rush]  MISSED Player - Ending without cooldown"));
+		UE_LOG(LogTemp, Warning, TEXT("[Rush] MISSED Player - Ending without cooldown"));
 		bApplyCooldown = true;
 	}
 	else if (LastEndReason == ERushEndReason::HitPlayer)
@@ -682,7 +593,6 @@ void UCBossPattern_Rush::HandlePatternComplete()
 	
 	FinishPattern(bApplyCooldown);
 }
-
 
 bool UCBossPattern_Rush::HasValidOwner() const
 {

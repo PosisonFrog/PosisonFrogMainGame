@@ -182,6 +182,9 @@ public:
     void BeginPattern(int32 PatternIndex);
     void FinishPattern(bool bInterrupted);
     
+    UPROPERTY(Transient)
+    TMap<FName, float> PatternCooldowns;
+    
 protected:
     void InitialiseFromData();
     void InitializePhases();
@@ -214,7 +217,8 @@ protected:
     UFUNCTION()
     void HandleDeath(AActor* DeadActor);
 
-    
+
+
 
 protected:
     TWeakObjectPtr<UCEnemyHealthComponent> CachedHealth;
@@ -236,8 +240,7 @@ protected:
     UPROPERTY(BlueprintReadOnly, Category="Boss", meta=(AllowPrivateAccess="true"))
     float PendingRecoveryDuration;
     
-    UPROPERTY(Transient)
-    TMap<FName, float> PatternCooldowns;
+
     TArray<int32> PhaseOrder;
 
     FName ForcedPatternId = NAME_None;

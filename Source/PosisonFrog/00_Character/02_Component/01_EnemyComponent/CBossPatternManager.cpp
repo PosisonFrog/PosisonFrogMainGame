@@ -23,16 +23,6 @@ UCBossPatternManager::UCBossPatternManager()
 {
 	PrimaryComponentTick.bCanEverTick = true;
 	bIsPatternActive = false;
-
-	BasicAttackPattern = CreateDefaultSubobject<UCBossPattern_BasicAttack>(TEXT("BasicAttackPattern"));
-	BarragePattern = CreateDefaultSubobject<UCBossPattern_Barrage>(TEXT("BarragePattern"));
-	RushPattern = CreateDefaultSubobject<UCBossPattern_Rush>(TEXT("RushPattern"));
-	SlamPattern = CreateDefaultSubobject<UCBossPattern_Slam>(TEXT("SlamPattern"));
-	
-	PatternMap.Add(FName("BasicAttack"), BasicAttackPattern);
-	PatternMap.Add(FName("Barrage"), BarragePattern);
-	PatternMap.Add(FName("Rush"), RushPattern);
-	PatternMap.Add(FName("Slam"), SlamPattern);
 }
 
 void UCBossPatternManager::BeginPlay()
@@ -56,22 +46,9 @@ void UCBossPatternManager::BeginPlay()
 		return;
 	}
 
-	InitializePatterns();
 	BindToBossPhaseComponent();
 }
 
-void UCBossPatternManager::InitializePatterns()
-{
-	if (!OwnerBoss) return;
-    
-	for (auto& Pair : PatternMap)
-	{
-		if (Pair.Value)
-		{
-			Pair.Value->Initialize(OwnerBoss, WeaponComponent);
-		}
-	}
-}
 
 void UCBossPatternManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
@@ -100,14 +77,6 @@ void UCBossPatternManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
 void UCBossPatternManager::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-
-	if (UCBossPattern_Rush* LocalRushPattern = Cast<UCBossPattern_Rush>(FindPattern(FName("Rush"))))
-	{
-		if (LocalRushPattern->IsRushing())
-		{
-			LocalRushPattern->TickRushMovement(DeltaTime);
-		}
-	}
 }
 
 // ========================================
@@ -118,10 +87,10 @@ void UCBossPatternManager::HandlePatternStarted(int32 PhaseIndex, FName PatternI
 {
 	if (!PhaseComponent || !PhaseComponent->IsBattleStarted()) return;
 
-	// 기존 패턴 ID 저장 (Fallback 감지)
 	FName OriginalPatternId = PatternId;
 	FBossPatternDefinition FinalPatternData = PatternData;
 
+	// 거리 검증 및 폴백
 	float DistanceToPlayer = GetDistanceToPlayer();
 	if (!ValidatePatternDistance(PatternId, DistanceToPlayer))
 	{
@@ -129,10 +98,8 @@ void UCBossPatternManager::HandlePatternStarted(int32 PhaseIndex, FName PatternI
 		UE_LOG(LogTemp, Warning, TEXT("[PatternManager] Pattern %s invalid at distance %.1f, using fallback: %s"), 
 			*PatternId.ToString(), DistanceToPlayer, *FallbackPatternId.ToString());
 		
-		// Fallback 패턴도 유효한지 검증
 		if (!ValidatePatternDistance(FallbackPatternId, DistanceToPlayer))
 		{
-			// Fallback도 실패하면 BasicAttack으로 강제 변경
 			UE_LOG(LogTemp, Error, TEXT("[PatternManager] Fallback pattern %s also invalid! Forcing BasicAttack"), 
 				*FallbackPatternId.ToString());
 			FallbackPatternId = FName("BasicAttack");
@@ -141,12 +108,10 @@ void UCBossPatternManager::HandlePatternStarted(int32 PhaseIndex, FName PatternI
 		PatternId = FallbackPatternId;
 	}
 
-	// Fallback이 발생했다면 맞는 PatternData 찾기
+	// Fallback 발생 시 맞는 PatternData 찾기
 	if (PatternId != OriginalPatternId)
 	{
 		bool bFoundNewPatternData = false;
-		
-		// PhaseComponent에서 현재 Phase의 패턴 목록 가져오기
 		const FBossPhaseDefinition* CurrentPhase = PhaseComponent->GetCurrentPhaseDefinition();
 		if (CurrentPhase)
 		{
@@ -156,8 +121,7 @@ void UCBossPatternManager::HandlePatternStarted(int32 PhaseIndex, FName PatternI
 				{
 					FinalPatternData = Pattern;
 					bFoundNewPatternData = true;
-					UE_LOG(LogTemp, Log, TEXT("[PatternManager]  Found Fallback PatternData: %s (Exec: %.2f, Recovery: %.2f, Cooldown: %.2f)"), 
-						*PatternId.ToString(), Pattern.ExecutionTime, Pattern.RecoveryTime, Pattern.Cooldown);
+					UE_LOG(LogTemp, Log, TEXT("[PatternManager] Found Fallback PatternData: %s"), *PatternId.ToString());
 					break;
 				}
 			}
@@ -165,52 +129,44 @@ void UCBossPatternManager::HandlePatternStarted(int32 PhaseIndex, FName PatternI
 		
 		if (!bFoundNewPatternData)
 		{
-			UE_LOG(LogTemp, Error, TEXT("[PatternManager]  Could not find PatternData for fallback pattern %s! Using original data."), 
-				*PatternId.ToString());
+			UE_LOG(LogTemp, Error, TEXT("[PatternManager] Could not find PatternData for fallback pattern %s!"), *PatternId.ToString());
 		}
 	}
 
+	// Tag 기반으로 패턴 찾기
 	UCBossPatternBase* SelectedPattern = FindPattern(PatternId);
 	if (!SelectedPattern)
 	{
-		UE_LOG(LogTemp, Error, TEXT("[PatternManager] Pattern object not found for ID: %s. Trying BasicAttack..."), 
-			*PatternId.ToString());
+		UE_LOG(LogTemp, Error, TEXT("[PatternManager] Pattern object not found for ID: %s. Trying BasicAttack..."), *PatternId.ToString());
 		
 		SelectedPattern = FindPattern(FName("BasicAttack"));
 		if (!SelectedPattern)
 		{
 			UE_LOG(LogTemp, Error, TEXT("[PatternManager] BasicAttack also not found! Skipping pattern execution."));
-			
-			// 패턴 실행을 건너뛰고 즉시 다음 패턴 선택 준비
 			State = EBossManagerState::Idle;
 			bIsPatternActive = false;
 			SelectNextPattern();
 			return;
 		}
 		
-		// BasicAttack으로 Fallback된 경우에도 올바른 PatternData 찾기
 		PatternId = FName("BasicAttack");
-		if (PatternId != OriginalPatternId)
+		// BasicAttack PatternData 찾기
+		const FBossPhaseDefinition* CurrentPhase = PhaseComponent->GetCurrentPhaseDefinition();
+		if (CurrentPhase)
 		{
-			const FBossPhaseDefinition* CurrentPhase = PhaseComponent->GetCurrentPhaseDefinition();
-			if (CurrentPhase)
+			for (const FBossPatternDefinition& Pattern : CurrentPhase->Patterns)
 			{
-				for (const FBossPatternDefinition& Pattern : CurrentPhase->Patterns)
+				if (Pattern.PatternId == PatternId)
 				{
-					if (Pattern.PatternId == PatternId)
-					{
-						FinalPatternData = Pattern;
-						UE_LOG(LogTemp, Log, TEXT("[PatternManager]  Found BasicAttack PatternData (Exec: %.2f, Recovery: %.2f)"), 
-							Pattern.ExecutionTime, Pattern.RecoveryTime);
-						break;
-					}
+					FinalPatternData = Pattern;
+					break;
 				}
 			}
 		}
 	}
 
 	CurrentPatternId = PatternId;
-	bIsPatternActive = true; // PhaseComponent가 대기하도록 설정
+	bIsPatternActive = true;
 	State = EBossManagerState::Executing;
 
 	CleanupPatternActors();
@@ -223,8 +179,7 @@ void UCBossPatternManager::HandlePatternStarted(int32 PhaseIndex, FName PatternI
 	CurrentPattern = SelectedPattern;
 	CurrentPattern->ExecutePattern(PhaseIndex, FinalPatternData); 
 	
-	UE_LOG(LogTemp, Warning, TEXT("[PatternManager] Pattern %s execution started with ExecutionTime: %.2f, RecoveryTime: %.2f"), 
-		*PatternId.ToString(), FinalPatternData.ExecutionTime, FinalPatternData.RecoveryTime);
+	UE_LOG(LogTemp, Warning, TEXT("[PatternManager] Pattern %s execution started"), *PatternId.ToString());
 }
 
 void UCBossPatternManager::NotifyCurrentPatternEnd(bool bApplyCooldown)
@@ -232,16 +187,20 @@ void UCBossPatternManager::NotifyCurrentPatternEnd(bool bApplyCooldown)
 	UE_LOG(LogTemp, Warning, TEXT("[PatternManager] NotifyCurrentPatternEnd Called. ApplyCooldown: %s"), 
 		bApplyCooldown ? TEXT("YES") : TEXT("NO"));
 
-	State = EBossManagerState::Cooldown;
-
-	if (bApplyCooldown && CurrentPattern)
+	// 단순 중계 역할로 축소 - PhaseComponent가 직접 호출됨
+	if (IsValid(PhaseComponent))
 	{
-		float WaitTime = CurrentPattern->GetRuntimeCooldown();
-		
-		WaitTime = FMath::Max(WaitTime, MinGlobalCooldown);
+		// PhaseComponent->FinishPattern은 패턴 자체에서 호출됨
+		UE_LOG(LogTemp, Log, TEXT("[PatternManager] Pattern end acknowledged"));
+	}
 
-		UE_LOG(LogTemp, Log, TEXT("[PatternManager] Cooling down for %.2f sec"), WaitTime);
-
+	State = EBossManagerState::Cooldown;
+	
+	// 최소 쿨다운 적용
+	float WaitTime = bApplyCooldown ? MinGlobalCooldown : 0.0f;
+	
+	if (WaitTime > 0.0f)
+	{
 		if (UWorld* World = GetWorld())
 		{
 			World->GetTimerManager().SetTimer(
@@ -255,30 +214,7 @@ void UCBossPatternManager::NotifyCurrentPatternEnd(bool bApplyCooldown)
 	}
 	else
 	{
-		// Forced Stop 여부 확인
-		bool bForcedStop = !bApplyCooldown;
-		float CooldownDuration = bForcedStop ? (MinGlobalCooldown * 2.0f) : 0.0f;
-		
-		if (CooldownDuration > 0.0f)
-		{
-			UE_LOG(LogTemp, Warning, TEXT("[PatternManager] Forced Stop - Applying extended min cooldown: %.2f"), CooldownDuration);
-			
-			if (UWorld* World = GetWorld())
-			{
-				World->GetTimerManager().SetTimer(
-					CooldownTimerHandle, 
-					this, 
-					&UCBossPatternManager::OnCooldownFinished, 
-					CooldownDuration, 
-					false
-				);
-			}
-		}
-		else
-		{
-			// 쿨다운 없으면 즉시 종료 처리
-			OnCooldownFinished();
-		}
+		OnCooldownFinished();
 	}
 
 	CurrentPattern = nullptr;
@@ -299,12 +235,6 @@ void UCBossPatternManager::OnCooldownFinished()
 	CleanupPatternActors();
 	CleanupUtilitySpawnTimers();
 	CleanupMinionSpawnTimers();
-
-	if (PhaseComponent)
-	{
-		UE_LOG(LogTemp, Log, TEXT("[PatternManager] Notifying PhaseComponent of pattern completion"));
-		PhaseComponent->FinishPattern(false);  // false = 정상 종료
-	}
 	
 	bIsPatternActive = false;
 	
@@ -429,12 +359,20 @@ void UCBossPatternManager::HandlePhaseChanged(int32 PhaseIndex, const FBossPhase
 	PlayPhaseTransition(PhaseIndex);
 	UpdatePhaseStats(PhaseIndex);
 
-	for (const auto& Pair : PatternMap)
+	if (OwnerBoss)
 	{
-		if (UCBossPatternBase* Pattern = Pair.Value)
+		TArray<UActorComponent*> PatternComponents;
+		OwnerBoss->GetComponents(UCBossPatternBase::StaticClass(), PatternComponents);
+		
+		for (UActorComponent* Component : PatternComponents)
 		{
-			Pattern->UpdatePhaseSettings(PhaseIndex);
+			if (UCBossPatternBase* Pattern = Cast<UCBossPatternBase>(Component))
+			{
+				Pattern->UpdatePhaseSettings(PhaseIndex);
+			}
 		}
+		
+		UE_LOG(LogTemp, Log, TEXT("[PatternManager] Updated %d patterns for Phase %d"), PatternComponents.Num(), PhaseIndex);
 	}
 }
 
@@ -443,47 +381,6 @@ void UCBossPatternManager::HandleShoutStarted(int32 PhaseIndex, FName ShoutId, f
 	// 포효 패턴 처리 로직 (필요시 구현)
 }
 
-// ========================================
-// Rush Pattern Helpers
-// ========================================
-
-void UCBossPatternManager::HandleRushMovementStart()
-{
-	if (GetWorld())
-	{
-		GetWorld()->GetTimerManager().ClearTimer(RushTimerHandle);
-	}
-	
-	if (UCBossPattern_Rush* LocalRushPattern = Cast<UCBossPattern_Rush>(FindPattern(FName("Rush"))))
-	{
-		if(!LocalRushPattern->IsRushing()) 
-			LocalRushPattern->Anim_RushStart(); 
-	}
-}
-
-void UCBossPatternManager::HandleRushMovementStop()
-{
-	if (GetWorld())
-	{
-		GetWorld()->GetTimerManager().ClearTimer(RushTimerHandle);
-	}
-	
-	if (UCBossPattern_Rush* LocalRushPattern = Cast<UCBossPattern_Rush>(FindPattern(FName("Rush"))))
-	{
-		ERushState RushState = LocalRushPattern->GetRushState();
-		
-		// Recovery나 Cooldown 상태면 이미 정상 종료 중이므로 무시
-		if (RushState == ERushState::Recovery || RushState == ERushState::Cooldown || RushState == ERushState::Idle)
-		{
-			UE_LOG(LogTemp, Log, TEXT("[PatternManager] HandleRushMovementStop ignored - Rush already ending (State: %d)"), (int32)RushState);
-			return;
-		}
-		
-		// Telegraph나 Rushing 상태일 때만 강제 종료
-		UE_LOG(LogTemp, Warning, TEXT("[PatternManager] HandleRushMovementStop - Forcing Rush stop (State: %d)"), (int32)RushState);
-		LocalRushPattern->HandleRushMovementStop();
-	}
-}
 
 // ========================================
 // Utilities Implementation
@@ -542,22 +439,41 @@ FName UCBossPatternManager::GetFallbackPattern(FName OriginalPattern, float Dist
 
 UCBossPatternBase* UCBossPatternManager::FindPattern(FName PatternId) const
 {
-	if (const TObjectPtr<UCBossPatternBase>* Found = PatternMap.Find(PatternId))
+	if (!OwnerBoss)
 	{
-		return *Found;
+		return nullptr;
 	}
+	
+	// BossCharacter에서 Tag로 패턴 찾기
+	TArray<UActorComponent*> PatternComponents = OwnerBoss->GetComponentsByTag(UCBossPatternBase::StaticClass(), PatternId);
+	
+	if (PatternComponents.Num() > 0)
+	{
+		return Cast<UCBossPatternBase>(PatternComponents[0]);
+	}
+	
+	UE_LOG(LogTemp, Warning, TEXT("[PatternManager] Pattern not found: %s"), *PatternId.ToString());
 	return nullptr;
 }
 
 void UCBossPatternManager::CleanupAllPatterns()
 {
-	for (const auto& Pair : PatternMap)
+	if (OwnerBoss)
 	{
-		if (UCBossPatternBase* Pattern = Pair.Value)
+		TArray<UActorComponent*> PatternComponents;
+		OwnerBoss->GetComponents(UCBossPatternBase::StaticClass(), PatternComponents);
+		
+		for (UActorComponent* Component : PatternComponents)
 		{
-			Pattern->Cleanup();
+			if (UCBossPatternBase* Pattern = Cast<UCBossPatternBase>(Component))
+			{
+				Pattern->Cleanup();
+			}
 		}
+		
+		UE_LOG(LogTemp, Log, TEXT("[PatternManager] Cleaned up %d patterns"), PatternComponents.Num());
 	}
+	
 	CurrentPatternId = NAME_None;
 	bIsPatternActive = false;
 	CurrentPattern = nullptr;

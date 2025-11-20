@@ -11,13 +11,7 @@ UCBossPattern_Barrage::UCBossPattern_Barrage()
 {
 	PatternId = FName("Barrage");
 	CurrentMaxShots = 15;
-}
-
-void UCBossPattern_Barrage::BeginDestroy()
-{
-	UE_LOG(LogTemp, Log, TEXT("[Barrage] BeginDestroy called"));
-	ClearAllTimers();
-	Super::BeginDestroy();
+	PrimaryComponentTick.bCanEverTick = false;
 }
 
 void UCBossPattern_Barrage::ExecutePattern(int32 PhaseIndex, const FBossPatternDefinition& PatternData)
@@ -67,7 +61,6 @@ void UCBossPattern_Barrage::OnPatternEnd()
 {
 	Super::OnPatternEnd();
 
-	// Chase 재활성화
 	if (ABossAIController* BossAI = Cast<ABossAIController>(GetBossAI()))
 	{
 		BossAI->SetChaseEnabled(true);
@@ -127,7 +120,6 @@ void UCBossPattern_Barrage::StartBarrage()
 		ShotInterval,
 		true
 	);
-
 }
 
 void UCBossPattern_Barrage::FireBarrageShot()
@@ -173,7 +165,6 @@ void UCBossPattern_Barrage::FireBarrageShot()
 
 	const FVector TargetDropLocation = PrePlannedDropLocations[BarrageShotCount];
 
-	// 데칼 스폰
 	if (WarningDecalClass)
 	{
 		FActorSpawnParameters DecalParams;
@@ -190,7 +181,6 @@ void UCBossPattern_Barrage::FireBarrageShot()
 		}
 	}
 
-	// CoconutFallDelay 후 코코넛 스폰
 	TWeakObjectPtr<UCBossPattern_Barrage> WeakThis(this);
 	TWeakObjectPtr<ACEnemyBossCharacter> WeakBoss = OwnerBoss;
 	TWeakObjectPtr<UWorld> WeakWorld(World);

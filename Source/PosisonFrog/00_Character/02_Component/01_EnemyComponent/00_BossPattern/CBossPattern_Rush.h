@@ -1,5 +1,3 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 #pragma once
 
 #include "CoreMinimal.h"
@@ -16,10 +14,10 @@ UENUM(BlueprintType)
 enum class ERushState : uint8
 {
 	Idle,
-	Telegraph,   // 경고 단계 (예고 애니메이션)
-	Rushing,     // 실제 돌진 중
-	Recovery,    // 돌진 종료 후 회복
-	Cooldown     // 쿨다운 (패턴 종료 대기)
+	Telegraph,
+	Rushing,
+	Recovery,
+	Cooldown
 };
 
 /**
@@ -29,26 +27,19 @@ UENUM(BlueprintType)
 enum class ERushEndReason : uint8
 {
 	None,
-	ReachedTarget,    // 더 이상 사용 안함 
-	HitPlayer,        // 플레이어 충돌
-	MaxTime,          // 최대 시간 초과
-	Aborted           // 강제 중단
+	ReachedTarget,
+	HitPlayer,
+	MaxTime,
+	Aborted
 };
 
-// 델리게이트 선언
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnRushStateChanged, ERushState, NewState, ERushState, PreviousState);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnRushFinished, ERushEndReason, Reason, AActor*, HitActor);
 
 /**
- * 돌진(Rush) 패턴 - Tanker Charge 스타일로 재구성
- * 
- * 실행 흐름:
- * 1. Telegraph: 경고 애니메이션 재생 + 플레이어 방향 회전
- * 2. Rushing: 애님 노티파이로 실제 돌진 시작 (Anim_RushStart 호출)
- * 3. Recovery: 돌진 종료 후 회복 동작
- * 4. Cooldown: 패턴 종료 처리
+ * 돌진(Rush) 패턴
  */
-UCLASS(EditInlineNew, DefaultToInstanced)
+UCLASS(ClassGroup=(Boss), meta=(BlueprintSpawnableComponent))
 class POSISONFROG_API UCBossPattern_Rush : public UCBossPatternBase
 {
 	GENERATED_BODY()
@@ -56,10 +47,13 @@ class POSISONFROG_API UCBossPattern_Rush : public UCBossPatternBase
 public:
 	UCBossPattern_Rush();
 
+	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+	
 	virtual void ExecutePattern(int32 PhaseIndex, const FBossPatternDefinition& PatternData) override;
 	virtual void OnPatternEnd() override;
 	virtual void Cleanup() override;
-	virtual void BeginDestroy() override;
 
 	/** Tick에서 호출 - 돌진 이동 처리 */
 	void TickRushMovement(float DeltaTime);
@@ -72,18 +66,15 @@ public:
 	UFUNCTION(BlueprintPure, Category = "PF|BossPattern|Rush")
 	ERushState GetRushState() const { return State; }
 
-	/** 애님 노티파이: Telegraph → Rushing 전환 */
+	/** 애님 노티파이: Telegraph -> Rushing 전환 */
 	UFUNCTION(BlueprintCallable, Category = "PF|BossPattern|Rush|Anim")
 	void Anim_RushStart();
 
-	/** 애님 노티파이: Recovery 종료 (선택사항) */
+	/** 애님 노티파이: Recovery 종료 */
 	UFUNCTION(BlueprintCallable, Category = "PF|BossPattern|Rush|Anim")
 	void Anim_RecoveryEnd();
 
-	/** 
-	 * 구버전 호환성 메서드들 (Deprecated)
-	 * 새로운 구조에서는 Anim_RushStart()를 사용하세요
-	 */
+	/** 구버전 호환성 메서드들 */
 	UFUNCTION(BlueprintCallable, Category = "PF|BossPattern|Rush|Deprecated")
 	void HandleRushMovementStart();
 
@@ -91,7 +82,6 @@ public:
 	void HandleRushMovementStop();
 
 public:
-	// 델리게이트
 	UPROPERTY(BlueprintAssignable)
 	FOnRushStateChanged OnRushStateChanged;
 	
@@ -99,121 +89,81 @@ public:
 	FOnRushFinished OnRushFinished;
 
 protected:
-	// ─────────────────────────────────────────────────────────────
 	// Animation
-	// ─────────────────────────────────────────────────────────────
-	
-	/** Telegraph 애니메이션 몽타주 (경고 동작) */
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Rush|Animation")
 	TObjectPtr<UAnimMontage> TelegraphMontage;
 
-	/** Rush 애니메이션 몽타주 (돌진 동작) */
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Rush|Animation")
 	TObjectPtr<UAnimMontage> RushMontage;
 
-	/** Recovery 애니메이션 몽타주 (회복 동작) */
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Rush|Animation")
 	TObjectPtr<UAnimMontage> RecoveryMontage;
 
-	/** 애님 노티파이 없이도 자동으로 돌진 시작할지 여부 */
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Rush|Animation")
 	bool bAutoStartOnTelegraphEnd = true;
 
-	// ─────────────────────────────────────────────────────────────
 	// Rush Movement
-	// ─────────────────────────────────────────────────────────────
-
-	/** 돌진 속도 */
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Rush|Movement", meta = (ClampMin = "400"))
 	float RushSpeed = 1000.0f;
 
-	/** 회전 속도 (도/초) */
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Rush|Movement", meta = (ClampMin = "90"))
 	float TurnRateDegPerSec = 360.f;
 
-	/** 목표 도착 판정 반경 (사용 안함 - 거리 기반 종료 조건 제거됨) */
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Rush|Movement", meta = (ClampMin = "50"))
 	float RushAcceptanceRadius = 150.0f;
 
-	/** 최대 돌진 시간 */
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Rush|Movement", meta = (ClampMin = "0.5", ClampMax = "5.0"))
 	float MaxRushTime = 2.0f;
 
-	/** [추가] 플레이어를 놓쳤을 때 최대 대기 시간 */
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Rush|Movement", meta = (ClampMin = "0.1", ClampMax = "2.0"))
 	float RushMissTimeout = 1.5f;
 
-	// ─────────────────────────────────────────────────────────────
 	// Damage & Collision
-	// ─────────────────────────────────────────────────────────────
-
-	/** 돌진 시 데미지 */
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Rush|Damage", meta = (ClampMin = "0"))
 	float RushDamage = 20.0f;
 
-	/** 돌진 시 플레이어를 밀어내는 힘 */
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Rush|Damage", meta = (ClampMin = "0"))
 	float RushLaunchPower = 1500.0f;
 
-	/** 돌진 시 플레이어를 띄우는 수직 힘 */
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Rush|Damage", meta = (ClampMin = "0"))
 	float RushLaunchUp = 300.0f;
 
-	/** 충돌 감지 반경 (권장: 150) */
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Rush|Collision", meta = (ClampMin = "20"))
 	float CollisionRadius = 150.0f;
 
-	/** 충돌 감지 전방 거리 (권장: 250) */
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Rush|Collision", meta = (ClampMin = "60"))
 	float CollisionTraceAhead = 250.0f;
 
-	// ─────────────────────────────────────────────────────────────
 	// Debug
-	// ─────────────────────────────────────────────────────────────
-
-	/** 디버그 드로우 활성화 */
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Rush|Debug")
 	bool bDrawDebug = false;
 
 private:
-	/** 현재 상태 */
 	UPROPERTY(Transient)
 	ERushState State = ERushState::Idle;
 
-	/** 현재 PatternData (DataAsset에서 받은 값) */
 	FBossPatternDefinition CurrentPatternData;
 
-	/** 돌진 방향 (Telegraph에서 한 번만 설정되고 고정됨) */
 	FVector LockedRushDirection = FVector::ForwardVector;
-
-	/** 방향이 고정되었는지 여부 */
 	bool bDirectionLocked = false;
-
-	/** 돌진 시작 시간 */
 	float RushStartTime = 0.f;
 
-	/** 데미지를 입힌 플레이어 목록 (중복 데미지 방지) */
 	TSet<TWeakObjectPtr<AActor>> DamagedPlayers;
-	/** [추가] 마지막 종료 사유 (HandlePatternComplete에서 사용) */
 	ERushEndReason LastEndReason = ERushEndReason::None;
 
-
-	/** Movement 설정 백업 (Recovery 시 복구용) */
+	// Movement 설정 백업
 	float SavedMaxWalkSpeed = 400.0f;
 	float SavedMaxAcceleration = 2048.0f;
 	float SavedBrakingDeceleration = 2048.0f;
 	float SavedGroundFriction = 8.0f;
 	bool bSavedOrientRotationToMovement = true;
 
-	/** 타이머 핸들 */
+	// 타이머 핸들
 	FTimerHandle TH_Telegraph;
 	FTimerHandle TH_MaxRush;
 	FTimerHandle TH_Recovery;
 
-	// ─────────────────────────────────────────────────────────────
 	// Internal State Transitions
-	// ─────────────────────────────────────────────────────────────
-
 	void EnterState(ERushState NewState);
 	void ResetTransientData();
 	void ClearTimers();
@@ -223,21 +173,14 @@ private:
 	void EndRushingInternal(ERushEndReason Reason, AActor* HitActor = nullptr);
 	void BeginRecoveryInternal(ERushEndReason Reason, AActor* HitActor = nullptr);
 	void HandlePatternComplete();
-	
 
-	// ─────────────────────────────────────────────────────────────
 	// Movement & Collision
-	// ─────────────────────────────────────────────────────────────
-
 	void UpdateRushing(float DeltaSeconds);
 	void PerformCollisionTrace();
 	bool SweepAhead(FHitResult& OutHit, float Distance) const;
 	void CheckOverlappingActors();
 	void HandleMaxRushTime();
 
-	// ─────────────────────────────────────────────────────────────
 	// Validation
-	// ─────────────────────────────────────────────────────────────
-
 	bool HasValidOwner() const;
 };

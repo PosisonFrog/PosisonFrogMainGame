@@ -31,18 +31,9 @@ public:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
-	/** * ✅ [핵심 수정] 패턴이 종료되었음을 매니저에게 알림
-	 * @param bApplyCooldown true면 패턴의 쿨다운 시간만큼 대기 후 상태 해제, false면 즉시 해제
-	 */
+
 	UFUNCTION(BlueprintCallable, Category = "Pattern")
 	void NotifyCurrentPatternEnd(bool bApplyCooldown = true);
-
-	/** Rush AnimNotify 대응용 (호환성 유지) */
-	UFUNCTION(BlueprintCallable, Category = "Pattern|Rush")
-	void HandleRushMovementStart();
-
-	UFUNCTION(BlueprintCallable, Category = "Pattern|Rush")
-	void HandleRushMovementStop();
 	
 	UFUNCTION(BlueprintCallable, Category = "Pattern")
 	void CleanupAllPatterns();
@@ -66,7 +57,7 @@ protected:
 	void HandleShoutStarted(int32 PhaseIndex, FName ShoutId, float Duration);
 
 	/**============ 내부 로직 ============**/
-	void InitializePatterns();
+
 	UCBossPatternBase* FindPattern(FName PatternId) const;
 
 	void OnCooldownFinished();
@@ -140,17 +131,10 @@ private:
 	TObjectPtr<UCEnemyWeaponComponent> WeaponComponent;
 
 	/**============ 패턴 객체 관리 ============**/
-	UPROPERTY(EditDefaultsOnly, Instanced, Category="Patterns")
-	TMap<FName, TObjectPtr<UCBossPatternBase>> PatternMap;
+	// 🔴 제거: 더 이상 Manager가 패턴을 소유하지 않음
+	// PatternMap, BasicAttackPattern, BarragePattern 등은 BossCharacter가 소유
 	
-	UPROPERTY()
-	TObjectPtr<UCBossPatternBase> BasicAttackPattern;
-	UPROPERTY()
-	TObjectPtr<UCBossPatternBase> BarragePattern;
-	UPROPERTY()
-	TObjectPtr<UCBossPatternBase> RushPattern;
-	UPROPERTY()
-	TObjectPtr<UCBossPatternBase> SlamPattern;
+	// 현재 실행 중인 패턴 참조 (약한 참조)
 	UPROPERTY()
 	TObjectPtr<UCBossPatternBase> CurrentPattern;
 
