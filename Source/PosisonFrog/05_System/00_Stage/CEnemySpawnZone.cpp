@@ -159,6 +159,79 @@ TArray<FSpawnTransformInfo> ACEnemySpawnZone::GenerateSpawnTransforms()
     return Results;
 }
 
+TArray<FSpawnTransformInfo> ACEnemySpawnZone::GenerateFixedSpawnTransforms(TSubclassOf<ACEnemyCharacterBase> EnemyClass,
+	int32 Count)
+{
+	TArray<FSpawnTransformInfo> Results;
+	if (!EnemyClass || Count <= 0)
+	{
+		return Results;
+	}
+	
+	Results.Reserve(Count);
+	TArray<FVector> Locations;
+	Locations.Reserve(Count);
+	
+	FVector ZoneCenter = GetActorLocation();
+	FRotator ZoneRotation = GetActorRotation();
+	
+	for (int32 i = 0; i < Count; ++i)
+	{
+		int32 Attempts = 0;
+		bool bFoundValidLocation = false;
+			
+		while (Attempts < MaxRetries && !bFoundValidLocation)
+		{
+			FVector RandomLocation = GetRandomLocationInRadius();
+					
+			if (IsLocationValid(RandomLocation, Locations))
+			{
+				if (bTraceForGround)
+				{
+					if (TraceForGround(RandomLocation))
+					{
+						Locations.Add(RandomLocation);
+						bFoundValidLocation = true;
+					}
+				}
+				else
+				{
+					RandomLocation.Z = ZoneCenter.Z + HeightOffset;
+					Locations.Add(RandomLocation);
+					bFoundValidLocation = true;
+				}
+			}
+					
+			Attempts++;
+		}
+			
+		if (!bFoundValidLocation)
+		{
+			FVector FallbackLocation = GetRandomLocationInRadius();
+			if (bTraceForGround)
+			{
+				TraceForGround(FallbackLocation);
+			}
+			else
+			{
+				FallbackLocation.Z = ZoneCenter.Z + HeightOffset;
+			}
+			Locations.Add(FallbackLocation);
+		}
+	}
+	
+	for (const FVector& Location : Locations)
+	{
+		FRotator RandomRotation = ZoneRotation;
+		RandomRotation.Yaw += FMath::FRandRange(-180.f, 180.f);
+			
+		FTransform SpawnTransform(RandomRotation, Location, FVector::OneVector);
+		Results.Add(FSpawnTransformInfo(SpawnTransform, EnemyClass));
+	}
+	
+	return Results;
+}
+
 TArray<TSubclassOf<ACEnemyCharacterBase>> ACEnemySpawnZone::GenerateEnemyTypeArray() const
 {
 	TArray<TSubclassOf<ACEnemyCharacterBase>> Result;

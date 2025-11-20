@@ -12,6 +12,8 @@
 #include "00_Character/00_Player/CPlayerCharacter.h"
 #include "00_Character/01_Enemy/CEnemyCharacterBase.h"
 #include "00_Character/02_Component/CBaseHealthComponent.h"
+#include "00_Character/02_Component/00_PlayerComponent/CFuryGaugeComponent.h"
+#include "00_Character/02_Component/00_PlayerComponent/ComboStackComponent.h"
 #include "99_Util/CLog.h"
 #include "Kismet/GameplayStatics.h"
 #include "Navigation/PathFollowingComponent.h"
@@ -32,7 +34,20 @@ void ACStageManager::BeginPlay()
 	CollectCheckpoints();
 	CollectBossBarrier();
 
-	if (StartStage > 0)
+	if (UGameInstance* GameInstance = GetGameInstance())
+	{
+		TutorialManager = GameInstance->GetSubsystem<UCTutorialManager>();
+		if (IsValid(TutorialManager))
+		{
+			TutorialManager->OnTutorialStepCompleted.AddDynamic(this, &ACStageManager::OnTutorialStepCompleted);
+		}
+	}
+	
+	if (StageFlowNodes.Num() > 0)
+	{
+		InitializeStageFlow();
+	}
+	else if (StartStage > 0)
 	{
 		StartStageSpawn(StartStage);
 	}
@@ -182,6 +197,248 @@ void ACStageManager::PrepareForRespawn(int32 TargetStageID)
 			ClearIterator.RemoveCurrent();
 	}
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// 스테이지 플로우 & 튜토리얼
+// ────────────────────────────────────────────────────────────────────────────
+void ACStageManager::InitializeStageFlow()
+{
+	if (!IsValid(TutorialManager) && GetGameInstance())
+	{
+		TutorialManager = GetGameInstance()->GetSubsystem<UCTutorialManager>();
+	}
+
+	if (IsValid(TutorialManager))
+	{
+		TutorialManager->StartSequence(TutorialSequenceId, false);
+	}
+
+	CurrentNodeId = StartNode;
+	AdvanceToNode(CurrentNodeId);
+}
+
+void ACStageManager::HandleTrigger(FName TriggerTag)
+{
+	if (CurrentNodeId == INDEX_NONE)
+		return;
+
+	const int32 NodeIndex = FindNodeIndexById(CurrentNodeId);
+	if (!StageFlowNodes.IsValidIndex(NodeIndex))
+		return;
+
+	const FStageFlowNode& Node = StageFlowNodes[NodeIndex];
+	if (Node.TriggerTag == TriggerTag)
+	{
+		EnterNode(CurrentNodeId);
+	}
+}
+
+void ACStageManager::OnTutorialStepCompleted(FName StepId)
+{
+	const int32 NodeIndex = FindNodeIndexById(CurrentNodeId);
+	if (!StageFlowNodes.IsValidIndex(NodeIndex))
+		return;
+
+	const FStageFlowNode& Node = StageFlowNodes[NodeIndex];
+	if (Node.TutorialStepId == StepId)
+	{
+		AdvanceToNode(Node.NextNodeId);
+	}
+}
+
+void ACStageManager::AdvanceToNode(int32 NodeId)
+{
+	if (NodeId == INDEX_NONE)
+	{
+		CurrentNodeId = INDEX_NONE;
+		return;
+	}
+
+	const int32 NodeIndex = FindNodeIndexById(NodeId);
+	if (!StageFlowNodes.IsValidIndex(NodeIndex))
+	{
+		return;
+	}
+
+	CurrentNodeId = NodeId;
+	const FStageFlowNode& Node = StageFlowNodes[NodeIndex];
+
+	if (Node.bAutoStart || Node.TriggerTag.IsNone())
+	{
+		EnterNode(NodeId);
+	}
+}
+
+void ACStageManager::EnterNode(int32 NodeId)
+{
+	const int32 NodeIndex = FindNodeIndexById(NodeId);
+	if (!StageFlowNodes.IsValidIndex(NodeIndex))
+	{
+		return;
+	}
+
+	const FStageFlowNode& Node = StageFlowNodes[NodeIndex];
+
+	for (int32 CloseId : Node.CloseBarriers)
+	{
+		if (TObjectPtr<ACStageBarrier>* BarrierPtr = StageBarriers.Find(CloseId))
+		{
+			if (IsValid(*BarrierPtr))
+			{
+				(*BarrierPtr)->CloseBarrier();
+			}
+		}
+	}
+
+	for (int32 OpenId : Node.OpenBarriers)
+	{
+		OpenStageBarrier(OpenId);
+	}
+
+	for (int32 StageId : Node.ActivateSpawnStages)
+	{
+		StartStageSpawn(StageId);
+	}
+
+	if (!Node.TutorialStepId.IsNone())
+	{
+		ApplyTutorialSetup(Node);
+	}
+}
+
+int32 ACStageManager::FindNodeIndexById(int32 NodeId) const
+{
+	for (int32 Index = 0; Index < StageFlowNodes.Num(); ++Index)
+	{
+		if (StageFlowNodes[Index].NodeId == NodeId)
+		{
+			return Index;
+		}
+	}
+
+	return INDEX_NONE;
+}
+
+void ACStageManager::ApplyTutorialSetup(const FStageFlowNode& Node)
+{
+	const FTutorialSpawnRule Rule = GetSpawnRuleForStep(Node.TutorialStepId);
+	const int32 SpawnCount = Rule.EnemyCount > 0 ? Rule.EnemyCount : TutorialEnemyCount;
+	SpawnTutorialEnemies(Node.StageSectionId, Rule.EnemyClass, SpawnCount);
+	FillPlayerForRule(Rule);
+
+	if (IsValid(TutorialManager))
+	{
+		TutorialManager->RequestStartStepById(Node.TutorialStepId);
+	}
+}
+
+FTutorialSpawnRule ACStageManager::GetSpawnRuleForStep(FName StepId) const
+{
+	for (const FTutorialSpawnRule& Rule : TutorialSpawnRules)
+	{
+		if (Rule.StepId == StepId)
+		{
+			return Rule;
+		}
+	}
+
+	FTutorialSpawnRule DefaultRule;
+	DefaultRule.StepId = StepId;
+	DefaultRule.EnemyCount = TutorialEnemyCount;
+	DefaultRule.EnemyClass = DefaultTutorialEnemyClass;
+
+	if (StepId == TEXT("Dash") && IsValid(TankerEnemyClass))
+	{
+		DefaultRule.EnemyClass = TankerEnemyClass;
+		DefaultRule.bFillFuryToMax = true;
+	}
+	else if (StepId == TEXT("Spin"))
+	{
+		DefaultRule.bFillFuryToMax = true;
+	}
+	else if (StepId == TEXT("Ult") || StepId == TEXT("Ultimate"))
+	{
+		DefaultRule.bFillFuryToMax = true;
+		DefaultRule.bForceUltReady = true;
+	}
+
+	return DefaultRule;
+}
+
+void ACStageManager::SpawnTutorialEnemies(int32 StageID, TSubclassOf<ACEnemyCharacterBase> EnemyClass, int32 Count)
+{
+	if (!EnemyClass || Count <= 0)
+	{
+		return;
+	}
+
+	TArray<TObjectPtr<ACEnemySpawnZone>>* SpawnZones = StageSpawnZones.Find(StageID);
+	if (!SpawnZones || SpawnZones->Num() == 0)
+	{
+		CLog::Log(FString::Printf(TEXT("[StageManager] Stage %d 튜토리얼 스폰존이 없습니다."), StageID));
+		return;
+	}
+
+	ACEnemySpawnZone* Zone = (*SpawnZones)[0];
+	if (!IsValid(Zone))
+	{
+		return;
+	}
+
+	const TArray<FSpawnTransformInfo> SpawnInfos = Zone->GenerateFixedSpawnTransforms(EnemyClass, Count);
+	if (SpawnInfos.Num() == 0)
+	{
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	TArray<TObjectPtr<ACEnemyCharacterBase>>& EnemyArray = StageEnemies.FindOrAdd(StageID);
+	for (const FSpawnTransformInfo& Info : SpawnInfos)
+	{
+		FActorSpawnParameters SpawnParams;
+		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+
+		if (ACEnemyCharacterBase* Enemy = World->SpawnActor<ACEnemyCharacterBase>(Info.EnemyClass, Info.Transform, SpawnParams))
+		{
+			EnemyArray.Add(Enemy);
+			if (UCBaseHealthComponent* HealthComp = Enemy->FindComponentByClass<UCBaseHealthComponent>())
+			{
+				HealthComp->OnDeath.AddDynamic(this, &ACStageManager::OnEnemyDied);
+			}
+		}
+	}
+}
+
+void ACStageManager::FillPlayerForRule(const FTutorialSpawnRule& Rule)
+{
+	ACPlayerCharacter* Player = Cast<ACPlayerCharacter>(UGameplayStatics::GetPlayerPawn(GetWorld(), 0));
+	if (!IsValid(Player))
+	{
+		return;
+	}
+
+	if (Rule.bFillFuryToMax)
+	{
+		if (UCFuryGaugeComponent* Fury = Player->FindComponentByClass<UCFuryGaugeComponent>())
+		{
+			Fury->SetFury(Fury->MaxStacks);
+		}
+	}
+
+	if (Rule.bForceUltReady)
+	{
+		if (UComboStackComponent* Combo = Player->FindComponentByClass<UComboStackComponent>())
+		{
+			Combo->ForceUltReady();
+		}
+	}
+}
+
 
 void ACStageManager::RegisterHordeEnemy(ACEnemyCharacterBase* Enemy, int32 StageID)
 {

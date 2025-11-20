@@ -100,7 +100,7 @@ public:
 	// ──────────── 스폰 로직 ────────────
 	int32 GetTotalEnemyCount() const;
 	TArray<FSpawnTransformInfo> GenerateSpawnTransforms();
-
+	TArray<FSpawnTransformInfo> GenerateFixedSpawnTransforms(TSubclassOf<ACEnemyCharacterBase> EnemyClass, int32 Count);
 private:
 	TArray<TSubclassOf<ACEnemyCharacterBase>> GenerateEnemyTypeArray() const;
 	
