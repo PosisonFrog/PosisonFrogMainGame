@@ -306,7 +306,7 @@ void UCBossPatternManager::SelectNextPattern()
 // PhaseComponent에서 직접 호출되는 종료 델리게이트
 void UCBossPatternManager::HandlePatternFinished(int32 PhaseIndex, FName PatternId, const FBossPatternDefinition& PatternData, float RemainingPower)
 {
-	// 재진입 방지 - 근데 왜 작동을 안하니 아....
+	// 재진입 방지가 드디어 작동합니다(엉엉)
 	if (State == EBossManagerState::Cooldown)
 	{
 		UE_LOG(LogTemp, Log, TEXT("[PatternManager] HandlePatternFinished ignored - already in Cooldown"));
@@ -319,15 +319,13 @@ void UCBossPatternManager::HandlePatternFinished(int32 PhaseIndex, FName Pattern
 	if (CurrentPattern)
 	{
 		CurrentPattern->OnPatternEnd();
-		CurrentPattern = nullptr;
 	}
 
-
-	if (PhaseComponent)
+	/*if (PhaseComponent)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[PatternManager] Notifying PhaseComponent of forced pattern end"));
 		PhaseComponent->FinishPattern(true); // bInterrupted=true, power loss + cooldown
-	}
+	}*/
 	State = EBossManagerState::Cooldown;
 	
 	UE_LOG(LogTemp, Log, TEXT("[PatternManager] Applying minimum cooldown: %.2f sec"), MinGlobalCooldown);

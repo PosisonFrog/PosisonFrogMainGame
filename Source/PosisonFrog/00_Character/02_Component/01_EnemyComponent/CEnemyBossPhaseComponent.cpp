@@ -632,15 +632,8 @@ void UCEnemyBossPhaseComponent::TickState(float DeltaTime)
 {
     // ExecutingPattern 상태 안전장치
     if (State == EBossBattleState::ExecutingPattern)
-    {
-        // 패턴이 설정되지 않았거나 이미 종료된 경우 강제 advance
-        if (CurrentPatternIndex == INDEX_NONE)
-        {
-            UE_LOG(LogTemp, Warning, TEXT("[PhaseComponent] Safety: ExecutingPattern with no pattern - Force advancing"));
-            AdvanceState();
-            return;
-        }
-    }
+        return;
+    
     
     if (StateTimeRemaining > 0.f)
     {
@@ -821,7 +814,7 @@ void UCEnemyBossPhaseComponent::BeginPattern(int32 PatternIndex)
 
 
     // 패턴 시작 시 쿨다운 맵에 추가
-    PatternCooldowns.FindOrAdd(Pattern.PatternId) = Pattern.Cooldown;
+   /* PatternCooldowns.FindOrAdd(Pattern.PatternId) = Pattern.Cooldown;
 
     // ExecutionTime이 0 이하면 최소값 보장
     float ExecutionDuration = Pattern.ExecutionTime;
@@ -830,9 +823,9 @@ void UCEnemyBossPhaseComponent::BeginPattern(int32 PatternIndex)
         ExecutionDuration = 0.5f; 
         UE_LOG(LogTemp, Warning, TEXT("[PhaseComponent] Pattern %s has ExecutionTime <= 0, using fallback: 0.5s"), 
             *Pattern.PatternId.ToString());
-    }
+    }*/
 
-    EnterState(EBossBattleState::ExecutingPattern, ExecutionDuration);
+    EnterState(EBossBattleState::ExecutingPattern, 0.f);
 }
 
 void UCEnemyBossPhaseComponent::FinishPattern(bool bInterrupted)
@@ -905,49 +898,60 @@ int32 UCEnemyBossPhaseComponent::SelectNextPatternIndex() const
         return INDEX_NONE;
     }
 
-    
+    // 강제 실행 패턴이 있고, 사용 가능하다면 최우선으로 선택
     if (!ForcedPatternId.IsNone())
     {
         for (int32 Index = 0; Index < Patterns.Num(); ++Index)
         {
-            if (Patterns[Index].PatternId == ForcedPatternId && CanUsePattern(Index))
+            if (Patterns[Index].PatternId == ForcedPatternId)
             {
-                return Index;
+                if (CanUsePattern(Index))
+                {
+                    UE_LOG(LogTemp, Warning, TEXT("[PhaseComponent] Selecting FORCED pattern: %s"), *ForcedPatternId.ToString());
+                    return Index;
+                }
+                else
+                {
+                    UE_LOG(LogTemp, Error, TEXT("[PhaseComponent] Forced pattern '%s' cannot be used right now."), *ForcedPatternId.ToString());
+                    // 강제 패턴 사용 불가 시, 일반 선택 로직으로 넘어감
+                }
             }
         }
     }
-
+    
+    TArray<int32> AvailablePatternIndices;
+    TArray<float> AvailablePatternWeights;
     float TotalWeight = 0.f;
-    TArray<float> AccWeights;
-    AccWeights.Reserve(Patterns.Num());
 
     for (int32 Index = 0; Index < Patterns.Num(); ++Index)
     {
-        if (!CanUsePattern(Index))
+        if (CanUsePattern(Index))
         {
-            AccWeights.Add(TotalWeight);
-            continue;
+            AvailablePatternIndices.Add(Index);
+            AvailablePatternWeights.Add(Patterns[Index].Weight);
+            TotalWeight += Patterns[Index].Weight;
         }
-
-        TotalWeight += FMath::Max(0.f, Patterns[Index].Weight);
-        AccWeights.Add(TotalWeight);
     }
 
-    if (TotalWeight <= 0.f)
+    if (AvailablePatternIndices.IsEmpty() || TotalWeight <= 0.f)
     {
+        // 사용 가능한 패턴이 없을 경우 INDEX_NONE 반환
         return INDEX_NONE;
     }
 
     const float Sample = FMath::FRandRange(0.f, TotalWeight);
-    for (int32 Index = 0; Index < AccWeights.Num(); ++Index)
+    float AccumulatedWeight = 0.f;
+    for (int32 i = 0; i < AvailablePatternIndices.Num(); ++i)
     {
-        if (Sample <= AccWeights[Index])
+        AccumulatedWeight += AvailablePatternWeights[i];
+        if (Sample <= AccumulatedWeight)
         {
-            return Index;
+            return AvailablePatternIndices[i];
         }
     }
 
-    return Patterns.Num() - 1;
+    // 만약의 경우 마지막 패턴 선택
+    return AvailablePatternIndices.Last();
 }
 
 bool UCEnemyBossPhaseComponent::CanUsePattern(int32 PatternIndex) const

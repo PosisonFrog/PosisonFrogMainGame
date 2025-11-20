@@ -48,7 +48,7 @@ private:
 
 	/** 추적을 멈출 거리 (공격 사거리) */
 	UPROPERTY(EditAnywhere, Category="AI|Chase")
-	float StopDistance = 100.f;
+	float StopDistance = 10.f;
 
 	/** MoveTo 업데이트 주기 (초) */
 	UPROPERTY(EditAnywhere, Category="AI|Chase")

@@ -88,43 +88,29 @@ void UCBossPattern_Rush::OnPatternEnd()
 {
 	UE_LOG(LogTemp, Log, TEXT("[Rush] Pattern ended"));
 	
-	if (State == ERushState::Idle)
+	if (State == ERushState::Recovery || State == ERushState::Cooldown || State == ERushState::Idle)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[Rush] OnPatternEnd ignored - already Idle"));
+		UE_LOG(LogTemp, Warning, TEXT("[Rush] OnPatternEnd ignored - Pattern is already finishing or finished."));
 		return;
 	}
 	
-	UE_LOG(LogTemp, Log, TEXT("[Rush] OnPatternEnd called - Current State: %d"), (int32)State);
-
-	if (State == ERushState::Recovery || State == ERushState::Cooldown)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[Rush] OnPatternEnd ignored - Pattern is finishing normally (State: %d)"), (int32)State);
-		return;
-	}
-	
-	ClearTimers();
-	
-	if (State == ERushState::Rushing)
+	if (State == ERushState::Rushing || State == ERushState::Telegraph)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[Rush] Force-stopped during Rushing - Forcing Recovery"));
 		EndRushingInternal(ERushEndReason::Aborted, nullptr);
 		return;
 	}
-
-
-	if (State == ERushState::Idle)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[Rush] OnPatternEnd ignored - already Idle"));
-		return;
-	}
 	
+	UE_LOG(LogTemp, Log, TEXT("[Rush] OnPatternEnd: Cleaning up from state %s"), *UEnum::GetValueAsString(State));
+	ClearTimers();
 	if (OwnerBoss.IsValid())
 	{
 		OwnerBoss->SetIsBossRushing(false);
 	}
-	
-	Super::OnPatternEnd();
+
 	EnterState(ERushState::Idle);
+	FinishPattern(false);
+	Super::OnPatternEnd();
 }
 
 void UCBossPattern_Rush::Cleanup()
@@ -669,28 +655,32 @@ void UCBossPattern_Rush::HandleRushMovementStop()
 // Helper Functions
 void UCBossPattern_Rush::HandlePatternComplete()
 {
+	if (State != ERushState::Recovery)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Rush] HandlePatternComplete ignored - Not in Recovery state (Current: %s)"), *UEnum::GetValueAsString(State));
+		return;
+	}
+	
+	
 	if (OwnerBoss.IsValid() && OwnerBoss->GetWorld())
 	{
 		OwnerBoss->GetWorld()->GetTimerManager().ClearTimer(TH_Recovery);
 	}
-
-	if (State == ERushState::Idle)
+	
+	if (PhaseComponent.IsValid())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[Rush] HandlePatternComplete ignored - already in Idle (forced stop)"));
-		return;
+		// 이미 다른 패턴이 실행 중이면 조용히 종료
+		if (PhaseComponent->GetActivePatternId() != PatternId && 
+			PhaseComponent->GetActivePatternId() != NAME_None)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[Rush] HandlePatternComplete - Another pattern already started (%s), cleaning up silently"), 
+				*PhaseComponent->GetActivePatternId().ToString());
+            
+			EnterState(ERushState::Idle);
+			return;  // FinishPattern 호출하지 않음
+		}
 	}
-
-	if (State == ERushState::Cooldown)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[Rush] HandlePatternComplete ignored - already in Cooldown"));
-		return;
-	}
-
-	if (State != ERushState::Recovery)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[Rush] HandlePatternComplete ignored - not in Recovery (Current: %d)"), (int32)State);
-		return;
-	}
+	
 
 	EnterState(ERushState::Cooldown);
 	
