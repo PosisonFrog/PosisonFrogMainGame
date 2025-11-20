@@ -1153,6 +1153,32 @@ void ACEnemyCharacterBase::OnRespawned_Implementation()
 {
 }
 
+void ACEnemyCharacterBase::PlayRandomLaunchReaction()
+{
+	if (LaunchReactionMontages.Num() == 0)
+	{
+		CLog::Log(TEXT("LaunchReactionMontages 배열이 비어있습니다."));
+		return;
+	}
+
+	const int32 RandomIndex = FMath::RandRange(0, LaunchReactionMontages.Num() - 1);
+	UAnimMontage* SelectedMontage = LaunchReactionMontages[RandomIndex];
+
+	if (!SelectedMontage)
+	{
+		CLog::Log(FString::Printf(TEXT("선택된 LaunchReactionMontage[%d]가 nullptr입니다."), RandomIndex));
+		return;
+	}
+
+	if (USkeletalMeshComponent* MeshComp = GetMesh())
+	{
+		if (UAnimInstance* AnimInstance = MeshComp->GetAnimInstance())
+		{
+			AnimInstance->Montage_Play(SelectedMontage, 1.0f);
+			CLog::Log(FString::Printf(TEXT("%s - 띄워지기 애니메이션 재생: 인덱스 %d"), *GetName(), RandomIndex));
+		}
+	}
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 전투(스윙 창 + 분할 스윕)
@@ -1380,7 +1406,6 @@ bool ACEnemyCharacterBase::PassAngleFilter(const AActor* Other) const
 void ACEnemyCharacterBase::DebugDrawState()
 {
 }
-
 
 // ============================================================
 // 플레이어 콤보 히트 처리 

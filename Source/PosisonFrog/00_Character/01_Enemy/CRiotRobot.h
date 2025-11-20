@@ -105,7 +105,6 @@ protected:
 
     UPROPERTY(EditAnywhere, Category="PF|Animation")
     UAnimMontage* IdleMontage = nullptr;
-
     
     UPROPERTY(EditAnywhere, Category="PF|Animation")
     UAnimMontage* DeadMontage = nullptr;
@@ -117,13 +116,9 @@ protected:
     
     UPROPERTY(EditAnywhere, Category="PF|Sound")
     USoundBase* AttackSound = nullptr;
-
-    UPROPERTY(EditAnywhere, Category="PF|Effects")
-    UNiagaraSystem* AttackEffect = nullptr;
-
-    UPROPERTY(EditAnywhere, Category="PF|Effects")
-    UNiagaraSystem* HitEffect = nullptr;
     
+    UPROPERTY(EditAnywhere, Category="PF|VFX")
+    UNiagaraSystem* HitEffect = nullptr;
 
     // ───────── 상태 ─────────
     bool bIsAttacking = false;

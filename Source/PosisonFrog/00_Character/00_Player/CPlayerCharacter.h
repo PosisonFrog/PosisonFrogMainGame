@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "00_Character/CBaseCharacter.h"
 #include "00_Character/02_Component/00_PlayerComponent/Buffable.h"
+#include "00_Character/02_Component/00_PlayerComponent/CUltimateBuffComponent.h"
 #include "CPlayerCharacter.generated.h"
 
 class AActor;
@@ -48,13 +49,18 @@ public:
     FORCEINLINE USpringArmComponent* GetCameraBoom() const { return SpringArm; }
     FORCEINLINE UCameraComponent* GetFollowCamera() const  { return PlayerCamera; }
 
-    FORCEINLINE UCPlayerEffectComponent* GetEffectComponent() const { return EffectComponent; }
+    // FORCEINLINE UCPlayerEffectComponent* GetEffectComponent() const { return EffectComponent; }
     
     // ─ 궁극기
     // 나중에 궁극기 게이지로 사용하게 된다면 사용
     // float GetMaxUltimateGauge() const { return MaxUltGauge; }
     // float GetUltimateGauge() const { return CurUltGauge; }
     // void SetUltimateGauge(float UltGauge);
+
+    FORCEINLINE bool IsUltimateActive() const 
+    {
+        return UltimateBuffComponent && UltimateBuffComponent->IsUltActive(); 
+    }
     
     // ─ 애니메이션
     FORCEINLINE UComboStackComponent* GetComboStackComponent() const { return ComboStackComponent; }
@@ -125,6 +131,10 @@ private:
     void UpdateUltimateUI();
     UFUNCTION() void OnUltimateExpired(); // 궁극기 종료시 호출될 함수
     UFUNCTION() void TickUltimateUI(); // 궁극기 UI 수정
+
+    // 궁극기 무기 이펙트 재생 관련
+    UFUNCTION() void CleanupUltVFX();
+    UFUNCTION() void SpawnUltVFXOnHammer();
     
 public:
     //void AddUltimateGain(float Gain);
@@ -236,14 +246,20 @@ protected:
     //float MaxUltGauge = 100.0f;
     //UPROPERTY(EditDefaultsOnly, Category = "Ultimate|State")
     //float CurUltGauge = 0.0f;
-
-    UPROPERTY(EditDefaultsOnly, Category = "Ultimate|State")
-    bool bUltActive = false;
+    // float UltDrainTickInterval = 0.05f;
     
     UPROPERTY(EditDefaultsOnly, Category = "Ultimate|State")
     float UltDuration = 5.0f; // 궁극기 전체 지속 시간 (초)
-    
-    // float UltDrainTickInterval = 0.05f;
+
+    // 궁극기 이펙트 VFX
+    UPROPERTY(EditDefaultsOnly, Category = "Ultimate|VFX")
+    TObjectPtr<UNiagaraSystem> HammerUltVFX = nullptr;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Ultimate|VFX")
+    FName HammerUltSocketName = TEXT("VFX_Ult");
+
+    UPROPERTY(Transient)
+    TObjectPtr<UNiagaraComponent> HammerUltVFXComp = nullptr;
 
     // 궁극기 애니메이션
     UPROPERTY(EditDefaultsOnly, Category = "Ultimate|Animation")
@@ -281,8 +297,8 @@ private:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Skill", meta=(AllowPrivateAccess = "true"))
     TObjectPtr<UCSkill_CommandLaunchSlam> CommandLaunchSlamComponent = nullptr;
 
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
-    TObjectPtr<UCPlayerEffectComponent> EffectComponent = nullptr;
+    //UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+    //TObjectPtr<UCPlayerEffectComponent> EffectComponent = nullptr;
     
     // ─────────── 카메라 ───────────
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Camera", meta = (AllowPrivateAccess = "true"))

@@ -47,7 +47,7 @@ struct FEffectSpawnSettings
     bool bAutoDestroy = true;
 
     // 이펙트 재생 지연 시간 (초 단위)
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effect|Timing", meta = (ClampMin = "0.0", UIMin = "0.0"))
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effect|Timing")
     float SpawnDelay = 0.0f;
 
     FEffectSpawnSettings()

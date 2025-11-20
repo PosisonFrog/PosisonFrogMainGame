@@ -126,14 +126,9 @@ protected:
 
 	UPROPERTY(Transient)
 	TObjectPtr<USoundBase> CachedChargeSound = nullptr; 
-
-	UPROPERTY(EditAnywhere, Category="PF|Effects")
-	UNiagaraSystem* AttackEffect = nullptr;
-
+	
 	UPROPERTY(EditAnywhere, Category="PF|Effects")
 	TObjectPtr<UNiagaraSystem> HitEffect = nullptr;
-
-	
 	
 	// 타이머
 	FTimerHandle Timer_WindUp;

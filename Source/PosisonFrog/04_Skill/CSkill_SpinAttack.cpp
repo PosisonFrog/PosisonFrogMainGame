@@ -1,6 +1,5 @@
 ﻿#include "CSkill_SpinAttack.h"
 #include "Global.h"
-#include "NiagaraFunctionLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/Character.h"
@@ -18,9 +17,9 @@
 #include "Engine/EngineTypes.h"
 #include "GameFramework/DamageType.h"
 #include "NiagaraComponent.h"
+#include "NiagaraFunctionLibrary.h"
 #include "00_Character/02_Component/CHitStopComponent.h"
-#include "00_Character/02_Component/00_PlayerComponent/CPlayerEffectComponent.h"
-
+#include "00_Character/02_Component/00_PlayerComponent/CUltimateBuffComponent.h"
 
 UCSkill_SpinAttack::UCSkill_SpinAttack()
 {
@@ -66,6 +65,11 @@ void UCSkill_SpinAttack::StopSpin()
     }
 }
 
+void UCSkill_SpinAttack::StopAllEffects()
+{
+    StopSpinEffect();
+}
+
 bool UCSkill_SpinAttack::DoActivate()
 {
     if (TimerHandle_SpinTick.IsValid())
@@ -89,14 +93,15 @@ bool UCSkill_SpinAttack::DoActivate()
                 HammerAnim->Montage_Play(HammerSpinMontage);
         }
 
-        // 새로운 이펙트 시스템 사용
-        if (ACPlayerCharacter* Player = Cast<ACPlayerCharacter>(OwnerChar.Get()))
+        // 나중에 만약 EffectComponent를 사용하게 된다면 주석 풀기
+        /*if (ACPlayerCharacter* Player = Cast<ACPlayerCharacter>(OwnerChar.Get()))
         {
             if (UCPlayerEffectComponent* EffectComp = Player->GetEffectComponent())
             {
                 EffectComp->PlaySpinAttackEffect();
             }
-        }
+        }*/
+        StartSpinEffect();
     }
     
     LastTickTime = GetWorld()->GetTimeSeconds();
@@ -117,6 +122,8 @@ bool UCSkill_SpinAttack::DoCancel()
 
     GetWorld()->GetTimerManager().ClearTimer(TimerHandle_SpinTick);
 
+    StopSpinEffect();
+    
     // 애니메이션 중지
     if (OwnerChar.IsValid())
     {
@@ -138,11 +145,12 @@ bool UCSkill_SpinAttack::DoCancel()
                     HammerAnim->Montage_Stop(0.2f, HammerSpinMontage);
             }
 
+            // 나중에 만약 EffectComponent를 사용하게 된다면 주석 풀기
             // 새로운 이펙트 시스템을 통해 모든 활성 이펙트 정리
-            if (UCPlayerEffectComponent* EffectComp = PlayerChar->GetEffectComponent())
+            /*if (UCPlayerEffectComponent* EffectComp = PlayerChar->GetEffectComponent())
             {
                 EffectComp->StopAllActiveEffects();
-            }
+            }*/
         }
     }
     
@@ -167,9 +175,10 @@ void UCSkill_SpinAttack::OnFuryFinisher(float FinisherDamage)
     if (TimerHandle_SpinTick.IsValid())
         GetWorld()->GetTimerManager().ClearTimer(TimerHandle_SpinTick);
     
-    
+
+    // 나중에 만약 EffectComponent를 사용하게 된다면 주석 풀기
     // 새로운 이펙트 시스템을 통해 모든 활성 이펙트 정리
-    if (OwnerChar.IsValid())
+    /*if (OwnerChar.IsValid())
     {
         if (ACPlayerCharacter* PlayerChar = Cast<ACPlayerCharacter>(OwnerChar))
         {
@@ -178,7 +187,8 @@ void UCSkill_SpinAttack::OnFuryFinisher(float FinisherDamage)
                 EffectComp->StopAllActiveEffects();
             }
         }
-    }
+    }*/
+    StopSpinEffect();
     
     // Fury 10칸 피니시 발생 → ‘망치 내려찍기’ 연출
     PendingFinisherDamage = (FinisherDamage > 0.f) ? FinisherDamage : FinisherDamageDefault;
@@ -466,4 +476,57 @@ void UCSkill_SpinAttack::DoFinisherImpact()
     if (FinisherCameraShake)
         if (APlayerController* PC = Cast<APlayerController>(UGameplayStatics::GetPlayerController(GetWorld(), 0)))
             PC->ClientStartCameraShake(FinisherCameraShake);
+}
+
+void UCSkill_SpinAttack::StartSpinEffect()
+{
+    if (!OwnerChar.IsValid())
+        return;
+
+    // 기존 이펙트가 있다면 먼저 정리
+    StopSpinEffect();
+
+    // 궁극기 상태 확인
+    bool bIsUltimateActive = false;
+    if (ACPlayerCharacter* PlayerChar = Cast<ACPlayerCharacter>(OwnerChar))
+    {
+        if (UCUltimateBuffComponent* UltComp = PlayerChar->FindComponentByClass<UCUltimateBuffComponent>())
+        {
+            bIsUltimateActive = UltComp->IsUltActive();
+        }
+    }
+
+    // 궁극기 상태에 따라 적절한 이펙트 선택
+    UNiagaraSystem* SelectedVFX = bIsUltimateActive ? SpinVFX_Ultimate : SpinVFX_Normal;
+
+    if (SelectedVFX)
+    {
+        // 플레이어의 Root에 Attach
+        ActiveSpinVFXComponent = UNiagaraFunctionLibrary::SpawnSystemAttached(
+            SelectedVFX,
+            OwnerChar->GetRootComponent(),
+            NAME_None,
+            FVector::ZeroVector,
+            FRotator::ZeroRotator,
+            EAttachLocation::KeepRelativeOffset,
+            true
+        );
+
+        if (ActiveSpinVFXComponent)
+        {
+            CLog::Log(FString::Printf(TEXT("스핀 이펙트 시작 (궁극기: %s)"), bIsUltimateActive ? TEXT("Yes") : TEXT("No")));
+        }
+    }
+}
+
+void UCSkill_SpinAttack::StopSpinEffect()
+{
+    if (ActiveSpinVFXComponent && ActiveSpinVFXComponent->IsActive())
+    {
+        ActiveSpinVFXComponent->Deactivate();
+        ActiveSpinVFXComponent->DestroyComponent();
+        ActiveSpinVFXComponent = nullptr;
+        
+        CLog::Log(TEXT("스핀 이펙트 중지"));
+    }
 }

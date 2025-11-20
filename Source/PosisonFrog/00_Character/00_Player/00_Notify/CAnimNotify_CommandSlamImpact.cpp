@@ -24,10 +24,4 @@ void UCAnimNotify_CommandSlamImpact::Notify(USkeletalMeshComponent* MeshComp, UA
 	{
 		CommandComp->Anim_SlamImpact();
 	}
-
-	// 이펙트 재생 (Hammer 기준)
-	if (UCPlayerEffectComponent* EffectComp = PlayerChar->GetEffectComponent())
-	{
-		EffectComp->PlayCommandSlamEffect();
-	}
 }

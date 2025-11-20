@@ -24,10 +24,4 @@ void UCAnimNotify_CommandDoLaunch::Notify(USkeletalMeshComponent* MeshComp, UAni
     {
         CommandComp->Anim_PerformLaunch();
     }
-
-    // ★ 이펙트 재생 (Hammer 기준)
-    if (UCPlayerEffectComponent* EffectComp = PlayerChar->GetEffectComponent())
-    {
-        EffectComp->PlayCommandLaunchEffect();
-    }
 }

@@ -2,6 +2,7 @@
 #include "CPlayerMovementBuffComponent.h"
 #include "00_Character/02_Component/00_PlayerComponent/CPlayerHealthComponent.h"
 #include "00_Character/00_Player/CPlayerCharacter.h"
+#include "99_Util/CLog.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Components/PostProcessComponent.h" // 추가
 
@@ -66,6 +67,12 @@ void UCUltimateBuffComponent::BeginPlay()
 			UE_LOG(LogTemp, Log, TEXT("[ULT] PostProcessComponent initialized (disabled)"));
 		}
 		// ======================================================
+	}
+
+	if (bStartWithUltimateActive)
+	{
+		ActivateUltimate();
+		CLog::Log(TEXT("[ULT][DEBUG] Started with Ultimate Active"));
 	}
 }
 

@@ -51,7 +51,7 @@ private:
 	UPROPERTY() UCPlayerHealthComponent* HealthComponent = nullptr;
 	UPROPERTY() UCPlayerMovementBuffComponent* MovementBuffComponent = nullptr;
 
-	// ========== 포스트 프로세스 ==========
+	// ───────── 포스트 프로세스 ─────────
 	UPROPERTY() UPostProcessComponent* PostProcessComponent = nullptr;
 
 	UPROPERTY(EditAnywhere, Category = "Ultimate|Visual Effects")
@@ -59,20 +59,23 @@ private:
 	
 	UPROPERTY(EditAnywhere, Category = "Ultimate|Visual Effects")
 	float PostProcessBlendRadius = 0.0f; // 0 = 전체 영향
-	// ====================================
 
-	// 이동
+	// 시작부터 궁극기 활성화
+	UPROPERTY(EditAnywhere, Category = "Ultimate|Debug", meta = (AllowPrivateAccess = "true"))
+	bool bStartWithUltimateActive = false;
+
+	// ───────── 이동 ─────────
 	UPROPERTY(EditAnywhere, Category = "Ultimate|Buff", meta = (ClampMin = "0.01"))
 	float MoveSpeedMul = 1.30f;
 	float BaseMaxWalkSpeed = 0.0f;
 
-	// 데미지
+	// ───────── 데미지 ─────────
 	UPROPERTY(EditAnywhere, Category = "Ultimate|Buff", meta = (ClampMin = "0.01"))
 	float DamageMul = 1.15f;
 	float DefaultDamageMultiplier = 1.0f;
 	float OutgoingDamageMul = 1.0f;
 
-	// 체력
+	// ───────── 체력 ─────────
 	UPROPERTY(EditAnywhere, Category = "Ultimate|Buff", meta = (ClampMin = "0.01"))
 	float MaxHpMul = 1.20f;
 	UPROPERTY(EditAnywhere, Category = "Ultimate|Buff", meta = (ClampMin = "0.0", ClampMax = "1.0"))
@@ -81,7 +84,7 @@ private:
 	UPROPERTY(EditAnywhere, Category = "Ultimate|Buff")
 	bool bHealOnActivate = false;
 	
-	// 방어력
+	// ───────── 방어력 ─────────
 	UPROPERTY(EditAnywhere, Category = "Ultimate|Defense")
 	EUltDefenseMode DefenseMode = EUltDefenseMode::PercentReduction;
 	UPROPERTY(EditAnywhere, Category = "Ultimate|Defense", meta = (ClampMin = "0.0", ClampMax = "1.0"))

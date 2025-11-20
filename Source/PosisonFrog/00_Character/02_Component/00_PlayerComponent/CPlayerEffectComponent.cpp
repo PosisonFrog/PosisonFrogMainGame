@@ -130,6 +130,14 @@ void UCPlayerEffectComponent::PlaySpinFinisherEffect()
 
 void UCPlayerEffectComponent::PlayCommandLaunchEffect()
 {
+    // Hammer를 한 번만 가져오기 (성능 최적화)
+    ACHammer* Hammer = GetHammer();
+    if (!Hammer)
+    {
+        CLog::Log(TEXT("CPlayerEffectComponent: Cannot play command launch effect - Hammer not found"));
+        return;
+    }
+
     // 여러 이펙트를 순차적으로 재생 (먼지, 크랙, 무기 스윙)
     for (int32 i = 0; i < CommandLaunchEffects.Num(); ++i)
     {
@@ -141,22 +149,20 @@ void UCPlayerEffectComponent::PlayCommandLaunchEffect()
         const FEffectStatePair& EffectPair = CommandLaunchEffects[i];
         const FEffectSpawnSettings& Settings = GetCurrentStateEffect(EffectPair);
 
-        // 모든 커맨드 이펙트는 Hammer 기준
-        ACHammer* Hammer = GetHammer();
-        if (Hammer)
-        {
-            FTimerHandle* TimerHandle = CommandLaunchTimers.IsValidIndex(i) ? &CommandLaunchTimers[i] : nullptr;
-            SpawnEffect(Settings, Hammer, TimerHandle);
-        }
-        else
-        {
-            CLog::Log(TEXT("CPlayerEffectComponent: Cannot play command launch effect - Hammer not found"));
-        }
+        FTimerHandle* TimerHandle = CommandLaunchTimers.IsValidIndex(i) ? &CommandLaunchTimers[i] : nullptr;
+        SpawnEffect(Settings, Hammer, TimerHandle);
     }
 }
 
 void UCPlayerEffectComponent::PlayCommandSlamEffect()
 {
+    ACHammer* Hammer = GetHammer();
+    if (!Hammer)
+    {
+        CLog::Log(TEXT("CPlayerEffectComponent: Cannot play command slam effect - Hammer not found"));
+        return;
+    }
+
     // 여러 이펙트를 순차적으로 재생
     for (int32 i = 0; i < CommandSlamEffects.Num(); ++i)
     {
@@ -168,20 +174,10 @@ void UCPlayerEffectComponent::PlayCommandSlamEffect()
         const FEffectStatePair& EffectPair = CommandSlamEffects[i];
         const FEffectSpawnSettings& Settings = GetCurrentStateEffect(EffectPair);
 
-        // 모든 커맨드 이펙트는 Hammer 기준
-        ACHammer* Hammer = GetHammer();
-        if (Hammer)
-        {
-            FTimerHandle* TimerHandle = CommandSlamTimers.IsValidIndex(i) ? &CommandSlamTimers[i] : nullptr;
-            SpawnEffect(Settings, Hammer, TimerHandle);
-        }
-        else
-        {
-            CLog::Log(TEXT("CPlayerEffectComponent: Cannot play command slam effect - Hammer not found"));
-        }
+        FTimerHandle* TimerHandle = CommandSlamTimers.IsValidIndex(i) ? &CommandSlamTimers[i] : nullptr;
+        SpawnEffect(Settings, Hammer, TimerHandle);
     }
 }
-
 void UCPlayerEffectComponent::PlayDashEffect()
 {
     ClearEffectTimer(DashEffectTimer);

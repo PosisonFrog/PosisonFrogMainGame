@@ -220,7 +220,6 @@ protected:
     virtual void ExitState(EEnemyState OldState);       // 현 상태에서 벗어날 시 호출. 정리 작업.
     void         SetState(EEnemyState NewState);        // 상태 변경 함수. 위 두 함수 순서대로 호출.
     
-    
     // 상태 처리
     virtual void DoPatrol();     //순찰
     virtual void DoAlert();      //경계
@@ -301,12 +300,15 @@ public:
     virtual void OnRespawned_Implementation();
     
     void ForceRestartAI();
+
+    // 커맨드 공격으로 띄워질 때 랜덤 애니메이션 출력
+    UFUNCTION(BlueprintCallable, Category="PF|LaunchReaction")
+    void PlayRandomLaunchReaction();
     
 protected:
     virtual void HandlePlayerRespawned(class ACPlayerCharacter* NewPlayer);
     
 protected:
-    
     // 런타임 상태
     UPROPERTY(Transient) TObjectPtr<AActor> Target = nullptr;
 
@@ -392,6 +394,10 @@ protected:
     
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="PF|Animation|ComboReaction")
     TArray<UAnimMontage*> ComboHitReactionMontagesRight;
+
+    // 커맨드 공격에 의해 띄워질 때 재생할 몽타주
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="PF|Animation|LaunchReaction")
+    TArray<UAnimMontage*> LaunchReactionMontages;
     
     UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "PF|Animation")
     int32 PlayerCurrentCombo = 0;

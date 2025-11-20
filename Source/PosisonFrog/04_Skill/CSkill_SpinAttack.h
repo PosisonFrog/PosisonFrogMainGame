@@ -30,6 +30,8 @@ public:
 
     void TryStartSpin();
     void StopSpin();
+
+    void StopAllEffects();
     
 protected:
     // 홀드 시작/종료
@@ -55,6 +57,10 @@ private:
     void PlayFinisherMontageAndScheduleImpact(float FinisherDamage);
     void DoFinisherImpact(); // 실제 피해 및 이펙트
 
+    // 이펙트 관리
+    void StartSpinEffect();
+    void StopSpinEffect();
+
 protected:
     // ───────── 스핀 파라미터 ─────────
     UPROPERTY(EditDefaultsOnly, Category="Spin|Anim")
@@ -62,6 +68,16 @@ protected:
 
     UPROPERTY(EditDefaultsOnly, Category="Spin|Anim")
     UAnimMontage* HammerSpinMontage = nullptr;
+
+    // 이펙트
+    UPROPERTY(EditDefaultsOnly, Category = "Spin|VFX")
+    UNiagaraSystem* SpinVFX_Normal = nullptr;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Spin|VFX")
+    UNiagaraSystem* SpinVFX_Ultimate = nullptr;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Ultimate|VFX")
+    FName HammerUltSocketName = TEXT("VFX_Ult");
     
     UPROPERTY(EditDefaultsOnly, Category="Spin|Timing", meta=(ClampMin="0.02", ClampMax="0.2"))
     float TickInterval = 0.05f;
@@ -113,7 +129,7 @@ protected:
     // 연출(선택 항목)
     UPROPERTY(EditDefaultsOnly, Category="Finisher|FX")
     USoundBase* FinisherImpactSFX = nullptr;
-
+    
     UPROPERTY(EditDefaultsOnly, Category="Finisher|FX")
     TSubclassOf<UCameraShakeBase> FinisherCameraShake;
 
@@ -140,6 +156,7 @@ protected:
     UPROPERTY() UCHitStopComponent* HitStopComponent = nullptr;
 
 private:
+    // 현재 재생 중인 스핀 이펙트 컴포넌트
     UPROPERTY() UNiagaraComponent* ActiveSpinVFXComponent = nullptr;
     
     TWeakObjectPtr<ACharacter> OwnerChar;
