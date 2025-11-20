@@ -1,6 +1,8 @@
 #include "CTutorialManager.h"
 
+#include "CTutorialPopupWidget.h"
 #include "99_Util/CLog.h"
+#include "Blueprint/UserWidget.h"
 
 UCTutorialManager::UCTutorialManager()
 {
@@ -147,7 +149,44 @@ void UCTutorialManager::BeginStep(int32 StepIndex)
 	CurrentCount = 0;
 	bStepInProgress = true;
 
-	OnTutorialStepStarted.Broadcast(ActiveSteps[CurrentStepIndex].StepId);
+	const FName StepId = ActiveSteps[CurrentStepIndex].StepId;
+
+	//튜토리얼
+	ShowTutorialPopup(StepId);
+
+	OnTutorialStepStarted.Broadcast(StepId);
+}
+
+void UCTutorialManager::ShowTutorialPopup(FName StepId)
+{
+	if (!TutorialPopupClass)
+	{
+		CLog::Log(TEXT("[TutorialManager] TutorialPopupClass가 설정되지 않음!"));
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	if (!World)
+		return;
+
+	APlayerController* PC = World->GetFirstPlayerController();
+	if (!PC)
+		return;
+
+	// 기존 팝업이 있으면 제거
+	if (CurrentPopupWidget)
+	{
+		CurrentPopupWidget->RemoveFromParent();
+		CurrentPopupWidget = nullptr;
+	}
+
+	// 새 팝업 생성
+	CurrentPopupWidget = CreateWidget<UCTutorialPopupWidget>(PC, TutorialPopupClass);
+	if (CurrentPopupWidget)
+	{
+		CurrentPopupWidget->SetupTutorial(StepId);
+		CurrentPopupWidget->AddToViewport(100); // 높은 ZOrder
+	}
 }
 
 void UCTutorialManager::CompleteCurrentStep()

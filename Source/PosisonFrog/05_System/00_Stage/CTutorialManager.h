@@ -8,6 +8,7 @@
 #include "CTutorialManager.generated.h"
 
 class UWorld;
+class UCTutorialPopupWidget;
 
 UENUM(BlueprintType)
 enum class ETutorialActionType : uint8
@@ -115,6 +116,14 @@ protected:
 	bool IsValidStepIndex(int32 StepIndex) const;
 
 private:
+	void ShowTutorialPopup(FName StepId);
+
+	UPROPERTY(EditAnywhere, Category = "Tutorial|UI")
+	TSubclassOf<UCTutorialPopupWidget> TutorialPopupClass;
+
+	UPROPERTY()
+	TObjectPtr<UCTutorialPopupWidget> CurrentPopupWidget;
+	
 	UPROPERTY(EditAnywhere, Category = "Tutorial|Data")
 	TArray<FTutorialStep> DefaultSequence;
 
