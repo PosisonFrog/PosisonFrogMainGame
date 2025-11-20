@@ -17,7 +17,6 @@ bool UCBossPattern_BasicAttack::ExecutePattern(int32 PhaseIndex, const FBossPatt
 {
 	Super::ExecutePattern(PhaseIndex, PatternData);
 	
-	// ✅ 유효성 검증
 	if (!OwnerBoss.IsValid()) 
 	{
 		UE_LOG(LogTemp, Error, TEXT("[BasicAttack] ExecutePattern REJECTED - Invalid OwnerBoss"));
@@ -31,7 +30,6 @@ bool UCBossPattern_BasicAttack::ExecutePattern(int32 PhaseIndex, const FBossPatt
 		return false;
 	}
 
-	// ✅ 쿨다운 체크
 	if (IsOnCooldown())
 	{
 		UE_LOG(LogTemp, Error, TEXT("[BasicAttack] ExecutePattern REJECTED - Pattern is on cooldown"));
@@ -44,7 +42,6 @@ bool UCBossPattern_BasicAttack::ExecutePattern(int32 PhaseIndex, const FBossPatt
 
 	CurrentPatternData = PatternData;
 	
-	// ✅ 초기화
 	HitActors.Empty();
 	bCollisionActive = false;
 	ClearTimers();
@@ -68,7 +65,6 @@ bool UCBossPattern_BasicAttack::ExecutePattern(int32 PhaseIndex, const FBossPatt
 		Duration = PatternData.ExecutionTime > 0.0f ? PatternData.ExecutionTime : 1.0f;
 	}
 
-	// ✅ DataAsset의 RecoveryTime 사용
 	float TotalTime = Duration + CurrentPatternData.RecoveryTime;
 	
 	TWeakObjectPtr<UCBossPattern_BasicAttack> WeakThis(this);
@@ -86,7 +82,7 @@ bool UCBossPattern_BasicAttack::ExecutePattern(int32 PhaseIndex, const FBossPatt
 	UE_LOG(LogTemp, Log, TEXT("[BasicAttack] Pattern will finish in %.2f seconds (Execution: %.2f + Recovery: %.2f)"), 
 		TotalTime, Duration, CurrentPatternData.RecoveryTime);
 	
-	return true;  // ✅ 성공 반환
+	return true; 
 }
 
 void UCBossPattern_BasicAttack::Anim_AttackStart()
@@ -106,6 +102,11 @@ void UCBossPattern_BasicAttack::Anim_AttackStart()
 			if (WeakThis.IsValid())
 			{
 				WeakThis->CheckCollision();
+				UE_LOG(LogTemp, Warning, TEXT("[BasicAttack] Checking collision..."));
+			}
+			else
+			{
+				UE_LOG(LogTemp, Error, TEXT("[BasicAttack] Fails to check collision - WeakThis is invalid"));
 			}
 		});
 		
@@ -220,11 +221,9 @@ void UCBossPattern_BasicAttack::CheckCollision()
 void UCBossPattern_BasicAttack::OnPatternEnd()
 {
 	Super::OnPatternEnd();
-	
-	// ✅ 타이머 정리
+
 	ClearTimers();
 	
-	// ✅ 충돌 비활성화
 	bCollisionActive = false;
 	
 	UE_LOG(LogTemp, Log, TEXT("[BasicAttack] OnPatternEnd called"));
