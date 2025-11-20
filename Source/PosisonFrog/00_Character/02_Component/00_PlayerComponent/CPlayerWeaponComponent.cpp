@@ -191,43 +191,58 @@ void UCPlayerWeaponComponent::HandleWeaponHit(AActor* InstigatorActor, AActor* H
             ThirdComboHitStopTimeScale);
     }
     
-    if (bEnableHitKnockback && HitKnockbackStrength > 0.f)
+    if (bEnableHitKnockback)
     {
-        if (ACharacter* HitCharacter = Cast<ACharacter>(HitActor))
+        // 배열 범위 체크 - 범위를 벗어나면 마지막 값 사용
+        const int32 KnockbackIndex = FMath::Min(CurrentCombo, HitKnockbackStrengths.Num() - 1);
+        const float CurrentKnockbackStrength = HitKnockbackStrengths.IsValidIndex(KnockbackIndex) 
+            ? HitKnockbackStrengths[KnockbackIndex] 
+            : 650.f; // 기본값
+            
+        const float CurrentKnockbackUpStrength = HitKnockbackUpStrengths.IsValidIndex(KnockbackIndex)
+            ? HitKnockbackUpStrengths[KnockbackIndex]
+            : 120.f; // 기본값
+        
+        // 넉백 강도 체크 수정
+        if (CurrentKnockbackStrength > 0.f)
         {
-            if (HitCharacter->FindComponentByClass<UCEnemyHealthComponent>())
+            if (ACharacter* HitCharacter = Cast<ACharacter>(HitActor))
             {
-                FVector KnockDirection = FVector::ZeroVector;
-            
-                // 적 캡슐 컴포넌트 중심 위치 가져오기
-                UCapsuleComponent* HitCapsule = HitCharacter->GetCapsuleComponent();
-                if (HitCapsule && OwnerChar.IsValid())
+                if (HitCharacter->FindComponentByClass<UCEnemyHealthComponent>())
                 {
-                    // 플레이어 → 적 캡슐 중심 방향
-                    FVector PlayerLoc = OwnerChar->GetActorLocation();
-                    FVector EnemyLoc = HitCapsule->GetComponentLocation();
+                    FVector KnockDirection = FVector::ZeroVector;
                 
-                    KnockDirection = (EnemyLoc - PlayerLoc);
-                    KnockDirection.Z = 0.f;  // 수평 방향만
-                    KnockDirection.Normalize();
-                }
-            
-                // 예외 처리: 방향 계산 실패 시 폴백
-                if (KnockDirection.IsNearlyZero())
-                {
-                    KnockDirection = HitCharacter->GetActorForwardVector();
-                    KnockDirection.Z = 0.f;
-                }
-            
-                if (!KnockDirection.IsNearlyZero())
-                {
-                    FVector LaunchVelocity = KnockDirection * HitKnockbackStrength;
-                    if (HitKnockbackUpStrength > 0.f)
+                    // 적 캡슐 컴포넌트 중심 위치 가져오기
+                    UCapsuleComponent* HitCapsule = HitCharacter->GetCapsuleComponent();
+                    if (HitCapsule && OwnerChar.IsValid())
                     {
-                        LaunchVelocity.Z += HitKnockbackUpStrength;
+                        // 플레이어 → 적 캡슐 중심 방향
+                        FVector PlayerLoc = OwnerChar->GetActorLocation();
+                        FVector EnemyLoc = HitCapsule->GetComponentLocation();
+                    
+                        KnockDirection = (EnemyLoc - PlayerLoc);
+                        KnockDirection.Z = 0.f;  // 수평 방향만
+                        KnockDirection.Normalize();
                     }
                 
-                    HitCharacter->LaunchCharacter(LaunchVelocity, true, HitKnockbackUpStrength > 0.f);
+                    // 예외 처리: 방향 계산 실패 시 폴백
+                    if (KnockDirection.IsNearlyZero())
+                    {
+                        KnockDirection = HitCharacter->GetActorForwardVector();
+                        KnockDirection.Z = 0.f;
+                    }
+                
+                    if (!KnockDirection.IsNearlyZero())
+                    {
+                        // 콤보별 넉백 강도 사용
+                        FVector LaunchVelocity = KnockDirection * CurrentKnockbackStrength;
+                        if (CurrentKnockbackUpStrength > 0.f)
+                        {
+                            LaunchVelocity.Z += CurrentKnockbackUpStrength;
+                        }
+                    
+                        HitCharacter->LaunchCharacter(LaunchVelocity, true, CurrentKnockbackUpStrength > 0.f);
+                    }
                 }
             }
         }

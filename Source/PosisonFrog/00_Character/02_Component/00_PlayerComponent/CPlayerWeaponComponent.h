@@ -116,12 +116,14 @@ protected:
     // ───────── 넉백 설정 ─────────
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Attack|Knockback")
     bool bEnableHitKnockback = true;
-   
+
+    // 각 콤보별 수평 넉백 강도 (1타, 2타, 3타)
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Attack|Knockback", meta = (ClampMin = "0.0"))
-    float HitKnockbackStrength = 650.f;
-   
+    TArray<float> HitKnockbackStrengths = { 500.0f, 650.0f, 800.0f };
+
+    // 각 콤보별 수직 넉백 강도 (1타, 2타, 3타)
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Attack|Knockback", meta = (ClampMin = "0.0"))
-    float HitKnockbackUpStrength = 120.f;
+    TArray<float> HitKnockbackUpStrengths = { 100.0f, 120.0f, 150.0f };
     
 private:
     UPROPERTY() UCHitStopComponent* HitStopComponent = nullptr;
