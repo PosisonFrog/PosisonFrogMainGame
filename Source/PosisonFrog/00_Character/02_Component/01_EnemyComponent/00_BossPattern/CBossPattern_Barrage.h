@@ -19,7 +19,7 @@ class POSISONFROG_API UCBossPattern_Barrage : public UCBossPatternBase
 public:
 	UCBossPattern_Barrage();
 
-	virtual void ExecutePattern(int32 PhaseIndex, const FBossPatternDefinition& PatternData) override;
+	virtual bool ExecutePattern(int32 PhaseIndex, const FBossPatternDefinition& PatternData) override;
 	virtual void OnPatternEnd() override;
 	virtual void Cleanup() override;
 

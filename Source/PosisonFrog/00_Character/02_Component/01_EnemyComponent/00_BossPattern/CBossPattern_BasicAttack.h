@@ -16,8 +16,9 @@ class POSISONFROG_API UCBossPattern_BasicAttack : public UCBossPatternBase
 public:
 	UCBossPattern_BasicAttack();
 
-	virtual void ExecutePattern(int32 PhaseIndex, const FBossPatternDefinition& PatternData) override;
+	virtual bool ExecutePattern(int32 PhaseIndex, const FBossPatternDefinition& PatternData) override;
 	virtual void OnPatternEnd() override;
+	virtual void Cleanup() override;
 	
 	UFUNCTION(BlueprintCallable, Category = "Pattern|BasicAttack")
 	void Anim_AttackStart();

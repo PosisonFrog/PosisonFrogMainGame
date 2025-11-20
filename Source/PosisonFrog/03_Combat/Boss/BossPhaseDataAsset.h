@@ -230,9 +230,13 @@ struct FBossPatternDefinition
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Pattern", meta=(ClampMin="0"))
     float PowerCost = 0.f;
 
-    /** 패턴 수행 시간(이 동안 상태가 Pattern으로 유지) */
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Pattern", meta=(ClampMin="0"))
-    float ExecutionTime = 3.f;
+    /** 패턴 예고(준비) 시간 - Telegraph, Windup 등 */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Pattern|Timing", meta=(ClampMin="0"))
+    float TelegraphTime = 0.5f;
+
+    /** 패턴 메인 실행 시간 (실제 공격/돌진 시간) */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Pattern|Timing", meta=(ClampMin="0"))
+    float ExecutionTime = 2.0f;
 
     /** 패턴 종료 후 후딜레이 */
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Pattern", meta=(ClampMin="0"))

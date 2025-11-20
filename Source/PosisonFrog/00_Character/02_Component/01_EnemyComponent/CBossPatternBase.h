@@ -28,7 +28,7 @@ public:
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 	
 	/** 패턴 실행 */
-	virtual void ExecutePattern(int32 PhaseIndex, const struct FBossPatternDefinition& PatternData);
+	virtual bool ExecutePattern(int32 PhaseIndex, const struct FBossPatternDefinition& PatternData);
 
 	/** 패턴 종료 처리 */
 	virtual void OnPatternEnd();

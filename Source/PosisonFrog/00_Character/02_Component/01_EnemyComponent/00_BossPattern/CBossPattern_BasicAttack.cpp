@@ -13,30 +13,38 @@ UCBossPattern_BasicAttack::UCBossPattern_BasicAttack()
 	PrimaryComponentTick.bCanEverTick = false;
 }
 
-void UCBossPattern_BasicAttack::ExecutePattern(int32 PhaseIndex, const FBossPatternDefinition& PatternData)
+bool UCBossPattern_BasicAttack::ExecutePattern(int32 PhaseIndex, const FBossPatternDefinition& PatternData)
 {
 	Super::ExecutePattern(PhaseIndex, PatternData);
-	UE_LOG(LogTemp, Log, TEXT("[BasicAttack] Executing basic attack - Phase %d"), PhaseIndex);
-	UE_LOG(LogTemp, Log, TEXT("[BasicAttack] ExecutionTime: %.2f, RecoveryTime: %.2f"), 
-		PatternData.ExecutionTime, PatternData.RecoveryTime);
-
+	
 	if (!OwnerBoss.IsValid()) 
 	{
-		UE_LOG(LogTemp, Error, TEXT("[BasicAttack] Invalid OwnerBoss"));
-		return;
+		UE_LOG(LogTemp, Error, TEXT("[BasicAttack] ExecutePattern REJECTED - Invalid OwnerBoss"));
+		return false;
 	}
 
 	UWorld* World = GetWorld();
 	if (!World)
 	{
-		UE_LOG(LogTemp, Error, TEXT("[BasicAttack] World is null!"));
-		return;
+		UE_LOG(LogTemp, Error, TEXT("[BasicAttack] ExecutePattern REJECTED - World is null"));
+		return false;
 	}
+
+	if (IsOnCooldown())
+	{
+		UE_LOG(LogTemp, Error, TEXT("[BasicAttack] ExecutePattern REJECTED - Pattern is on cooldown"));
+		return false;
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("[BasicAttack] Executing basic attack - Phase %d"), PhaseIndex);
+	UE_LOG(LogTemp, Log, TEXT("[BasicAttack] ExecutionTime: %.2f, RecoveryTime: %.2f"), 
+		PatternData.ExecutionTime, PatternData.RecoveryTime);
 
 	CurrentPatternData = PatternData;
 	
 	HitActors.Empty();
 	bCollisionActive = false;
+	ClearTimers();
 
 	float Duration = 0.0f;
 
@@ -57,7 +65,7 @@ void UCBossPattern_BasicAttack::ExecutePattern(int32 PhaseIndex, const FBossPatt
 		Duration = PatternData.ExecutionTime > 0.0f ? PatternData.ExecutionTime : 1.0f;
 	}
 
-	float TotalTime = Duration + PatternData.RecoveryTime;
+	float TotalTime = Duration + CurrentPatternData.RecoveryTime;
 	
 	TWeakObjectPtr<UCBossPattern_BasicAttack> WeakThis(this);
 	FTimerDelegate FinishDelegate;
@@ -71,7 +79,10 @@ void UCBossPattern_BasicAttack::ExecutePattern(int32 PhaseIndex, const FBossPatt
 	
 	World->GetTimerManager().SetTimer(FinishTimer, FinishDelegate, TotalTime, false);
 	
-	UE_LOG(LogTemp, Log, TEXT("[BasicAttack] Pattern will finish in %.2f seconds"), TotalTime);
+	UE_LOG(LogTemp, Log, TEXT("[BasicAttack] Pattern will finish in %.2f seconds (Execution: %.2f + Recovery: %.2f)"), 
+		TotalTime, Duration, CurrentPatternData.RecoveryTime);
+	
+	return true; 
 }
 
 void UCBossPattern_BasicAttack::Anim_AttackStart()
@@ -91,6 +102,11 @@ void UCBossPattern_BasicAttack::Anim_AttackStart()
 			if (WeakThis.IsValid())
 			{
 				WeakThis->CheckCollision();
+				UE_LOG(LogTemp, Warning, TEXT("[BasicAttack] Checking collision..."));
+			}
+			else
+			{
+				UE_LOG(LogTemp, Error, TEXT("[BasicAttack] Fails to check collision - WeakThis is invalid"));
 			}
 		});
 		
@@ -109,9 +125,9 @@ void UCBossPattern_BasicAttack::Anim_AttackEnd()
 	
 	bCollisionActive = false;
 	
-	if (GetWorld())
+	if (UWorld* World = GetWorld())
 	{
-		GetWorld()->GetTimerManager().ClearTimer(CollisionCheckTimer);
+		World->GetTimerManager().ClearTimer(CollisionCheckTimer);
 	}
 }
 
@@ -180,6 +196,7 @@ void UCBossPattern_BasicAttack::CheckCollision()
 		ACharacter* HitCharacter = Cast<ACharacter>(HitActor);
 		if (!HitCharacter) continue;
 
+		// 데미지 적용
 		UGameplayStatics::ApplyDamage(
 			HitCharacter,
 			BasicAttackDamage,
@@ -188,6 +205,7 @@ void UCBossPattern_BasicAttack::CheckCollision()
 			UDamageType::StaticClass()
 		);
 
+		// 넉백
 		FVector KnockDirection = (HitCharacter->GetActorLocation() - OwnerBoss->GetActorLocation()).GetSafeNormal();
 		FVector LaunchVelocity = KnockDirection * KnockbackPower;
 		LaunchVelocity.Z += KnockbackUpForce;
@@ -203,8 +221,19 @@ void UCBossPattern_BasicAttack::CheckCollision()
 void UCBossPattern_BasicAttack::OnPatternEnd()
 {
 	Super::OnPatternEnd();
+
+	ClearTimers();
+	
+	bCollisionActive = false;
 	
 	UE_LOG(LogTemp, Log, TEXT("[BasicAttack] OnPatternEnd called"));
+}
+
+void UCBossPattern_BasicAttack::Cleanup()
+{
+	Super::Cleanup();
+	ClearTimers();
+	bCollisionActive = false;
 }
 
 void UCBossPattern_BasicAttack::FinishPatternInternal()
@@ -212,17 +241,17 @@ void UCBossPattern_BasicAttack::FinishPatternInternal()
 	UE_LOG(LogTemp, Log, TEXT("[BasicAttack] FinishPatternInternal called"));
 	
 	bCollisionActive = false;
-	
 	ClearTimers();
-	OnPatternEnd();
+	
 	FinishPattern(true);
 }
 
 void UCBossPattern_BasicAttack::ClearTimers()
 {
-	if (!GetWorld()) return;
-	
-	FTimerManager& TimerManager = GetWorld()->GetTimerManager();
-	TimerManager.ClearTimer(CollisionCheckTimer);
-	TimerManager.ClearTimer(FinishTimer);
+	if (UWorld* World = GetWorld())
+	{
+		FTimerManager& TimerManager = World->GetTimerManager();
+		TimerManager.ClearTimer(CollisionCheckTimer);
+		TimerManager.ClearTimer(FinishTimer);
+	}
 }
