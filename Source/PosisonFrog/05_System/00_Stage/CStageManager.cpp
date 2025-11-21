@@ -470,6 +470,7 @@ void ACStageManager::ApplyTutorialSetup(const FStageFlowNode& Node)
 		CLog::Log(TEXT("[StageManager] ✗ TutorialManager가 nullptr!"));
 	}
 }
+
 FTutorialSpawnRule ACStageManager::GetSpawnRuleForStep(FName StepId) const
 {
 	for (const FTutorialSpawnRule& Rule : TutorialSpawnRules)
@@ -546,32 +547,35 @@ void ACStageManager::SpawnTutorialEnemies(int32 StageID, TSubclassOf<ACEnemyChar
 		if (IsValid(Enemy))
 		{
 			EnemyArray.Add(Enemy);
-            
-			// ▼▼▼ [수정] 컨트롤러가 '없을 때만' 새로 만듭니다. (중복 생성 방지) ▼▼▼
-			if (Enemy->GetController() == nullptr)
-			{
-				Enemy->SpawnDefaultController();
-			}
-			// ▲▲▲
-            
-			// [수정] AI 로직 재시작 (필요한 경우에만)
-			if (AAIController* AI = Cast<AAIController>(Enemy->GetController()))
-			{
-				// 블랙보드/비헤이비어 트리가 멈춰있을 수 있으므로 리스타트
-				if (UBrainComponent* Brain = AI->GetBrainComponent())
-				{
-					// 이미 실행 중이면 건드리지 않고, 멈춰있으면 재시작
-					if (!Brain->IsRunning())
-					{
-						Brain->RestartLogic();
-					}
-				}
-			}
 
 			// 사망 이벤트 등록
 			if (UCBaseHealthComponent* HealthComp = Enemy->FindComponentByClass<UCBaseHealthComponent>())
 			{
 				HealthComp->OnDeath.AddDynamic(this, &ACStageManager::OnEnemyDied);
+			}
+
+			// AI 초기화를 다음 틱으로 지연 (CrowdManager 등록 문제 방지)
+			if (UWorld* NowWorld = GetWorld())
+			{
+				TWeakObjectPtr<ACEnemyCharacterBase> WeakEnemy = Enemy;
+				NowWorld->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateLambda([WeakEnemy]()
+				{
+					if (!WeakEnemy.IsValid())
+						return;
+					
+					ACEnemyCharacterBase* E = WeakEnemy.Get();
+					
+					// 컨트롤러 확인 및 생성
+					if (E->GetController() == nullptr)
+					{
+						E->SpawnDefaultController();
+					}
+					
+					// AI 강제 재시작
+					E->ForceRestartAI();
+					
+					CLog::Log(FString::Printf(TEXT("[SpawnTutorialEnemies] %s AI 초기화 완료"), *E->GetName()));
+				}));
 			}
 		}
 	}
@@ -601,7 +605,6 @@ void ACStageManager::FillPlayerForRule(const FTutorialSpawnRule& Rule)
 		}
 	}
 }
-
 
 void ACStageManager::RegisterHordeEnemy(ACEnemyCharacterBase* Enemy, int32 StageID)
 {
@@ -891,30 +894,18 @@ void ACStageManager::ProcessSpawnBatch()
 		if (Enemy)
 		{
 			Enemy->SaveInitialTransform();
-
-			// 1. 컨트롤러가 없으면 강제 생성
-			if (Enemy->GetController() == nullptr)
-			{
-				Enemy->SpawnDefaultController();
-			}
-
-			if (AAIController* AI = Cast<AAIController>(Enemy->GetController()))
-			{
-				if (UBrainComponent* Brain = AI->GetBrainComponent())
-				{
-					if (!Brain->IsRunning())
-					{
-						Brain->RestartLogic();
-					}
-				}
-			}
 			
 			if (bIsPreloading)
 			{
-				// 비활성화 (선제 로딩)
+				// 선제 로딩: 비활성화 상태로 저장
 				Enemy->SetActorHiddenInGame(true);
 				Enemy->SetActorEnableCollision(false);
 				Enemy->SetActorTickEnabled(false);
+
+				if (Enemy->GetController() == nullptr)
+				{
+					Enemy->SpawnDefaultController();
+				}
 
 				if (AAIController* AI = Cast<AAIController>(Enemy->GetController()))
 				{
@@ -930,11 +921,34 @@ void ACStageManager::ProcessSpawnBatch()
 			}
 			else
 			{
+				// 일반 스폰: 사망 이벤트 등록
 				if (UCBaseHealthComponent* HealthComp = Enemy->FindComponentByClass<UCBaseHealthComponent>())
 				{
 					HealthComp->OnDeath.AddDynamic(this, &ACStageManager::OnEnemyDied);
 				}
 				StageEnemies.FindOrAdd(SpawningStage).Add(Enemy);
+
+				// AI 초기화를 다음 틱으로 지연 (CrowdManager 등록 문제 방지)
+				if (UWorld* World = GetWorld())
+				{
+					TWeakObjectPtr<ACEnemyCharacterBase> WeakEnemy = Enemy;
+					World->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateLambda([WeakEnemy]()
+					{
+						if (!WeakEnemy.IsValid())
+							return;
+						
+						ACEnemyCharacterBase* E = WeakEnemy.Get();
+						
+						if (E->GetController() == nullptr)
+						{
+							E->SpawnDefaultController();
+						}
+						
+						E->ForceRestartAI();
+						
+						CLog::Log(FString::Printf(TEXT("[ProcessSpawnBatch] %s AI 초기화 완료"), *E->GetName()));
+					}));
+				}
 			}
 		}
 	}
@@ -1044,7 +1058,6 @@ void ACStageManager::ActivatePreloadedStage(int32 StageID)
 			AI->UnPossess();
 			AI->Possess(Enemy);
 		}
-		
 		else
 		{
 			if (UWorld* World = Enemy->GetWorld())
