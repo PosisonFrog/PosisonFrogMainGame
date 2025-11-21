@@ -343,9 +343,30 @@ void ACStageManager::OnTutorialStepCompleted(FName StepId)
 		return;
 
 	const FStageFlowNode& Node = StageFlowNodes[NodeIndex];
+    
+	// 현재 노드의 튜토리얼이 맞는지 확인
 	if (Node.TutorialStepId == StepId)
 	{
-		AdvanceToNode(Node.NextNodeId);
+		CLog::Log(TEXT("[StageManager] 튜토리얼 행동 조건 달성!"));
+		
+		bIsCurrentTutorialStepFinished = true;
+		int32 RemainingEnemies = GetRemainingEnemies(Node.StageSectionId);
+
+		if (RemainingEnemies <= 0)
+		{
+
+			for (int32 BarrierId : Node.OpenBarriersOnComplete)
+			{
+				OpenStageBarrier(BarrierId);
+			}
+			
+			CLog::Log(TEXT("[StageManager] 적도 전멸 상태이므로 다음 노드로 이동합니다."));
+			AdvanceToNode(Node.NextNodeId);
+		}
+		else
+		{
+			CLog::Log(FString::Printf(TEXT("[StageManager] 행동은 완료했으나 적이 %d마리 남았습니다. 적을 모두 처치하세요."), RemainingEnemies));
+		}
 	}
 }
 
@@ -381,7 +402,8 @@ void ACStageManager::EnterNode(int32 NodeId)
 	}
 
 	const FStageFlowNode& Node = StageFlowNodes[NodeIndex];
-
+	bIsCurrentTutorialStepFinished = false;
+	
 	for (int32 CloseId : Node.CloseBarriers)
 	{
 		if (TObjectPtr<ACStageBarrier>* BarrierPtr = StageBarriers.Find(CloseId))
@@ -519,9 +541,34 @@ void ACStageManager::SpawnTutorialEnemies(int32 StageID, TSubclassOf<ACEnemyChar
 		FActorSpawnParameters SpawnParams;
 		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
-		if (ACEnemyCharacterBase* Enemy = World->SpawnActor<ACEnemyCharacterBase>(Info.EnemyClass, Info.Transform, SpawnParams))
+		ACEnemyCharacterBase* Enemy = GetWorld()->SpawnActor<ACEnemyCharacterBase>(Info.EnemyClass, Info.Transform, SpawnParams);
+
+		if (IsValid(Enemy))
 		{
 			EnemyArray.Add(Enemy);
+            
+			// ▼▼▼ [수정] 컨트롤러가 '없을 때만' 새로 만듭니다. (중복 생성 방지) ▼▼▼
+			if (Enemy->GetController() == nullptr)
+			{
+				Enemy->SpawnDefaultController();
+			}
+			// ▲▲▲
+            
+			// [수정] AI 로직 재시작 (필요한 경우에만)
+			if (AAIController* AI = Cast<AAIController>(Enemy->GetController()))
+			{
+				// 블랙보드/비헤이비어 트리가 멈춰있을 수 있으므로 리스타트
+				if (UBrainComponent* Brain = AI->GetBrainComponent())
+				{
+					// 이미 실행 중이면 건드리지 않고, 멈춰있으면 재시작
+					if (!Brain->IsRunning())
+					{
+						Brain->RestartLogic();
+					}
+				}
+			}
+
+			// 사망 이벤트 등록
 			if (UCBaseHealthComponent* HealthComp = Enemy->FindComponentByClass<UCBaseHealthComponent>())
 			{
 				HealthComp->OnDeath.AddDynamic(this, &ACStageManager::OnEnemyDied);
@@ -844,6 +891,23 @@ void ACStageManager::ProcessSpawnBatch()
 		if (Enemy)
 		{
 			Enemy->SaveInitialTransform();
+
+			// 1. 컨트롤러가 없으면 강제 생성
+			if (Enemy->GetController() == nullptr)
+			{
+				Enemy->SpawnDefaultController();
+			}
+
+			if (AAIController* AI = Cast<AAIController>(Enemy->GetController()))
+			{
+				if (UBrainComponent* Brain = AI->GetBrainComponent())
+				{
+					if (!Brain->IsRunning())
+					{
+						Brain->RestartLogic();
+					}
+				}
+			}
 			
 			if (bIsPreloading)
 			{
@@ -1018,6 +1082,44 @@ void ACStageManager::OnStageComplete(int32 StageID)
 {
 	CLog::Log(TEXT("================================================================="));
 	CLog::Log(TEXT("[StageManager] DEBUG - OnStageComplete 호출됨"));
+
+	//스테이지가 튜토리얼 구간인지 확인
+	if (StageID <= LastTutorialStageID)
+	{
+		if (!bIsCurrentTutorialStepFinished)
+		{
+			CLog::Log(TEXT("[StageManager] 적은 전멸했으나 튜토리얼 행동 미완료! 리스폰 시퀀스 가동"));
+            
+			int32 NodeIndex = FindNodeIndexById(CurrentNodeId);
+			if (StageFlowNodes.IsValidIndex(NodeIndex))
+			{
+				FName CurrentStepId = StageFlowNodes[NodeIndex].TutorialStepId;
+                
+				// 리스폰 실행 (2초 뒤)
+				FTimerDelegate RespawnDelegate;
+				RespawnDelegate.BindUObject(this, &ACStageManager::RespawnTutorialEnemies, StageID, CurrentStepId);
+				GetWorldTimerManager().SetTimer(RespawnTimerHandle, RespawnDelegate, 2.0f, false);
+			}
+            
+			return; 
+		}
+		else
+		{
+			CLog::Log(TEXT("[StageManager] 튜토리얼 행동 완료 + 적 전멸 -> 스테이지 클리어 진행"));
+            
+			int32 NodeIndex = FindNodeIndexById(CurrentNodeId);
+			if (StageFlowNodes.IsValidIndex(NodeIndex))
+			{
+				for (int32 BarrierId : StageFlowNodes[NodeIndex].OpenBarriersOnComplete)
+				{
+					OpenStageBarrier(BarrierId);
+				}
+				AdvanceToNode(StageFlowNodes[NodeIndex].NextNodeId);
+			}
+		}
+	}
+
+	
 	CLog::Log(FString::Printf(TEXT("[StageManager] StageID: %d"), StageID));
 	CLog::Log(FString::Printf(TEXT("[StageManager] ClearedStages에 이미 포함? %s"), 
 		ClearedStages.Contains(StageID) ? TEXT("Yes - 무시됨") : TEXT("No - 진행")));
@@ -1062,21 +1164,32 @@ void ACStageManager::OnStageComplete(int32 StageID)
 	OnStageCleared.Broadcast(StageID);
 	CLog::Log(TEXT("[StageManager] OnStageCleared 브로드캐스트 완료"));
 
-	// 다음 스테이지 처리
-	int32 NextStage = StageID + 1;
-	if (PreloadedStages.Contains(NextStage))
+	// 현재 스테이지가 '마지막 튜토리얼 ID(105)'보다 클 때만 자동 스폰 로직 실행
+	// 즉, 101~105 클리어 시에는 실행 안 됨 -> 트리거 밟아야 스폰됨
+	// 105 클리어 시 -> 106 자동 스폰됨
+	if (StageID >= LastTutorialStageID)
 	{
-		CLog::Log(FString::Printf(TEXT("[StageManager] 다음 스테이지 (%d) 이미 로딩되어 있음 - 활성화 중"), NextStage));
-		ActivatePreloadedStage(NextStage);
-	}
-	else if (StageSpawnZones.Contains(NextStage))
-	{
-		CLog::Log(FString::Printf(TEXT("[StageManager] 다음 스테이지 (%d) 스폰 시작"), NextStage));
-		StartStageSpawn(NextStage);
+		CLog::Log(FString::Printf(TEXT("[StageManager] 일반 스테이지(%d) 클리어 - 다음 스테이지 자동 진행 시도"), StageID));
+		// 다음 스테이지 처리
+		int32 NextStage = StageID + 1;
+		if (PreloadedStages.Contains(NextStage))
+		{
+			CLog::Log(FString::Printf(TEXT("[StageManager] 다음 스테이지 (%d) 이미 로딩되어 있음 - 활성화 중"), NextStage));
+			ActivatePreloadedStage(NextStage);
+		}
+		else if (StageSpawnZones.Contains(NextStage))
+		{
+			CLog::Log(FString::Printf(TEXT("[StageManager] 다음 스테이지 (%d) 스폰 시작"), NextStage));
+			StartStageSpawn(NextStage);
+		}
+		else
+		{
+			CLog::Log(FString::Printf(TEXT("[StageManager] 다음 스테이지 (%d) 없음 - 마지막 스테이지 또는 보스 스테이지"), NextStage));
+		}
 	}
 	else
 	{
-		CLog::Log(FString::Printf(TEXT("[StageManager] 다음 스테이지 (%d) 없음 - 마지막 스테이지 또는 보스 스테이지"), NextStage));
+		CLog::Log(FString::Printf(TEXT("[StageManager] 튜토리얼 스테이지(%d) 클리어 - 자동 스폰 생략 (Flow/Trigger 대기)"), StageID));
 	}
 	
 	CLog::Log(TEXT("================================================================="));
@@ -1437,4 +1550,43 @@ void ACStageManager::ClearAllEnemies()
 	
 	StageEnemies.Empty();
 	PreloadedEnemies.Empty();
+}
+
+void ACStageManager::RespawnTutorialEnemies(int32 StageID, FName StepId)
+{
+	CLog::Log(FString::Printf(TEXT("[StageManager] 튜토리얼 적 리스폰 실행 (Stage: %d, Step: %s)"), StageID, *StepId.ToString()));
+
+	if (TArray<TObjectPtr<ACEnemyCharacterBase>>* ExistingEnemies = StageEnemies.Find(StageID))
+	{
+		int32 RemovedCount = 0;
+        
+		for (TObjectPtr<ACEnemyCharacterBase>& EnemyPtr : *ExistingEnemies)
+		{
+			ACEnemyCharacterBase* Enemy = EnemyPtr.Get();
+            
+			if (IsValid(Enemy))
+			{
+				if (UCBaseHealthComponent* HealthComp = Enemy->FindComponentByClass<UCBaseHealthComponent>())
+				{
+					HealthComp->OnDeath.RemoveDynamic(this, &ACStageManager::OnEnemyDied);
+				}
+
+				Enemy->Destroy();
+				RemovedCount++;
+			}
+		}
+
+		ExistingEnemies->Empty();
+        
+		if (RemovedCount > 0)
+		{
+			CLog::Log(FString::Printf(TEXT("[StageManager] 리스폰을 위해 기존 엔티티 %d기 삭제 완료"), RemovedCount));
+		}
+	}
+
+
+	FTutorialSpawnRule Rule = GetSpawnRuleForStep(StepId);
+    
+	SpawnTutorialEnemies(StageID, Rule.EnemyClass, Rule.EnemyCount);
+	FillPlayerForRule(Rule);
 }

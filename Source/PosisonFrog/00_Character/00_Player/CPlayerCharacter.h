@@ -28,7 +28,7 @@ class UCPlayerKnockbackComponent;
 class UCPlayerEffectComponent;
 
 struct FInputActionValue;
-
+enum class ETutorialActionType : uint8;
 
 /**
  * 플레이어 캐릭터:
@@ -335,4 +335,8 @@ private:
     
     // 사운드 재생 헬퍼
     void PlayPlayerSound(const TWeakObjectPtr<USoundBase>& Sound, float VolumeMultiplier = 1.0f);
+
+    // [추가] 튜토리얼 매니저에게 행동 알림을 보내는 헬퍼 함수
+    void NotifyTutorialAction(ETutorialActionType Action);
+    
 };

@@ -31,5 +31,8 @@ protected:
 	
 	UPROPERTY(EditAnywhere, Category = "StageTrigger")
 	TObjectPtr<ACStageManager> StageManager;
+
+private:
+	bool bHasTriggered = false;
 };
 

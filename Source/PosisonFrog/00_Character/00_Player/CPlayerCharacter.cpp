@@ -31,6 +31,7 @@
 #include "01_Widget/CPlayerWidget.h"
 #include "04_Skill/CSkill_CommandLaunchSlam.h"
 #include "04_Skill/CSkill_SpinAttack.h"
+#include "05_System/00_Stage/CTutorialManager.h"
 #include "05_System/01_Sound/CSoundManagerSubsystem.h"
 #include "05_System/01_Sound/CSoundDataAsset.h"
 
@@ -400,6 +401,12 @@ void ACPlayerCharacter::HandlePlayerComboHit(AActor* HitActor, int32 ComboIndex,
     const float Now = GetWorld()->GetTimeSeconds();
     ComboStackComponent->OnDirectHit(ComboIds[ComboIndex], Now);
 
+    // 기본 공격 3타일때 튜토리얼에게 알림. (ComboIndex가 2일 때가 3번째 타격)
+    if (ComboIndex == 2)
+    {
+        NotifyTutorialAction(ETutorialActionType::BasicCombo_3Hit);
+    }
+    
     MarkCombatAction();
 }
 
@@ -483,6 +490,8 @@ bool ACPlayerCharacter::TryCommitDash()
     
     DashComponent->StartDash(); // 내부 쿨타임/중복 체크는 컴포넌트 쪽에서
 
+    NotifyTutorialAction(ETutorialActionType::Dash_Used);
+    
     // (2) 6초 쿨타임 무조건 시작
     bDashOnCooldown = true;
     DashCooldownRemaining = DashCooldown;
@@ -776,6 +785,8 @@ void ACPlayerCharacter::UseUltimate()
     
     MarkCombatAction();
 
+    NotifyTutorialAction(ETutorialActionType::Ult_Used);
+
     if (PlayerWidget)
     {
         PlayerWidget->OnUltimateActivated();
@@ -933,7 +944,10 @@ void ACPlayerCharacter::OnSpinPressed()
     
     
     if (SpinAttackComponent)
+    {
         SpinAttackComponent->TryStartSpin();
+        NotifyTutorialAction(ETutorialActionType::Spin_Used);
+    }
 }
 
 void ACPlayerCharacter::OnSpinReleased()
@@ -981,6 +995,8 @@ void ACPlayerCharacter::OnCommandPressed()
             
             if (CommandLaunchSlamComponent->TryStartCommand())
             {
+                //튜토리얼 알림: 커맨드 스킬(올려치기 등) 사용 성공 시
+                NotifyTutorialAction(ETutorialActionType::Command_Used);
                 HandleCommandMovementLockChanged(true);
                 MarkCombatAction();
             }
@@ -1186,6 +1202,17 @@ void ACPlayerCharacter::PlayPlayerSound(const TWeakObjectPtr<USoundBase>& Sound,
         if (UCSoundManagerSubsystem* SoundMgr = GI->GetSubsystem<UCSoundManagerSubsystem>())
         {
             SoundMgr->PlaySFX3D(Sound.Get(), GetActorLocation(), VolumeMultiplier);
+        }
+    }
+}
+
+void ACPlayerCharacter::NotifyTutorialAction(ETutorialActionType Action)
+{
+    if (UGameInstance* GI = GetGameInstance())
+    {
+        if (UCTutorialManager* TutorialManager = GI->GetSubsystem<UCTutorialManager>())
+        {
+            TutorialManager->NotifyAction(Action);
         }
     }
 }

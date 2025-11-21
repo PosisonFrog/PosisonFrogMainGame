@@ -49,9 +49,14 @@ struct FStageFlowNode
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "StageFlow")
 	TArray<int32> ActivateSpawnStages;
-	
+
+	//노드 진입시 여는 베리어
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "StageFlow")
 	TArray<int32> OpenBarriers;
+
+	//노드 완료(클리어) 시 여는 배리어
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "StageFlow")
+	TArray<int32> OpenBarriersOnComplete;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "StageFlow")
 	TArray<int32> CloseBarriers;
@@ -259,4 +264,16 @@ private:
 	float DeathHideDelay = 1.2f;
 
 	bool bIsClearingEnemies = false;
+
+	bool bIsCurrentTutorialStepFinished = false;
+	
+	
+protected:
+	//해당 스테이지 ID까지는 클리어해도 다음 스테이지가 자동으로 스폰되지 않습니다. (트리거 사용)
+	UPROPERTY(EditAnywhere, Category = "Stage|Settings")
+	int32 LastTutorialStageID = 105;
+
+	void RespawnTutorialEnemies(int32 StageID, FName StepId);
+
+	FTimerHandle RespawnTimerHandle;
 };

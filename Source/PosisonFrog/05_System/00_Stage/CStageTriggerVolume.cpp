@@ -13,6 +13,8 @@ ACStageTriggerVolume::ACStageTriggerVolume()
 void ACStageTriggerVolume::BeginPlay()
 {
 	Super::BeginPlay();
+
+	bHasTriggered = false;
 	
 	if (!IsValid(StageManager))
 	{
@@ -27,12 +29,17 @@ void ACStageTriggerVolume::BeginPlay()
 
 void ACStageTriggerVolume::OnTriggerEnter(AActor* OverlappedActor, AActor* OtherActor)
 {
+	if (bHasTriggered)
+		return;
+	
 	if (!IsValid(StageManager))
 		return;
 	
 	if (!OtherActor || !OtherActor->IsA<ACPlayerCharacter>())
 		return;
-	
+
+	bHasTriggered = true;
 	StageManager->HandleTrigger(TriggerTag);
+	// SetActorEnableCollision(false);
 }
 
