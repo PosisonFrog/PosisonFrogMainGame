@@ -88,24 +88,6 @@ void ACMainGameModeBase::StartGameplayBGM()
 	
 }
 
-void ACMainGameModeBase::PlayBossBGM()
-{
-	if (!SoundDataAsset)
-		return;
-
-	if (UGameInstance* GI = GetGameInstance())
-	{
-		if (UCSoundManagerSubsystem* SoundMgr = GI->GetSubsystem<UCSoundManagerSubsystem>())
-		{
-			USoundBase* BossBGM = SoundDataAsset->GameSounds.BossBattleBGM;
-			if (BossBGM)
-			{
-				SoundMgr->PlayBGM(BossBGM, 1.5f, 1.2f);
-				UE_LOG(LogTemp, Log, TEXT("[GameMode] Started boss BGM"));
-			}
-		}
-	}
-}
 
 void ACMainGameModeBase::OnCheckPointActivateEvent(ACCheckPoint* CheckPoint, ACPlayerCharacter* Player)
 {
@@ -121,20 +103,7 @@ void ACMainGameModeBase::OnCheckPointActivateEvent(ACCheckPoint* CheckPoint, ACP
 	StageSnapshot.ActivateStage = CheckPoint->SectionID;
 
 	CLog::Log(FString::Printf(TEXT("[ACMainGameModeBase::OnCheckPointActivateEvent] 체크포인트 이벤트 받음 : %s (Section %d)"), *CheckPoint->GetName(), CheckPoint->SectionID));
-
-	if (SoundDataAsset)
-	{
-		if (UGameInstance* GI = GetGameInstance())
-		{
-			if (UCSoundManagerSubsystem* SoundMgr = GI->GetSubsystem<UCSoundManagerSubsystem>())
-			{
-				if (USoundBase* CheckpointSound = SoundDataAsset->GameSounds.CheckpointSound)
-				{
-					SoundMgr->PlaySFX2D(CheckpointSound, 0.8f);
-				}
-			}
-		}
-	}
+	
 }
 
 void ACMainGameModeBase::RestartFromLastCheckpoint(ACPlayerController* PlayerController)
@@ -169,14 +138,7 @@ void ACMainGameModeBase::ReturnToTitleScreen()
 {
 	GetWorldTimerManager().ClearTimer(TimerHandle_Respawn);
 	GetWorldTimerManager().ClearTimer(TimerHandle_ReturnToMenu);
-
-	if (UGameInstance* GI = GetGameInstance())
-	{
-		if (UCSoundManagerSubsystem* SoundMgr = GI->GetSubsystem<UCSoundManagerSubsystem>())
-		{
-			SoundMgr->StopBGM(2.0f);
-		}
-	}
+	
 	
 	if (MainMenuLevelName != NAME_None)
 	{
@@ -190,19 +152,6 @@ void ACMainGameModeBase::ReturnToTitleScreen()
 
 void ACMainGameModeBase::OnPlayerDeath(ACPlayerController* PlayerController)
 {
-	if (SoundDataAsset)
-	{
-		if (UGameInstance* GI = GetGameInstance())
-		{
-			if (UCSoundManagerSubsystem* SoundMgr = GI->GetSubsystem<UCSoundManagerSubsystem>())
-			{
-				if (USoundBase* DeathSound = SoundDataAsset->PlayerSounds.DeathSound)
-				{
-					SoundMgr->PlaySFX2D(DeathSound, 1.0f);
-				}
-			}
-		}
-	}
 	
 	if (!PlayerController)
 	{
@@ -326,20 +275,7 @@ void ACMainGameModeBase::RespawnPlayerAtCheckPoint(ACPlayerController* PlayerCon
 				PawnLifecycle->NotifyPlayerRespawned(NewPlayer);
 			}
 		}
-
-		if (SoundDataAsset)
-		{
-			if (UGameInstance* GI = GetGameInstance())
-			{
-				if (UCSoundManagerSubsystem* SoundMgr = GI->GetSubsystem<UCSoundManagerSubsystem>())
-				{
-					if (USoundBase* RespawnSound = SoundDataAsset->PlayerSounds.RespawnSound)
-					{
-						SoundMgr->PlaySFX2D(RespawnSound, 0.7f);
-					}
-				}
-			}
-		}
+		
 
 		// 나중에 만약 EffectComponent를 사용하게 된다면 주석 풀기
 		/*if (UCPlayerEffectComponent* EffectComp = NewPlayer->GetEffectComponent())

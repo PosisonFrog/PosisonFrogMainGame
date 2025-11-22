@@ -316,19 +316,39 @@ private:
     //TObjectPtr<UTransparentCameraComponent> TransparentCameraComponent = nullptr;
 
     // ─────────── 사운드 ───────────
+
+public:
+    void PlayWeaponSwingSound();
+    void PlayAttackHitSound();
+    void PlayCommandSkillSound(int32 Phase);
+    void StartSpinSound();
+    void StopSpinSound();
+    void PlayDashSound();
 protected:
     UPROPERTY(Transient)
-    TWeakObjectPtr<USoundBase> CachedAttackSound;
+    TWeakObjectPtr<USoundBase> CachedWeaponSwingSound; // (New) 규칙 0
+
+    UPROPERTY(Transient)
+    TWeakObjectPtr<USoundBase> CachedAttackHitSound;   // (New) 규칙 1
     
     UPROPERTY(Transient)
-    TWeakObjectPtr<USoundBase> CachedDashSound;
+    TWeakObjectPtr<USoundBase> CachedDashSound;        // 규칙 2
+
+    UPROPERTY(Transient)
+    TWeakObjectPtr<USoundBase> CachedCommandLaunchSound; // (New) 규칙 3-1
     
     UPROPERTY(Transient)
-    TWeakObjectPtr<USoundBase> CachedHitSound;
-    
+    TWeakObjectPtr<USoundBase> CachedCommandSlamSound;   // (New) 규칙 3-2
+
+    UPROPERTY(Transient)
+    TWeakObjectPtr<USoundBase> CachedSpinLoopSound;      // (New) 규칙 4
+
     UPROPERTY(Transient)
     TWeakObjectPtr<USoundBase> CachedDeathSound;
 
+    UPROPERTY(Transient)
+    TObjectPtr<UAudioComponent> SpinAudioComp = nullptr;
+    
 private:
     // 사운드 로드 헬퍼
     void CachePlayerSounds();

@@ -8,7 +8,6 @@
 class UCTankerChargeComponent;
 class AAIController;
 class UAnimMontage;
-class USoundBase;
 class UNiagaraSystem;
 class ACPlayerCharacter;
 
@@ -28,7 +27,6 @@ public:
 	virtual void Tick(float DeltaSeconds) override;
 	
 protected:
-	virtual void CacheSoundsFromDataAsset() override;
 	virtual void PostInitProperties() override;
 	virtual void PostLoad() override;
 	virtual void OnConstruction(const FTransform& Transform) override;
@@ -124,9 +122,6 @@ protected:
 	/** @deprecated Use ComboHitReactionMontages array in base class for combo-specific hit reactions */
 	TObjectPtr<UAnimMontage> HitMontage = nullptr;
 
-	UPROPERTY(Transient)
-	TObjectPtr<USoundBase> CachedChargeSound = nullptr; 
-	
 	UPROPERTY(EditAnywhere, Category="PF|Effects")
 	TObjectPtr<UNiagaraSystem> HitEffect = nullptr;
 	

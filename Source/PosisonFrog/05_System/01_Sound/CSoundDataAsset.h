@@ -17,69 +17,34 @@ struct FCharacterSoundCollection
 {
     GENERATED_BODY()
 
-    /** 기본 공격 사운드 */
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Attack")
-    TObjectPtr<USoundBase> AttackSound = nullptr;
+public:
+    // 규칙 0: 허공에 휘두를 때 (Swing)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sound")
+    USoundBase* WeaponSwingSound;
 
-    /** 스킬 사운드 (배열로 여러 스킬 지원) */
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Attack")
-    TArray<TObjectPtr<USoundBase>> SkillSounds;
+    // 규칙 1: 몬스터 타격 성공 시 (Hit)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sound")
+    USoundBase* AttackHitSound;
 
-    /** 돌진 사운드 */
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Attack")
-    TObjectPtr<USoundBase> ChargeSound = nullptr;
+    // 규칙 2: 대시 (Dash)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sound")
+    USoundBase* DashSound;
 
-    /** 스윙 사운드 (휘두르는 소리) */
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Attack")
-    TObjectPtr<USoundBase> SwingSound = nullptr;
+    // 규칙 3: 커맨드 스킬 (1타: 띄우기, 2타: 내려찍기)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sound|Skill")
+    USoundBase* CommandLaunchSound;
 
-    /** 피격 사운드 */
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Hit")
-    TObjectPtr<USoundBase> HitSound = nullptr;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sound|Skill")
+    USoundBase* CommandSlamSound;
 
-    /** 경직 사운드 */
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Hit")
-    TObjectPtr<USoundBase> StunSound = nullptr;
+    // 규칙 4: 스핀 스킬 (루프)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sound|Skill")
+    USoundBase* SpinLoopSound;
 
-    /** 넉백 사운드 */
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Hit")
-    TObjectPtr<USoundBase> KnockbackSound = nullptr;
-
-    /** 사망 사운드 */
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "State")
-    TObjectPtr<USoundBase> DeathSound = nullptr;
-
-    /** 부활 사운드 */
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "State")
-    TObjectPtr<USoundBase> RespawnSound = nullptr;
-
-    /** 발소리 (걷기) */
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Movement")
-    TObjectPtr<USoundBase> FootstepWalk = nullptr;
-
-    /** 발소리 (달리기) */
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Movement")
-    TObjectPtr<USoundBase> FootstepRun = nullptr;
-
-    /** 점프 사운드 */
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Movement")
-    TObjectPtr<USoundBase> JumpSound = nullptr;
-
-    /** 착지 사운드 */
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Movement")
-    TObjectPtr<USoundBase> LandSound = nullptr;
-
-    /** 대시 사운드 */
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Movement")
-    TObjectPtr<USoundBase> DashSound = nullptr;
-
-    /** 전투 외침 */
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Voice")
-    TArray<TObjectPtr<USoundBase>> BattleCries;
-
-    /** 승리 외침 */
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Voice")
-    TObjectPtr<USoundBase> VictorySound = nullptr;
+    // 사망
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sound")
+    USoundBase* DeathSound;
+    
 };
 
 /**
@@ -127,18 +92,6 @@ struct FGameSoundCollection
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI")
     TObjectPtr<USoundBase> MenuCloseSound = nullptr;
 
-    /** 아이템 획득 */
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI")
-    TObjectPtr<USoundBase> ItemPickupSound = nullptr;
-
-    /** 체크포인트 활성화 */
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI")
-    TObjectPtr<USoundBase> CheckpointSound = nullptr;
-
-    /** 레벨 클리어 */
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "System")
-    TObjectPtr<USoundBase> LevelClearSound = nullptr;
-
     /** 경고음 */
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "System")
     TObjectPtr<USoundBase> WarningSound = nullptr;
@@ -157,19 +110,7 @@ public:
     /** 플레이어 사운드 */
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Character")
     FCharacterSoundCollection PlayerSounds;
-
-    /** 데드베어 사운드 */
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Character|Enemy")
-    FCharacterSoundCollection RiotRobotSounds;
-
-    /** 벌룬버니 사운드 */
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Character|Enemy")
-    FCharacterSoundCollection RangedSkirmisherSounds;
-
-    /** 엄지늘보 사운드 */
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Character|Enemy")
-    FCharacterSoundCollection TankerBruteSounds;
-
+    
     /** 보스 사운드 */
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Character|Boss")
     FCharacterSoundCollection BossSounds;

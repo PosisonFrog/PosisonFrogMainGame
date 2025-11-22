@@ -82,6 +82,8 @@ bool UCSkill_SpinAttack::DoActivate()
 
     if (ACPlayerCharacter* PlayerChar = Cast<ACPlayerCharacter>(OwnerChar))
     {
+        PlayerChar->StartSpinSound();
+        
         if (CharSpinMontage)
             PlayerChar->PlayAnimMontage(CharSpinMontage);
 
@@ -131,6 +133,8 @@ bool UCSkill_SpinAttack::DoCancel()
     {
         if (ACPlayerCharacter* PlayerChar = Cast<ACPlayerCharacter>(OwnerChar))
         {
+            PlayerChar->StopSpinSound();
+            
             if (UAnimInstance* CharAnimInst = PlayerChar->GetMesh()->GetAnimInstance())
             {
                 if (CharAnimInst->Montage_IsPlaying(CharSpinMontage))

@@ -12,18 +12,7 @@ const FCharacterSoundCollection* UCSoundDataAsset::GetCharacterSounds(FName Char
 	{
 		return &PlayerSounds;
 	}
-	else if (CharacterType == RiotRobotName)
-	{
-		return &RiotRobotSounds;
-	}
-	else if (CharacterType == RangedSkirmisherName)
-	{
-		return &RangedSkirmisherSounds;
-	}
-	else if (CharacterType == TankerBruteName)
-	{
-		return &TankerBruteSounds;
-	}
+
 	else if (CharacterType == BossName)
 	{
 		return &BossSounds;

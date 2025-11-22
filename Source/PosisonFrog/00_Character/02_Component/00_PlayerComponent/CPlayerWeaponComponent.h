@@ -183,6 +183,7 @@ private:
     UPROPERTY() ACHammer* CurrentHammer = nullptr;
     
     bool bHitStopTriggeredThisCombo = false; // 히트스톱 중복을 막기위한 플래그
+    bool bHitSoundPlayedThisCombo = false;
     bool bHasNotifiedAttackEnd = false;
     
     FTimerHandle ComboResetTimer;

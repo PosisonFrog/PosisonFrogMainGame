@@ -215,7 +215,7 @@ void ACRiotRobot::StartAttack()
     PlayMontageIfValid(AttackMontage);
     
     //공격 사운드 재생 추가
-    PlayEnemySound(CachedAttackSound, 1.0f);
+    //PlayEnemySound(CachedAttackSound, 1.0f);
     
     SpawnAttackEffect();
     
@@ -302,7 +302,7 @@ void ACRiotRobot::OnDead()
  
     PlayMontageIfValid(DeadMontage);
     SpawnHitEffectAtLocation();
-    PlayEnemySound(CachedDeathSound, 1.0f);
+    //PlayEnemySound(CachedDeathSound, 1.0f);
 }
 
 // ─────────────────────────────────────────────────────
@@ -447,21 +447,4 @@ bool ACRiotRobot::IsGroundedForAttack() const
     return true;
 }
 
-void ACRiotRobot::CacheSoundsFromDataAsset()
-{
-    if (ACMainGameModeBase* GM = Cast<ACMainGameModeBase>(GetWorld()->GetAuthGameMode()))
-    {
-        if (UCSoundDataAsset* SoundData = GM->GetSoundDataAsset())
-        {
-            const FCharacterSoundCollection* Sounds = SoundData->GetCharacterSounds(TEXT("RiotRobot"));
-            if (Sounds)
-            {
-                CachedAttackSound = Sounds->AttackSound;
-                CachedHitSound = Sounds->HitSound;
-                CachedDeathSound = Sounds->DeathSound;
-                
-                UE_LOG(LogTemp, Log, TEXT("[RiotRobot] Cached sounds"));
-            }
-        }
-    }
-}
+

@@ -107,7 +107,7 @@ void ACEnemyCharacterBase::BeginPlay()
 	SubscribeToPlayerComboHits();
 	
 	SetState(EEnemyState::Patrol); // 기본적으로 순찰모드
-	CacheSoundsFromDataAsset();
+	//CacheSoundsFromDataAsset();
 	RegisterForPlayerRespawnEvents();
 
 }
@@ -1705,25 +1705,3 @@ void ACEnemyCharacterBase::StopHitShake()
 	}
 }
 
-// ============================================================
-// 사운드 처리
-// ============================================================
-
-void ACEnemyCharacterBase::CacheSoundsFromDataAsset()
-{
-	// Base 클래스는 비워두고 자식 클래스에서 오버라이드
-}
-
-void ACEnemyCharacterBase::PlayEnemySound(const TWeakObjectPtr<USoundBase>& Sound, float VolumeMultiplier)
-{
-    if (!Sound.IsValid())
-		return;
-        
-	if (UGameInstance* GI = GetGameInstance())
-	{
-		if (UCSoundManagerSubsystem* SoundMgr = GI->GetSubsystem<UCSoundManagerSubsystem>())
-		{
-			SoundMgr->PlaySFX3D(Sound.Get(), GetActorLocation(), VolumeMultiplier);
-		}
-	}
-}

@@ -7,11 +7,7 @@
 #include "NiagaraFunctionLibrary.h"       
 #include "Components/CapsuleComponent.h"
 #include "Kismet/KismetMathLibrary.h"
-#include "Sound/SoundBase.h"
 
-
-#include "05_System/01_Sound/CSoundManagerSubsystem.h"
-#include "05_System/01_Sound//CSoundDataAsset.h"
 #include "00_Character/CMainGameModeBase.h"
 #include "00_Character/00_Player/CPlayerCharacter.h"
 
@@ -284,8 +280,6 @@ void ACTankerBrute::StartAttack()
 
     StopMove();
     PlayMontageIfValid(AttackMontage);
-    PlayEnemySound(CachedAttackSound, 1.0f);
-    
     
     SpawnAttackEffect();
 
@@ -554,29 +548,7 @@ void ACTankerBrute::SyncAttackTuning()
     BaseDamage = AttackDamage;
 }
 
-//---------------- 사운드 ----------------
-void ACTankerBrute::CacheSoundsFromDataAsset()
-{
-    if (ACMainGameModeBase* GM = Cast<ACMainGameModeBase>(GetWorld()->GetAuthGameMode()))
-    {
-        if (UCSoundDataAsset* SoundData = GM->GetSoundDataAsset())
-        {
-            const FCharacterSoundCollection* Sounds = SoundData->GetCharacterSounds(TEXT("TankerBrute"));
-            if (Sounds)
-            {
-                CachedAttackSound = Sounds->AttackSound;
-                CachedHitSound = Sounds->HitSound;
-                CachedDeathSound = Sounds->DeathSound;
-                
-                // 돌진 사운드도 추가
-                if (Sounds->ChargeSound)
-                {
-                    CachedChargeSound = Sounds->ChargeSound;
-                }
-            }
-        }
-    }
-}
+
 
 void ACTankerBrute::BindPlayerToChargeDelegate(ACPlayerCharacter* PlayerOverride)
 {

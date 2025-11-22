@@ -426,23 +426,7 @@ protected:
     void UpdateHitDirectionFromAttacker(AActor* AttackerActor);
     UAnimMontage* ResolveComboHitReactionMontage(int32 ComboIndex, FName& OutSource) const;
 
-    //───────── 사운드 ─────────
-protected:
-    // 각 Enemy가 오버라이드할 함수
-    virtual void CacheSoundsFromDataAsset();
-    
-    // 사운드 재생 헬퍼
-    void PlayEnemySound(const TWeakObjectPtr<USoundBase>& Sound, float VolumeMultiplier = 1.0f);
-    
-    // 캐싱된 사운드들
-    UPROPERTY(Transient)
-    TWeakObjectPtr<USoundBase> CachedAttackSound;
-    
-    UPROPERTY(Transient)
-    TWeakObjectPtr<USoundBase> CachedHitSound;
-    
-    UPROPERTY(Transient)
-    TWeakObjectPtr<USoundBase> CachedDeathSound;
+
 
 private:
     void RegisterForPlayerRespawnEvents();

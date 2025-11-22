@@ -214,11 +214,7 @@ void ACEnemyBossCharacter::StartBossBattle(bool bSkipIntro)
 	{
 		BossPhaseComponent->StartBattle(bSkipIntro);
 	}
-
-	if (ACMainGameModeBase* GM = Cast<ACMainGameModeBase>(GetWorld()->GetAuthGameMode()))
-	{
-		GM->PlayBossBGM();
-	}
+	
 }
 
 void ACEnemyBossCharacter::ForcePattern(FName PatternId)

@@ -4,7 +4,6 @@
 #include "CRangedSkirmisher.generated.h"
 
 class UAnimMontage;
-class USoundBase;
 class UNiagaraSystem;
 class UCapsuleComponent;
 class UCharacterMovementComponent;
@@ -29,7 +28,6 @@ protected:
     virtual void DoChase() override;     // 거리 밴드 유지 + 전술 이동
     virtual void DoAttack() override;    // 사격 조건/쿨다운/회피
     virtual void ExitState(EEnemyState OldState) override;
-    virtual void CacheSoundsFromDataAsset() override;
 
 
     // ───── 사격 ─────
@@ -113,9 +111,7 @@ protected:
     // ───── 연출 ─────
     UPROPERTY(EditAnywhere, Category="PF|Ranged|VFX")
     UNiagaraSystem* MuzzleFX = nullptr;
-
-    UPROPERTY(EditAnywhere, Category="PF|Ranged|SFX")
-    USoundBase* FireSFX = nullptr;
+    
 
     UPROPERTY(EditAnywhere, Category="PF|Ranged|Anim")
     UAnimMontage* FireMontage = nullptr;

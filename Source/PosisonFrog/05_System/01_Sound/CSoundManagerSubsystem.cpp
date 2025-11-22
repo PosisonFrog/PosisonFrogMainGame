@@ -47,9 +47,36 @@ void UCSoundManagerSubsystem::PlayBGM(USoundBase* Sound, float FadeInDuration, f
         return;
     }
     
-    if (BGMAudioComponent.IsValid() && BGMAudioComponent->IsPlaying())
+    
+    
+    if (BGMAudioComponent.IsValid())
     {
         StopBGM(FadeInDuration * 0.5f);
+        const bool bIsSameBGM = CurrentBGM.IsValid() && CurrentBGM.Get() == Sound;
+            
+        if (bIsSameBGM)
+        {
+            // 동일한 BGM을 다시 요청한 경우, 재생을 유지하거나 일시정지 상태라면 재개만 한다.
+            if (bIsBGMPaused)
+            {
+                BGMAudioComponent->SetPaused(false);
+                bIsBGMPaused = false;
+                UE_LOG(LogTemp, Log, TEXT("[SoundManager] Resumed existing BGM: %s"), *Sound->GetName());
+            }
+            else if (!BGMAudioComponent->IsPlaying())
+            {
+                BGMAudioComponent->Play();
+                UE_LOG(LogTemp, Log, TEXT("[SoundManager] Restarted existing BGM playback: %s"), *Sound->GetName());
+            }
+                    
+            // 동일한 사운드면 페이드인/리스타트 없이 그대로 유지
+            return;
+        }
+            
+        if (BGMAudioComponent->IsPlaying())
+        {
+            StopBGM(FadeInDuration * 0.5f);
+        }
     }
     
     BGMAudioComponent = UGameplayStatics::SpawnSound2D(

@@ -14,6 +14,7 @@
 
 #include "Global.h"
 #include "00_Character/00_Player/CHitStopSubsystem.h"
+#include "00_Character/00_Player/CPlayerCharacter.h"
 #include "00_Character/01_Enemy/CEnemyCharacterBase.h"
 #include "00_Character/02_Component/00_PlayerComponent/CPlayerWeaponComponent.h"
 #include "00_Character/02_Component/CHitStopComponent.h"
@@ -210,6 +211,11 @@ void UCSkill_CommandLaunchSlam::Anim_PerformLaunch()
 
     if (State != ECommandAirState::Launching)
         return;
+
+    if (ACPlayerCharacter* PC = Cast<ACPlayerCharacter>(OwnerChar.Get()))
+    {
+        PC->PlayCommandSkillSound(1);
+    }
 
     // 플레이어 띄우기
     OwnerChar->LaunchCharacter(FVector(0,0,PlayerLaunchZ), true, true);
@@ -560,6 +566,11 @@ void UCSkill_CommandLaunchSlam::DoShockwaveImpact()
 {
     if (!OwnerChar.IsValid()) return;
 
+    if (ACPlayerCharacter* PC = Cast<ACPlayerCharacter>(OwnerChar.Get()))
+    {
+        PC->PlayCommandSkillSound(2);
+    }
+    
     if (ShockwaveFX)
         UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), ShockwaveFX, OwnerChar->GetActorLocation());
     if (ShockwaveSFX)

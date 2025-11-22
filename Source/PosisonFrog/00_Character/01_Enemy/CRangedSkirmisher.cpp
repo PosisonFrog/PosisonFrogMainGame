@@ -406,14 +406,7 @@ void ACRangedSkirmisher::FireOnce()
                 Anim->Montage_Play(FireMontage, 1.0f);
 
         FVector MuzzlePos = GetMuzzleLocation(MuzzleRot);
-    
-        if (UGameInstance* GI = GetGameInstance())
-        {
-            if (UCSoundManagerSubsystem* SoundMgr = GI->GetSubsystem<UCSoundManagerSubsystem>())
-            {
-                SoundMgr->PlaySFX3D(CachedAttackSound.Get(), MuzzlePos, 0.7f);
-            }
-        }
+        
     }
     else
     {
@@ -528,19 +521,3 @@ bool ACRangedSkirmisher::HasClearShot() const
 }
 
 // ─────────────────사운드────────────────────────
-void ACRangedSkirmisher::CacheSoundsFromDataAsset()
-{
-    if (ACMainGameModeBase* GM = Cast<ACMainGameModeBase>(GetWorld()->GetAuthGameMode()))
-    {
-        if (UCSoundDataAsset* SoundData = GM->GetSoundDataAsset())
-        {
-            const FCharacterSoundCollection* Sounds = SoundData->GetCharacterSounds(TEXT("RangedSkirmisher"));
-            if (Sounds)
-            {
-                CachedAttackSound = Sounds->AttackSound; // 발사 사운드
-                CachedHitSound = Sounds->HitSound;
-                CachedDeathSound = Sounds->DeathSound;
-            }
-        }
-    }
-}

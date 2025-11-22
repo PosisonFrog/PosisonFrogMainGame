@@ -93,11 +93,7 @@ public:
 	/** 게임플레이 BGM 시작 */
 	UFUNCTION(BlueprintCallable, Category = "Audio")
 	void StartGameplayBGM();
-
-	/** 보스 BGM으로 전환 */
-	UFUNCTION(BlueprintCallable, Category = "Audio")
-	void PlayBossBGM();
-
+	
 	// ──────────── Getter ────────────
 	/** SoundDataAsset 가져오기 (캐릭터들이 사운드 로드할 때 사용) */
 	UFUNCTION(BlueprintPure, Category = "Audio")

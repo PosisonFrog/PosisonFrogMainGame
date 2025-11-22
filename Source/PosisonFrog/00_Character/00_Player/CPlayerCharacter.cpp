@@ -36,6 +36,8 @@
 #include "05_System/01_Sound/CSoundDataAsset.h"
 
 #include "99_Util/CLog.h"
+#include "Components/AudioComponent.h"
+#include "Kismet/GameplayStatics.h"
 
 // ────────────────────────────────────────────────────────────────────────────
 // 생성자
@@ -384,7 +386,6 @@ void ACPlayerCharacter::Attack()
     else
         CLog::Log(TEXT("WeaponComponent missing"));
 
-    PlayPlayerSound(CachedAttackSound, 0.8f);
     MarkCombatAction();
 }
 
@@ -517,8 +518,7 @@ bool ACPlayerCharacter::TryCommitDash()
     if (PlayerWidget)
         PlayerWidget->PlayDashFX(DashSpeedBuffDuration);
 
-    PlayPlayerSound(CachedDashSound, 0.9f);
-
+    PlayDashSound();
     
     return true;
 }
@@ -722,7 +722,6 @@ float ACPlayerCharacter::TakeDamage(float DamageAmount, struct FDamageEvent cons
     if (AppliedDamage > 0.0f && HealthComponent)
     {
         HealthComponent->Damage(AppliedDamage);
-        PlayPlayerSound(CachedHitSound, 1.0f);
         MarkCombatAction();
     }
 
@@ -948,6 +947,7 @@ void ACPlayerCharacter::OnSpinPressed()
         SpinAttackComponent->TryStartSpin();
         NotifyTutorialAction(ETutorialActionType::Spin_Used);
     }
+  
 }
 
 void ACPlayerCharacter::OnSpinReleased()
@@ -959,6 +959,7 @@ void ACPlayerCharacter::OnSpinReleased()
     {
         const bool bWasActive = SpinAttackComponent->IsSkillActive();
         SpinAttackComponent->StopSpin();
+        
         if (bWasActive)
         {
             MarkCombatAction();
@@ -1181,9 +1182,14 @@ void ACPlayerCharacter::CachePlayerSounds()
             const FCharacterSoundCollection* Sounds = SoundData->GetCharacterSounds(TEXT("Player"));
             if (Sounds)
             {
-                CachedAttackSound = Sounds->AttackSound;
+                CachedWeaponSwingSound = Sounds->WeaponSwingSound;
+                CachedAttackHitSound = Sounds->AttackHitSound;
                 CachedDashSound = Sounds->DashSound;
-                CachedHitSound = Sounds->HitSound;
+                
+                CachedCommandLaunchSound = Sounds->CommandLaunchSound;
+                CachedCommandSlamSound = Sounds->CommandSlamSound;
+                CachedSpinLoopSound = Sounds->SpinLoopSound;
+                
                 CachedDeathSound = Sounds->DeathSound;
                 
                 UE_LOG(LogTemp, Log, TEXT("[Player] Cached sounds from DataAsset"));
@@ -1191,6 +1197,67 @@ void ACPlayerCharacter::CachePlayerSounds()
         }
     }
 }
+
+
+void ACPlayerCharacter::PlayWeaponSwingSound()
+{
+    PlayPlayerSound(CachedWeaponSwingSound, 1.0f);
+}
+
+// 규칙 1: 타격음 (WeaponComponent에서 호출됨)
+void ACPlayerCharacter::PlayAttackHitSound()
+{
+    PlayPlayerSound(CachedAttackHitSound, 1.0f);
+}
+
+void ACPlayerCharacter::PlayCommandSkillSound(int32 Phase)
+{
+    if (Phase == 1)
+    {
+        PlayPlayerSound(CachedCommandLaunchSound, 1.0f);
+    }
+    else if (Phase == 2)
+    {
+        PlayPlayerSound(CachedCommandSlamSound, 1.2f); // 내려찍기는 좀 더 크게
+    }
+}
+
+void ACPlayerCharacter::StartSpinSound()
+{
+    if (SpinAudioComp && SpinAudioComp->IsPlaying())
+        return;
+
+    if (CachedSpinLoopSound.IsValid())
+    {
+        // 루프 사운드는 생성 후 컴포넌트를 보관해야 함
+        SpinAudioComp = UGameplayStatics::SpawnSoundAttached(
+            CachedSpinLoopSound.Get(),
+            GetRootComponent(),
+            NAME_None,
+            FVector::ZeroVector,
+            EAttachLocation::KeepRelativeOffset,
+            true, // StopWhenAttachedToDestroyed
+            1.0f, // Volume
+            1.0f, // Pitch
+            0.0f  // StartTime
+        );
+    }
+}
+
+void ACPlayerCharacter::StopSpinSound()
+{
+    if (SpinAudioComp)
+    {
+        SpinAudioComp->Stop();
+        SpinAudioComp = nullptr;
+    }
+}
+
+void ACPlayerCharacter::PlayDashSound()
+{
+    PlayPlayerSound(CachedDashSound, 0.9f);
+}
+
 
 void ACPlayerCharacter::PlayPlayerSound(const TWeakObjectPtr<USoundBase>& Sound, float VolumeMultiplier)
 {

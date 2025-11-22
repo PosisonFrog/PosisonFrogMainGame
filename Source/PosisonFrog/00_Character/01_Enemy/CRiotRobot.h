@@ -4,7 +4,6 @@
 #include "CRiotRobot.generated.h"
 
 class UAnimMontage;
-class USoundBase;
 class UNiagaraSystem;
 class AAIController;
 class ACTacticalEnemyAIController;
@@ -39,7 +38,6 @@ protected:
     virtual void DoAttack() override;  // 타이머 기반 스윙 창
     virtual void OnDead() override;
     virtual void ExitState(EEnemyState OldState) override; // Attack 상태 종료 시 타이머 정리
-    virtual void CacheSoundsFromDataAsset() override;
     // ───────── 공격 흐름 ─────────
     void StartAttack();               // 공격 시작(윈드업 타이머 시작)
     void BeginAttackWindow();         // 스윙 창 오픈(지속 스윕 + 즉시 1회 판정)
@@ -113,9 +111,7 @@ protected:
     UPROPERTY(EditAnywhere, Category="PF|Animation", meta=(DeprecatedProperty, DeprecationMessage="Use ComboHitReactionMontages array in CEnemyCharacterBase instead"))
     /** @deprecated Use ComboHitReactionMontages array in base class for combo-specific hit reactions */
     UAnimMontage* HitMontage = nullptr;
-    
-    UPROPERTY(EditAnywhere, Category="PF|Sound")
-    USoundBase* AttackSound = nullptr;
+   
     
     UPROPERTY(EditAnywhere, Category="PF|VFX")
     UNiagaraSystem* HitEffect = nullptr;

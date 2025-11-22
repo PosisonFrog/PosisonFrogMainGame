@@ -64,7 +64,16 @@ void UCPlayerWeaponComponent::HandleWeaponHit(AActor* InstigatorActor, AActor* H
 
     if (HitActor == OwnerChar)
         return;
-    
+
+
+    if (!bHitSoundPlayedThisCombo)
+    {
+        if (ACPlayerCharacter* PC = Cast<ACPlayerCharacter>(OwnerChar.Get()))
+        {
+            PC->PlayAttackHitSound();
+            bHitSoundPlayedThisCombo = true; // [추가] 재생 완료 표시 (이후 타격부터는 소리 안 남)
+        }
+    }
 
     // 궁극기 게이지 증가 로직 제거
     /*if (ACPlayerCharacter* PlayerChar = Cast<ACPlayerCharacter>(GetOwner()))
@@ -245,6 +254,7 @@ void UCPlayerWeaponComponent::DoAttack()
 void UCPlayerWeaponComponent::PlayComboAttack()
 {
     bHitStopTriggeredThisCombo = false;
+    bHitSoundPlayedThisCombo = false;
     
     if (!PlayerComboMontages.IsValidIndex(CurrentCombo))
     {
@@ -292,6 +302,11 @@ void UCPlayerWeaponComponent::PlayComboAttack()
     
     PlayerAnimInst->Montage_Play(PlayerMontage);
     HammerAnimInst->Montage_Play(HammerMontage);
+
+    if (ACPlayerCharacter* PC = Cast<ACPlayerCharacter>(OwnerChar.Get()))
+    {
+        PC->PlayWeaponSwingSound();
+    }
 
     // 나중에 만약 EffectComponent를 사용하게 된다면 주석 풀기
     /*if (ACPlayerCharacter* Player = Cast<ACPlayerCharacter>(GetOwner()))
