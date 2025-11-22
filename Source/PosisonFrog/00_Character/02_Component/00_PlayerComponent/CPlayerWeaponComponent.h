@@ -168,10 +168,15 @@ protected:
     // 각 콤보별 수평 넉백 강도 (1타, 2타, 3타)
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Attack|Knockback", meta = (ClampMin = "0.0"))
     TArray<float> HitKnockbackStrengths = { 500.0f, 650.0f, 800.0f };
-
     // 각 콤보별 수직 넉백 강도 (1타, 2타, 3타)
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Attack|Knockback", meta = (ClampMin = "0.0"))
     TArray<float> HitKnockbackUpStrengths = { 100.0f, 120.0f, 150.0f };
+
+    // 보스 넉백
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Attack|Knockback", meta = (ClampMin = "0.0"))
+    TArray<float> BossKnockbackStrengths = { 200.0f, 250.0f, 300.0f };
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Attack|Knockback", meta = (ClampMin = "0.0"))
+    TArray<float> BossKnockbackUpStrengths = { 50.0f, 60.0f, 80.0f };
     
 private:
     // 매번 Cast 연산을 피하기 위한 캐싱된 해머 포인터

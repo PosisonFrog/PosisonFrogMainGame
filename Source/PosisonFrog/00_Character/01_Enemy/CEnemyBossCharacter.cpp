@@ -84,6 +84,8 @@ void ACEnemyBossCharacter::BeginPlay()
 	UE_LOG(LogTemp, Error, TEXT("[Boss] BeginPlay - bAutoStartBattle = %s"), bAutoStartBattle ? TEXT("TRUE") : TEXT("FALSE"));
 	UE_LOG(LogTemp, Error, TEXT("========================================"));
 
+	Tags.AddUnique(FName("Boss"));
+	
 	if (bAutoStartBattle)
 	{
 		APawn* Player = GetWorld()->GetFirstPlayerController()
