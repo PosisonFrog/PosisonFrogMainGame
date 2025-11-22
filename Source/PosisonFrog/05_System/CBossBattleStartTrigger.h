@@ -113,6 +113,7 @@ private:
 
     bool bOriginalUsePawnControlRotation = true;
     bool bOriginalUseControllerRotationYaw = false;
+    bool bUsedTrigger = false;
 
     FString InitialBossName;
     
