@@ -402,7 +402,7 @@ void ACPlayerCharacter::HandlePlayerComboHit(AActor* HitActor, int32 ComboIndex,
     ComboStackComponent->OnDirectHit(ComboIds[ComboIndex], Now);
 
     // 기본 공격 3타일때 튜토리얼에게 알림. (ComboIndex가 2일 때가 3번째 타격)
-    if (ComboIndex == 2)
+    if (ComboIndex == 0)
     {
         NotifyTutorialAction(ETutorialActionType::BasicCombo_3Hit);
     }

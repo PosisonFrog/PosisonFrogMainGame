@@ -349,12 +349,19 @@ void ACStageManager::OnTutorialStepCompleted(FName StepId)
 	{
 		CLog::Log(TEXT("[StageManager] 튜토리얼 행동 조건 달성!"));
 		
-		bIsCurrentTutorialStepFinished = true;
+		
+		bIsCurrentTutorialStepFinished = true;/////////리스폰 테스트 코드
+		if (GetWorldTimerManager().IsTimerActive(RespawnTimerHandle))
+		{
+			CLog::Log(TEXT("[StageManager] 리스폰 대기 중 조건 달성 -> 리스폰 타이머 취소"));
+			GetWorldTimerManager().ClearTimer(RespawnTimerHandle);
+		}
+		/////////리스폰 테스트 코드
 		int32 RemainingEnemies = GetRemainingEnemies(Node.StageSectionId);
 
 		if (RemainingEnemies <= 0)
 		{
-
+			OnStageComplete(Node.StageSectionId);
 			for (int32 BarrierId : Node.OpenBarriersOnComplete)
 			{
 				OpenStageBarrier(BarrierId);
