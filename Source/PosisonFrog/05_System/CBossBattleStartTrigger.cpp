@@ -78,8 +78,6 @@ void ACBossBattleStartTrigger::OnTriggerBeginOverlap(UPrimitiveComponent* Overla
 {
     if (bUsedTrigger == true)
         return;
-
-    bUsedTrigger = true;   
     
     ACPlayerCharacter* PlayerCharacter = Cast<ACPlayerCharacter>(OtherActor);
     if (!IsValid(PlayerCharacter))
@@ -148,6 +146,10 @@ void ACBossBattleStartTrigger::AttemptStartBossBattle(ACPlayerCharacter* PlayerC
     }
 
     CurrentPlayer = PlayerCharacter;
+    
+    if (bUsedTrigger)
+        return;
+
     ShowWarningUI();
     
     GetWorld()->GetTimerManager().SetTimer(
@@ -220,7 +222,8 @@ void ACBossBattleStartTrigger::PlayIntroSequence()
     {
         PlayerController = PC;
         PC->DisableInput(PC);
-        
+        PC->SetIgnoreMoveInput(true); // 이동 입력 명시적 무시
+        PC->SetIgnoreLookInput(true); // 회전 입력 명시적 무시
         PC->bShowMouseCursor = false;
         
         UE_LOG(LogTemp, Log, TEXT("[BossTrigger] 플레이어 입력 비활성화"));
@@ -234,6 +237,7 @@ void ACBossBattleStartTrigger::PlayIntroSequence()
         {
             MovementComp->StopMovementImmediately();
             MovementComp->DisableMovement();
+            MovementComp->SetComponentTickEnabled(false);
         }
         
         if (USpringArmComponent* SpringArm = CurrentPlayer->GetCameraBoom())
@@ -251,6 +255,8 @@ void ACBossBattleStartTrigger::PlayIntroSequence()
         FMovieSceneSequencePlaybackSettings PlaybackSettings;
         PlaybackSettings.bAutoPlay = true;
         PlaybackSettings.bPauseAtEnd = false;
+        PlaybackSettings.bDisableMovementInput = true; 
+        PlaybackSettings.bDisableLookAtInput = true;
         
         ALevelSequenceActor* OutActor = nullptr;
         ULevelSequencePlayer* Player = ULevelSequencePlayer::CreateLevelSequencePlayer(
@@ -320,6 +326,9 @@ void ACBossBattleStartTrigger::OnSequenceFinished()
     if (PlayerController.IsValid())
     {
         PlayerController->EnableInput(PlayerController.Get());
+        PlayerController->SetIgnoreMoveInput(false);
+        PlayerController->SetIgnoreLookInput(false);
+        
         UE_LOG(LogTemp, Log, TEXT("[BossTrigger] 플레이어 입력 재활성화"));
     }
     
@@ -327,6 +336,7 @@ void ACBossBattleStartTrigger::OnSequenceFinished()
     {
         if (UCharacterMovementComponent* MovementComp = CurrentPlayer->GetCharacterMovement())
         {
+            MovementComp->SetComponentTickEnabled(true);
             MovementComp->SetMovementMode(MOVE_Walking);
         }
         

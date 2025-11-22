@@ -106,7 +106,9 @@ void ACEnemyBossCharacter::BeginPlay()
 	if (IsValid(HealthComponent))
 	{
 		HealthComponent->OnDeath.AddDynamic(this, &ACEnemyBossCharacter::HandleBossDeath);
-	}    
+	}
+
+	SaveInitialTransform();
 }
 
 void ACEnemyBossCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -235,6 +237,9 @@ void ACEnemyBossCharacter::ResetBossBattleState()
 	UE_LOG(LogTemp, Log, TEXT("[Boss] ResetBossBattleState"));
 	
 	bIsBossDead = false;
+
+	SetActorTransform(InitialTransform, false, nullptr, ETeleportType::TeleportPhysics);
+	UE_LOG(LogTemp, Log, TEXT("[Boss] Position Reset to Initial Location"));
 	
 	if (PatternManager)
 	{
@@ -278,6 +283,14 @@ void ACEnemyBossCharacter::ResetBossBattleState()
 	SetActorEnableCollision(true);
 	SetActorTickEnabled(true);
 	SetCanBeDamaged(true);
+
+	SetActorTransform(GetInitialTransform());
+}
+
+void ACEnemyBossCharacter::SaveInitialTransform()
+{
+	InitialTransform = GetActorTransform();
+	UE_LOG(LogTemp, Log, TEXT("[Boss] Initial Transform Saved: %s"), *InitialTransform.GetLocation().ToString());
 }
 
 void ACEnemyBossCharacter::InitializeBossBindings()

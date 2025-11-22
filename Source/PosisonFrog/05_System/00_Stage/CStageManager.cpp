@@ -19,6 +19,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Navigation/PathFollowingComponent.h"
 #include "TimerManager.h"
+#include "00_Character/01_Enemy/CEnemyBossCharacter.h"
 #include "00_Character/01_Enemy/CRiotRobotHordeTrigger.h"
 
 ACStageManager::ACStageManager()
@@ -177,6 +178,20 @@ void ACStageManager::CheckStageComplete(int32 StageID)
 void ACStageManager::PrepareForRespawn(int32 TargetStageID)
 {
 	ResetSpawnState();
+
+	if (CurrentStage == 8 && TargetStageID == 8)
+	{
+		CLog::Log(TEXT("[StageManager] 보스 스테이지 리스폰 감지 - 보스 초기화 시도"));
+		// 1. 월드에 있는 보스 캐릭터를 찾습니다. (보스는 1명이므로 GetActorOfClass 사용)
+		AActor* FoundActor = UGameplayStatics::GetActorOfClass(GetWorld(), ACEnemyBossCharacter::StaticClass());
+		ACEnemyBossCharacter* Boss = Cast<ACEnemyBossCharacter>(FoundActor);
+		if (IsValid(Boss))
+		{
+			// 보스 클래스에 이미 구현된 초기화 함수 호출
+			Boss->ResetBossBattleState(); 
+			CLog::Log(TEXT("[StageManager] 보스 상태 초기화 완료 (ResetBossBattleState 호출)"));
+		}
+	}
 
 	for (auto StageIterator = StageEnemies.CreateIterator(); StageIterator; ++StageIterator)
 	{

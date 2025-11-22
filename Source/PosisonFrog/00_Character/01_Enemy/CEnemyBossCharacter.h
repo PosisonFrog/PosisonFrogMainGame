@@ -38,6 +38,14 @@ public:
 	UCEnemyBossPhaseComponent* GetBossPhaseComponent() const { return BossPhaseComponent; }
 
 	void SetIsBossRushing(bool bRushing) { bIsBossRushing = bRushing; }
+
+	// 초기 트랜스폼 저장 함수
+	UFUNCTION(BlueprintCallable, Category="Boss|Transform")
+	void SaveInitialTransform();
+
+	// 저장된 초기 트랜스폼 반환 함수 (인라인으로 구현)
+	UFUNCTION(BlueprintPure, Category="Boss|Transform")
+	const FTransform& GetInitialTransform() const { return InitialTransform; }
 	
 protected:
 	void InitializeBossBindings();
@@ -99,6 +107,9 @@ protected:
 	bool bIsBossRushing = false;
 
 	bool bIsBossDead = false;
+
+	UPROPERTY(BlueprintReadOnly, Category="Boss|Transform")
+	FTransform InitialTransform;
 
 	UPROPERTY(EditAnywhere, Category="Boss|Animation")
 	TObjectPtr<UAnimMontage> DeathMontage;
