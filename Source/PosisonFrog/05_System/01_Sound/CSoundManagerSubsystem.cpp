@@ -7,24 +7,15 @@
 void UCSoundManagerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
     Super::Initialize(Collection);
-
-    // AudioComponent는 PlayBGM에서 SpawnSound2D로 생성
-
     bIsBGMPaused = false;
-
     UE_LOG(LogTemp, Log, TEXT("[SoundManager] Initialized"));
-    
 }
 
 void UCSoundManagerSubsystem::Deinitialize()
 {
     StopBGM(0.0f);
-
-    // AudioComponent 정리
-    BGMAudioComponent.Reset();
-
+    BGMAudioComponent = nullptr;
     Super::Deinitialize();
-
     UE_LOG(LogTemp, Log, TEXT("[SoundManager] Deinitialized"));
 }
 
@@ -43,20 +34,18 @@ void UCSoundManagerSubsystem::PlayBGM(USoundBase* Sound, float FadeInDuration, f
     UWorld* World = GetWorld();
     if (!World)
     {
-        UE_LOG(LogTemp, Error, TEXT("[SoundManager] PlayBGM failed - No World"));
         return;
     }
     
-    
-    
-    if (BGMAudioComponent.IsValid())
+    // 1. 이미 오디오 컴포넌트가 있다면 상태 확인
+    if (BGMAudioComponent)
     {
-        StopBGM(FadeInDuration * 0.5f);
-        const bool bIsSameBGM = CurrentBGM.IsValid() && CurrentBGM.Get() == Sound;
+        // [중요] StopBGM 호출 전, 같은 곡인지 먼저 확인
+        const bool bIsSameBGM = (CurrentBGM == Sound);
             
         if (bIsSameBGM)
         {
-            // 동일한 BGM을 다시 요청한 경우, 재생을 유지하거나 일시정지 상태라면 재개만 한다.
+            // 이미 재생 중이고, 일시정지 상태라면 재개
             if (bIsBGMPaused)
             {
                 BGMAudioComponent->SetPaused(false);
@@ -65,20 +54,20 @@ void UCSoundManagerSubsystem::PlayBGM(USoundBase* Sound, float FadeInDuration, f
             }
             else if (!BGMAudioComponent->IsPlaying())
             {
+                // 컴포넌트는 있는데 멈춰있다면 다시 재생
                 BGMAudioComponent->Play();
                 UE_LOG(LogTemp, Log, TEXT("[SoundManager] Restarted existing BGM playback: %s"), *Sound->GetName());
             }
                     
-            // 동일한 사운드면 페이드인/리스타트 없이 그대로 유지
-            return;
+            // 같은 곡이 잘 나오고 있다면 리턴
+            return; 
         }
-            
-        if (BGMAudioComponent->IsPlaying())
-        {
-            StopBGM(FadeInDuration * 0.5f);
-        }
+
+        // 다른 곡이라면 기존 BGM 정지
+        StopBGM(FadeInDuration * 0.5f);
     }
     
+    // 2. 새로운 BGM 재생 로직
     BGMAudioComponent = UGameplayStatics::SpawnSound2D(
         World,
         Sound,
@@ -87,21 +76,34 @@ void UCSoundManagerSubsystem::PlayBGM(USoundBase* Sound, float FadeInDuration, f
         0.0f,           // StartTime
         nullptr,        // ConcurrencySettings
         true,           // bPersistAcrossLevelTransition
-        false           // bAutoDestroy (false로 해서 우리가 관리)
+        false           // bAutoDestroy (Subsystem 관리를 위해 false)
     );
 
-    if (BGMAudioComponent.IsValid())
+    if (BGMAudioComponent)
     {
         CurrentBGM = Sound;
         bIsBGMPaused = false;
         
+        // 우선순위를 높여서 다른 SFX 때문에 BGM이 꺼지는 것을 방지
+        BGMAudioComponent->Priority = 100.0f;
+
+        // 가상화 설정: 소리가 안 들리는 상황(볼륨 0 등)에서도 백그라운드 재생 유지
+        BGMAudioComponent->SetIsVirtualized(true); 
+        BGMAudioComponent->SetUISound(true); 
+
         if (FadeInDuration > 0.0f)
         {
             BGMAudioComponent->FadeIn(FadeInDuration, VolumeMultiplier);
         }
+        else
+        {
+            if(!BGMAudioComponent->IsPlaying())
+            {
+                BGMAudioComponent->Play();
+            }
+        }
 
-        UE_LOG(LogTemp, Log, TEXT("[SoundManager] Playing BGM: %s, IsPlaying: %d"), 
-               *Sound->GetName(), BGMAudioComponent->IsPlaying());
+        UE_LOG(LogTemp, Log, TEXT("[SoundManager] Playing BGM: %s"), *Sound->GetName());
     }
     else
     {
@@ -111,29 +113,35 @@ void UCSoundManagerSubsystem::PlayBGM(USoundBase* Sound, float FadeInDuration, f
 
 void UCSoundManagerSubsystem::StopBGM(float FadeOutDuration)
 {
-    if (!BGMAudioComponent.IsValid() || !BGMAudioComponent->IsPlaying())
+    if (!BGMAudioComponent) 
     {
         return;
     }
 
-    if (FadeOutDuration > 0.0f)
+    if (BGMAudioComponent->IsPlaying())
     {
-        BGMAudioComponent->FadeOut(FadeOutDuration, 0.0f);
-    }
-    else
-    {
-        BGMAudioComponent->Stop();
+        if (FadeOutDuration > 0.0f)
+        {
+            BGMAudioComponent->FadeOut(FadeOutDuration, 0.0f);
+        }
+        else
+        {
+            BGMAudioComponent->Stop();
+        }
     }
 
-    CurrentBGM.Reset();
+    CurrentBGM = nullptr;
     bIsBGMPaused = false;
+
+    // 포인터 연결 해제 (GC가 알아서 처리하도록 둠)
+    BGMAudioComponent = nullptr;
 
     UE_LOG(LogTemp, Log, TEXT("[SoundManager] Stopped BGM"));
 }
 
 void UCSoundManagerSubsystem::PauseBGM()
 {
-    if (BGMAudioComponent.IsValid() && BGMAudioComponent->IsPlaying())
+    if (BGMAudioComponent && BGMAudioComponent->IsPlaying())
     {
         BGMAudioComponent->SetPaused(true);
         bIsBGMPaused = true;
@@ -143,7 +151,7 @@ void UCSoundManagerSubsystem::PauseBGM()
 
 void UCSoundManagerSubsystem::ResumeBGM()
 {
-    if (BGMAudioComponent.IsValid() && bIsBGMPaused)
+    if (BGMAudioComponent && bIsBGMPaused)
     {
         BGMAudioComponent->SetPaused(false);
         bIsBGMPaused = false;
@@ -153,7 +161,7 @@ void UCSoundManagerSubsystem::ResumeBGM()
 
 bool UCSoundManagerSubsystem::IsBGMPlaying() const
 {
-    return BGMAudioComponent.IsValid() && BGMAudioComponent->IsPlaying();
+    return BGMAudioComponent && BGMAudioComponent->IsPlaying();
 }
 
 // ===============================================
@@ -162,18 +170,11 @@ bool UCSoundManagerSubsystem::IsBGMPlaying() const
 
 void UCSoundManagerSubsystem::PlaySFX2D(USoundBase* Sound, float VolumeMultiplier, float PitchMultiplier)
 {
-    if (!Sound)
-    {
-        return;
-    }
+    if (!Sound) return;
 
     UWorld* World = GetWorld();
-    if (!World)
-    {
-        return;
-    }
+    if (!World) return;
 
-    // 세팅 UI의 SoundMix가 자동으로 적용됨
     UGameplayStatics::PlaySound2D(
         World,
         Sound,
@@ -189,18 +190,11 @@ void UCSoundManagerSubsystem::PlaySFX2D(USoundBase* Sound, float VolumeMultiplie
 void UCSoundManagerSubsystem::PlaySFX3D(USoundBase* Sound, const FVector& Location, 
                                          float VolumeMultiplier, float PitchMultiplier)
 {
-    if (!Sound)
-    {
-        return;
-    }
+    if (!Sound) return;
 
     UWorld* World = GetWorld();
-    if (!World)
-    {
-        return;
-    }
+    if (!World) return;
 
-    // 세팅 UI의 SoundMix가 자동으로 적용됨
     UGameplayStatics::PlaySoundAtLocation(
         World,
         Sound,
@@ -223,12 +217,8 @@ UAudioComponent* UCSoundManagerSubsystem::PlaySFX3DAttached(
     float VolumeMultiplier,
     float PitchMultiplier)
 {
-    if (!Sound || !AttachToComponent)
-    {
-        return nullptr;
-    }
+    if (!Sound || !AttachToComponent) return nullptr;
 
-    // 세팅 UI의 SoundMix가 자동으로 적용됨
     UAudioComponent* AudioComp = UGameplayStatics::SpawnSoundAttached(
         Sound,
         AttachToComponent,
@@ -242,15 +232,13 @@ UAudioComponent* UCSoundManagerSubsystem::PlaySFX3DAttached(
         0.0f,
         nullptr,
         nullptr,
-        false
+        true // SFX는 Auto Destroy True
     );
 
     return AudioComp;
 }
 
-
-
-// 사운드 중복 출력 체크(히트시)
+// 사운드 중복 출력 체크
 void UCSoundManagerSubsystem::PlaySFX3DWithCooldown(
     USoundBase* Sound, 
     const FVector& Location,
@@ -258,16 +246,13 @@ void UCSoundManagerSubsystem::PlaySFX3DWithCooldown(
     float VolumeMultiplier,
     float PitchMultiplier)
 {
-    if (!Sound)
-        return;
+    if (!Sound) return;
 
     if (!CanPlaySound(Sound, Cooldown))
     {
-        UE_LOG(LogTemp, Verbose, TEXT("[SoundManager] Sound on cooldown: %s"), *Sound->GetName());
         return;
     }
 
-    // 마지막 재생 시간 기록
     UWorld* World = GetWorld();
     if (World)
     {
@@ -279,12 +264,10 @@ void UCSoundManagerSubsystem::PlaySFX3DWithCooldown(
 
 bool UCSoundManagerSubsystem::CanPlaySound(USoundBase* Sound, float Cooldown)
 {
-    if (!Sound)
-        return false;
+    if (!Sound) return false;
 
     UWorld* World = GetWorld();
-    if (!World)
-        return true;
+    if (!World) return true;
 
     const float CurrentTime = World->GetTimeSeconds();
     

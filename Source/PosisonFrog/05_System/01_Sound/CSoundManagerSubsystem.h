@@ -10,9 +10,8 @@ class UCSoundDataAsset;
 
 /**
  * 사운드 매니저
- * - BGM 재생/정지/페이드 전담
+ * - BGM 재생/정지/페이드 전담 (우선순위 최상위 유지)
  * - SFX 재생 헬퍼 
- * - 볼륨 조절은 OptionsMenuWidget에서 하는거 유지함.
  */
 UCLASS()
 class POSISONFROG_API UCSoundManagerSubsystem : public UGameInstanceSubsystem
@@ -22,8 +21,6 @@ class POSISONFROG_API UCSoundManagerSubsystem : public UGameInstanceSubsystem
 public:
     virtual void Initialize(FSubsystemCollectionBase& Collection) override;
     virtual void Deinitialize() override;
-
-    
 
     // ─────────── BGM ───────────
     /** BGM 재생 (페이드인 옵션) */
@@ -46,7 +43,6 @@ public:
     UFUNCTION(BlueprintPure, Category = "Sound|BGM")
     bool IsBGMPlaying() const;
 
-    
 
     // ─────────── SFX ───────────
     /** 2D SFX 재생 (UI 사운드 등) */
@@ -57,7 +53,6 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Sound|SFX")
     void PlaySFX3D(USoundBase* Sound, const FVector& Location, 
                     float VolumeMultiplier = 1.0f, float PitchMultiplier = 1.0f);
-
     
     /** 3D SFX 재생 (액터에 부착) */
     UFUNCTION(BlueprintCallable, Category = "Sound|SFX")
@@ -74,7 +69,6 @@ public:
                                 float PitchMultiplier = 1.0f);
 
 
-    
     // ─────────── 사운드 데이터 ───────────
     /** SoundDataAsset 설정 (GameMode에서 호출) */
     UFUNCTION(BlueprintCallable, Category = "Sound")
@@ -86,23 +80,24 @@ public:
 
 private:
     // ─────────── BGM 관리 ───────────
-    UPROPERTY(Transient)
-    TWeakObjectPtr<UAudioComponent> BGMAudioComponent = nullptr;
+    
+    // [중요 수정] WeakPtr 대신 Strong Reference(UPROPERTY) 사용
+    // 이렇게 해야 GC(가비지 컬렉터)가 재생 중인 BGM 컴포넌트를 청소하지 않습니다.
+    UPROPERTY()
+    TObjectPtr<UAudioComponent> BGMAudioComponent = nullptr;
 
-    UPROPERTY(Transient)
-    TWeakObjectPtr<USoundBase> CurrentBGM = nullptr;
+    UPROPERTY()
+    TObjectPtr<USoundBase> CurrentBGM = nullptr;
 
     // BGM pause 상태 추적
     bool bIsBGMPaused = false;
 
     
-
     // ─────────── 사운드 데이터 ───────────
     UPROPERTY(Transient)
     TObjectPtr<UCSoundDataAsset> SoundDataAsset = nullptr;
 
     
-
     // ─────────── 쿨다운 시스템 ───────────
     // 사운드별 마지막 재생 시간 추적
     UPROPERTY(Transient)
