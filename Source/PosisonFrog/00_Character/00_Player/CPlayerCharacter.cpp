@@ -1258,6 +1258,11 @@ void ACPlayerCharacter::PlayDashSound()
     PlayPlayerSound(CachedDashSound, 0.9f);
 }
 
+void ACPlayerCharacter::PlayKnockBackSound()
+{
+    PlayPlayerSound(CachedKnockBackSound, 0.9f);
+}
+
 
 void ACPlayerCharacter::PlayPlayerSound(const TWeakObjectPtr<USoundBase>& Sound, float VolumeMultiplier)
 {

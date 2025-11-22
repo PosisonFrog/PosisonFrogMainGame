@@ -324,6 +324,8 @@ public:
     void StartSpinSound();
     void StopSpinSound();
     void PlayDashSound();
+    void PlayKnockBackSound();
+    
 protected:
     UPROPERTY(Transient)
     TWeakObjectPtr<USoundBase> CachedWeaponSwingSound; // (New) 규칙 0
@@ -343,6 +345,9 @@ protected:
     UPROPERTY(Transient)
     TWeakObjectPtr<USoundBase> CachedSpinLoopSound;      // (New) 규칙 4
 
+    UPROPERTY(Transient)
+    TWeakObjectPtr<USoundBase> CachedKnockBackSound;  
+    
     UPROPERTY(Transient)
     TWeakObjectPtr<USoundBase> CachedDeathSound;
 

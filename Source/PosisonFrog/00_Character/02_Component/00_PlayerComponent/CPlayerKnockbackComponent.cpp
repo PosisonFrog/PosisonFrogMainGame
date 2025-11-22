@@ -11,6 +11,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "TimerManager.h"
+#include "00_Character/00_Player/CPlayerCharacter.h"
 
 
 UCPlayerKnockbackComponent::UCPlayerKnockbackComponent()
@@ -44,6 +45,11 @@ void UCPlayerKnockbackComponent::EndPlay(const EEndPlayReason::Type EndPlayReaso
 
 void UCPlayerKnockbackComponent::StartKnockback(AActor* Attacker)
 {
+    if (ACPlayerCharacter* PC = Cast<ACPlayerCharacter>(OwnerCharacter.Get()))
+    {
+        PC->PlayKnockBackSound();
+    }
+    
     if (!OwnerCharacter.IsValid() || bIsKnockedBack)
     {
         return;

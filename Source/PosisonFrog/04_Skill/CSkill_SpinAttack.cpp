@@ -350,6 +350,12 @@ void UCSkill_SpinAttack::DoFinisherImpact()
     // 피해 적용
     if (!FinisherDamageTypeClass)
         FinisherDamageTypeClass = UDamageType::StaticClass();
+
+    if (ACPlayerCharacter* PC = Cast<ACPlayerCharacter>(OwnerChar))
+    {
+        PC->PlayAttackHitSound();
+    }
+
     
     for (AActor* T : Targets)
     {

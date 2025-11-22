@@ -44,6 +44,9 @@ public:
     // 사망
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sound")
     USoundBase* DeathSound;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sound")
+    USoundBase* KnockdownSound;
     
 };
 
