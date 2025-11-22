@@ -15,8 +15,13 @@
 #include "05_System/01_Sound/CSoundManagerSubsystem.h"
 #include "05_System/01_Sound//CSoundDataAsset.h"
 #include "00_Character/CMainGameModeBase.h"
+#include "00_Character/00_Player/CPlayerCharacter.h"
+#include "02_MainMenu/01_Widget/CCutsceneWidget.h"
+#include "02_MainMenu/01_Widget/CMainMenuWidget.h"
+#include "Blueprint/UserWidget.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Kismet/GameplayStatics.h"
 
 ACEnemyBossCharacter::ACEnemyBossCharacter()
 {
@@ -395,11 +400,76 @@ void ACEnemyBossCharacter::HandleBossDeath(AActor* DeadActor)
 			}
 		}
 	}
-	
+
+
+	// 3. [수정] 플레이어 HUD 즉시 숨김
+	APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
+	if (PC)
+	{
+		if (ACPlayerCharacter* PlayerChar = Cast<ACPlayerCharacter>(PC->GetPawn()))
+		{
+			PlayerChar->SetHUDVisibility(false);
+			UE_LOG(LogTemp, Log, TEXT("[Boss] Player HUD Hidden"));
+		}
+	}
+
+	// 4. [수정] 0.5초 뒤 컷신 재생 예약
 	if (UWorld* World = GetWorld())
 	{
-		World->GetTimerManager().ClearAllTimersForObject(this);
+		World->GetTimerManager().ClearAllTimersForObject(this); // 기존 타이머 정리
+        
+		World->GetTimerManager().SetTimer(
+			TimerHandle_CutsceneStart,
+			this,
+			&ACEnemyBossCharacter::StartDeathCutscene,
+			3.0f, // 0.5초 딜레이
+			false
+		);
 	}
-	
-	UE_LOG(LogTemp, Error, TEXT("[Boss] ========== BOSS DEATH COMPLETE =========="));
 }
+
+void ACEnemyBossCharacter::OnImageCutsceneFinished()
+{
+	UE_LOG(LogTemp, Log, TEXT("[Boss] Cutscene Finished -> Moving to MainMenu"));
+    
+	// 위젯 제거
+	if (ImageCutsceneWidget)
+	{
+		ImageCutsceneWidget->RemoveFromParent();
+		ImageCutsceneWidget = nullptr;
+	}
+    
+	// [수정] MainMenu 레벨로 이동
+	// "MainMenu"는 프로젝트의 실제 메인 메뉴 레벨 이름과 일치해야 합니다.
+	UGameplayStatics::OpenLevel(this, FName("MainMenu"));
+}
+
+
+void ACEnemyBossCharacter::StartDeathCutscene()
+{
+	UE_LOG(LogTemp, Log, TEXT("[Boss] Starting Death Cutscene..."));
+
+	if (ImageCutsceneWidgetClass)
+	{
+		// 플레이어 컨트롤러 가져오기 (위젯 소유자용)
+		APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
+        
+		ImageCutsceneWidget = CreateWidget<UCCutsceneWidget>(PC, ImageCutsceneWidgetClass);
+		if (ImageCutsceneWidget)
+		{
+			ImageCutsceneWidget->AddToViewport(200); // Z-Order 높게
+			ImageCutsceneWidget->InitializeAndStart();
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("[Boss] Failed to create Cutscene Widget"));
+			OnImageCutsceneFinished(); // 위젯 생성 실패 시 바로 이동
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Boss] ImageCutsceneWidgetClass is null"));
+		OnImageCutsceneFinished(); // 설정 안 되어 있으면 바로 이동
+	}
+}
+

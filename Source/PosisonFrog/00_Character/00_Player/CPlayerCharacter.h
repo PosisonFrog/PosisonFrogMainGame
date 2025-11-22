@@ -71,6 +71,10 @@ public:
     virtual float GetOutgoingDamageMultiplier() const override;
     virtual float GetIncomingDamageScale() const override;
     virtual bool IsBuffActive() const override;
+
+
+    UFUNCTION(BlueprintCallable, Category = "UI")
+    void SetHUDVisibility(bool bVisible);
     
 protected:
     virtual void BeginPlay() override;

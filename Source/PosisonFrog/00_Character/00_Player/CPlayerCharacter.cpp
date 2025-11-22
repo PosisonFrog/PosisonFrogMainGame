@@ -1170,6 +1170,14 @@ bool ACPlayerCharacter::IsBuffActive() const
     return IsUltimateActive();
 }
 
+void ACPlayerCharacter::SetHUDVisibility(bool bVisible)
+{
+    if (PlayerWidget)
+    {
+        PlayerWidget->SetVisibility(bVisible ? ESlateVisibility::Visible : ESlateVisibility::Hidden);
+    }
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Sound
 // ────────────────────────────────────────────────────────────────────────────

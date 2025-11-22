@@ -11,6 +11,7 @@ struct FBossPhaseDefinition;
 struct FBossPatternDefinition;
 class UCBossPatternManager;
 class UCBossPatternBase;
+class UCCutsceneWidget;
 
 /** 보스 공통 캐릭터 베이스 */
 UCLASS()
@@ -67,6 +68,9 @@ protected:
 
 	UFUNCTION()
 	void HandleBossDeath(AActor* DeadActor);
+	void OnImageCutsceneFinished();
+	// [추가] 0.5초 뒤 컷신 시작을 위한 함수
+	void StartDeathCutscene();
 
 protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Boss")
@@ -113,4 +117,13 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category="Boss|Animation")
 	TObjectPtr<UAnimMontage> DeathMontage;
+
+	UPROPERTY(EditAnywhere, Category = "Boss|ClearWidget")
+	TSubclassOf<UCCutsceneWidget> ImageCutsceneWidgetClass;
+    
+	// 이미지 컷신 위젯 인스턴스
+	UPROPERTY()
+	TObjectPtr<UCCutsceneWidget> ImageCutsceneWidget;
+
+	FTimerHandle TimerHandle_CutsceneStart;
 };
