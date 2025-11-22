@@ -241,45 +241,35 @@ void UCPlayerWidget::OnUltimateActivated()
 {
     bUltimateActive = true;
 
-    //if (HPBarImage_Ultimate)
-    //{
-    //    SetHpBarImage(HPBarImage_Ultimate);
-   // }
-
-    // 시작 사이즈 설정
-    CurrentUltBarWidth = OriginalHpBarSize.X;
-    SetHpBarTransform(UltimateHpBarPosition, FVector2D(CurrentUltBarWidth, UltimateHpBarSize.Y));
-
     if (Ult_HPIcon)
         Ult_HPIcon->SetVisibility(ESlateVisibility::Visible);
 
-    // 3. 늘어나는 애니메이션 타이머 시작 (20프레임 = 0.05초)
-    GetWorld()->GetTimerManager().ClearTimer(TimerHandle_UltSizeLerp);
-    GetWorld()->GetTimerManager().SetTimer(
-        TimerHandle_UltSizeLerp,
-        this,
-        &UCPlayerWidget::UpdateUltimateBarSizeLerp,
-        0.05f,  // 20Hz (0.05초마다 실행)
-        true 
-    );
+    PlayUltimateAnimation();
+
+    if (GetWorld())
+    {
+        GetWorld()->GetTimerManager().ClearTimer(TimerHandle_HpBarChange);
+        GetWorld()->GetTimerManager().SetTimer(
+            TimerHandle_HpBarChange,
+            this,
+            &UCPlayerWidget::ApplyUltimateHpBarChanges,
+            HpBarChangeDelay,
+            false);
+    }
+    
+
 }
 
 void UCPlayerWidget::OnUltimateDeactivated()
 {
     bUltimateActive = false;
 
-    // 늘어나는 애니메이션 타이머 정지
-    if (GetWorld())
-    {
-        GetWorld()->GetTimerManager().ClearTimer(TimerHandle_UltSizeLerp);
-    }
-
     if (Ult_HPIcon)
         Ult_HPIcon->SetVisibility(ESlateVisibility::Hidden);
-    
+
     RestoreHpBarImage();
 
-  /*  if (UltAnimationImage)
+    if (UltAnimationImage)
     {
         UltAnimationImage->SetVisibility(ESlateVisibility::Hidden);
     }
@@ -287,7 +277,7 @@ void UCPlayerWidget::OnUltimateDeactivated()
     if (GetWorld())
     {
         GetWorld()->GetTimerManager().ClearTimer(TimerHandle_HpBarChange);
-    }*/
+    }
 }
 
 void UCPlayerWidget::StopDashFX()
@@ -420,12 +410,11 @@ void UCPlayerWidget::PlayUltimateAnimation()
     if (UltMediaPlayer->OpenSource(UltAnimationMediaSource))
     {
         UltMediaPlayer->Rewind();
+        UltMediaPlayer->Play();
+
         // 애니메이션 이미지 표시
         if (UltAnimationImage)
             UltAnimationImage->SetVisibility(ESlateVisibility::Visible);
-
-        UltMediaPlayer->Play();
-
         
         CLog::Log(TEXT("[UCPlayerWidget] 궁극기 애니메이션 재생 시작"));
     }
@@ -441,33 +430,6 @@ void UCPlayerWidget::OnUltimateAnimationFinished()
     {
         UltAnimationImage->SetVisibility(ESlateVisibility::Hidden);
     }
-    if (UltMediaPlayer)
-    {
-        UltMediaPlayer->Rewind(); 
-    }
-}
-
-void UCPlayerWidget::UpdateUltimateBarSizeLerp()
-{
-    const float TargetWidth = UltimateHpBarSize.X; // 최종 목표 너비
-
-    // 목표에 거의 도달했으면 종료
-    if (FMath::IsNearlyEqual(CurrentUltBarWidth, TargetWidth, 1.0f))
-    {
-        CurrentUltBarWidth = TargetWidth;
-        SetHpBarTransform(UltimateHpBarPosition, FVector2D(CurrentUltBarWidth, UltimateHpBarSize.Y));
-        
-        // 타이머 종료
-        GetWorld()->GetTimerManager().ClearTimer(TimerHandle_UltSizeLerp);
-        return;
-    }
-
-    // 부드럽게 보간 (FInterpTo 사용: 처음엔 빠르고 끝엔 천천히 부드럽게)
-    // DeltaTime은 타이머 간격인 0.016f 사용
-    CurrentUltBarWidth = FMath::FInterpTo(CurrentUltBarWidth, TargetWidth, 0.05f, UltBarExpandSpeed);
-
-    // 위젯에 실제 적용
-    SetHpBarTransform(UltimateHpBarPosition, FVector2D(CurrentUltBarWidth, UltimateHpBarSize.Y));
 }
 
 void UCPlayerWidget::ApplyUltimateHpBarChanges()

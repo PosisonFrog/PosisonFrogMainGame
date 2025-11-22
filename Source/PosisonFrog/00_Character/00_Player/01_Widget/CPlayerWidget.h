@@ -247,7 +247,7 @@ private:
     FVector2D UltimateHpBarPosition = FVector2D(274.f, 12.0f);
 
     UPROPERTY(EditAnywhere, Category = "PF|HUD|Ultimate|HPBar")
-    FVector2D UltimateHpBarSize = FVector2D(274.f, 94.f);
+    FVector2D UltimateHpBarSize = FVector2D(0.0f, 94.f);
 
     // HP Bar Anchor 설정
     UPROPERTY(Transient)
@@ -267,15 +267,6 @@ private:
     FTimerHandle TimerHandle_HpBarChange;
     FTimerHandle TimerHandle_HpLerp;
     FTimerHandle TimerHandle_OverHealLerp;
-    // 사이즈 변경 애니메이션용 타이머
-    FTimerHandle TimerHandle_UltSizeLerp;
-
-    // 현재 늘어나고 있는 중인 가로 길이
-    float CurrentUltBarWidth = 0.0f;
-
-    // 애니메이션 속도 (높을수록 빠름)
-    UPROPERTY(EditAnywhere, Category = "PF|HUD|Ultimate|Animation")
-    float UltBarExpandSpeed = 1.f;
     
     UPROPERTY(Transient)
     bool bUltimateActive = false;
@@ -297,8 +288,6 @@ private:
     void PlayUltimateAnimation();
     UFUNCTION() void OnUltimateAnimationFinished();
 
-    UFUNCTION() void UpdateUltimateBarSizeLerp();
-    
     // HP Bar 변경 (지연 후 호출)
     UFUNCTION() void ApplyUltimateHpBarChanges();
     
