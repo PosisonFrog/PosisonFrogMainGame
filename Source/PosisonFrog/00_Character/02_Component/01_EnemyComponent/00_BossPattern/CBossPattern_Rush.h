@@ -81,6 +81,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "PF|BossPattern|Rush|Deprecated")
 	void HandleRushMovementStop();
 
+protected:
+	void ProcessPlayerHit(AActor* TargetActor);
 public:
 	UPROPERTY(BlueprintAssignable)
 	FOnRushStateChanged OnRushStateChanged;
@@ -111,9 +113,7 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Rush|Movement", meta = (ClampMin = "50"))
 	float RushAcceptanceRadius = 150.0f;
-
-	// ❌ MaxRushTime 제거 - DataAsset의 ExecutionTime 사용
-	// ❌ RushMissTimeout 제거 - 사용되지 않음
+	
 
 	// Damage & Collision
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Rush|Damage", meta = (ClampMin = "0"))

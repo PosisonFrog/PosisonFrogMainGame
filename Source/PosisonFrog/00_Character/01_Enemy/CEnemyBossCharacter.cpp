@@ -15,6 +15,7 @@
 #include "05_System/01_Sound/CSoundManagerSubsystem.h"
 #include "05_System/01_Sound//CSoundDataAsset.h"
 #include "00_Character/CMainGameModeBase.h"
+#include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 
 ACEnemyBossCharacter::ACEnemyBossCharacter()
@@ -49,6 +50,29 @@ ACEnemyBossCharacter::ACEnemyBossCharacter()
 	if (SlamPattern)
 	{
 		SlamPattern->ComponentTags.Add(FName("Slam"));
+	}
+
+	if (USkeletalMeshComponent* MeshComp = GetMesh())
+	{
+		MeshComp->SetGenerateOverlapEvents(false);
+		MeshComp->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+
+		MeshComp->SetCollisionResponseToAllChannels(ECR_Overlap);
+	}
+
+	if (UCapsuleComponent* CapsuleComp = GetCapsuleComponent())
+	{
+		const float DesiredSeparation = CapsuleComp->GetScaledCapsuleRadius() * 2.f + 5.f;
+        
+		CapsuleComp->SetGenerateOverlapEvents(true);
+		CapsuleComp->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+
+		CapsuleComp->SetCollisionResponseToAllChannels(ECR_Block);
+		CapsuleComp->SetCollisionResponseToChannel(ECC_Visibility, ECR_Ignore);
+		CapsuleComp->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
+		CapsuleComp->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+		CapsuleComp->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Overlap);
+		CapsuleComp->SetCollisionResponseToChannel(ECC_GameTraceChannel3, ECR_Overlap);
 	}
 }
 

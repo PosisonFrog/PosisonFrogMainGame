@@ -51,21 +51,20 @@ bool UCBossPattern_Rush::ExecutePattern(int32 PhaseIndex, const FBossPatternDefi
 	if (!HasValidOwner())
 	{
 		UE_LOG(LogTemp, Error, TEXT("[Rush] ExecutePattern REJECTED - Invalid Owner"));
-		return false;  // ✅ 실패 반환
+		return false; 
 	}
 
-	// ✅ Idle 상태가 아니면 실행 거부
+	
 	if (State != ERushState::Idle)
 	{
 		UE_LOG(LogTemp, Error, TEXT("[Rush] ExecutePattern REJECTED - Not in Idle state (Current: %d)"), (int32)State);
-		return false;  // ✅ 실패 반환
+		return false;  
 	}
 
-	// ✅ 쿨다운 중이면 실행 거부
 	if (IsOnCooldown())
 	{
 		UE_LOG(LogTemp, Error, TEXT("[Rush] ExecutePattern REJECTED - Pattern is on cooldown"));
-		return false;  // ✅ 실패 반환
+		return false;  
 	}
 
 	
@@ -198,7 +197,6 @@ void UCBossPattern_Rush::BeginTelegraphInternal()
 		UWorld* World = OwnerBoss->GetWorld();
 		if (World)
 		{
-			// ✅ DataAsset의 TelegraphTime 사용
 			float TelegraphTime = FMath::Max(0.1f, CurrentPatternData.TelegraphTime);
 			World->GetTimerManager().SetTimer(TH_Telegraph, this, &UCBossPattern_Rush::Anim_RushStart, TelegraphTime, false);
 			UE_LOG(LogTemp, Log, TEXT("[Rush] Telegraph duration: %.2fs (from DataAsset)"), TelegraphTime);
@@ -224,7 +222,6 @@ void UCBossPattern_Rush::BeginRushingInternal()
 
 	RushElapsedTime = 0.f;
 	
-	// 🔥 방향 고정 체크 제거 - 이제 실시간 추적 사용
 	AActor* Player = GetPlayerTarget();
 	if (!Player)
 	{
@@ -271,7 +268,6 @@ void UCBossPattern_Rush::BeginRushingInternal()
 
 	if (World)
 	{
-		// ✅ DataAsset의 ExecutionTime을 순수 Rush 시간으로 사용
 		// (Telegraph는 별도 필드이므로 ExecutionTime과 무관)
 		float ActualRushTime = CurrentPatternData.ExecutionTime;
 		
@@ -293,7 +289,6 @@ void UCBossPattern_Rush::UpdateRushing(float DeltaSeconds)
 
 	RushElapsedTime += DeltaSeconds;
 	
-	// ✅ 타이머가 HandleMaxRushTime을 호출하므로 여기서는 체크 불필요
 	// (RushElapsedTime은 디버깅/로그용으로만 유지)
 	
 	// 플레이어 실시간 추적
@@ -351,21 +346,30 @@ void UCBossPattern_Rush::PerformCollisionTrace()
 	if (!HasValidOwner()) return;
 
 	FHitResult Hit;
-	if (SweepAhead(Hit, CollisionTraceAhead))
+    
+	// [변경 1] 채널을 ECC_Pawn -> ECC_WorldDynamic으로 변경
+	// 이유: 리스폰 후 플레이어가 Pawn 채널은 Overlap하지만, WorldDynamic은 Block하므로 확실히 감지됨
+	bool bHit = GetWorld()->SweepSingleByChannel(
+		Hit,
+		OwnerBoss->GetActorLocation(),
+		OwnerBoss->GetActorLocation() + OwnerBoss->GetActorForwardVector() * CollisionTraceAhead,
+		FQuat::Identity,
+		ECC_WorldDynamic,  // <--- 여기를 변경
+		FCollisionShape::MakeSphere(CollisionRadius),
+		FCollisionQueryParams(SCENE_QUERY_STAT(RushTrace), false, OwnerBoss.Get())
+	);
+
+	if (bHit)
 	{
 		AActor* HitActor = Hit.GetActor();
-		if (!HitActor) return;
-
-		if (Cast<ACharacter>(HitActor))
+		// 플레이어(Character)이면서 AI가 아닌 경우만 처리
+		if (ACharacter* HitChar = Cast<ACharacter>(HitActor))
 		{
-			AController* HitController = Cast<ACharacter>(HitActor)->GetController();
-			if (!Cast<AAIController>(HitController))
+			if (!Cast<AAIController>(HitChar->GetController()))
 			{
-				TWeakObjectPtr<AActor> WeakHit = HitActor;
-				if (!DamagedPlayers.Contains(WeakHit))
-				{
-					UE_LOG(LogTemp, Warning, TEXT("[Rush] Sweep detected player ahead: %s"), *HitActor->GetName());
-				}
+				// [변경 2] 감지 시 데미지 함수 호출 (기존에는 로그만 있었음)
+				UE_LOG(LogTemp, Warning, TEXT("[Rush] Sweep Hit Player via WorldDynamic!"));
+				ProcessPlayerHit(HitActor);
 			}
 		}
 	}
@@ -376,7 +380,6 @@ bool UCBossPattern_Rush::SweepAhead(FHitResult& OutHit, float Distance) const
 	if (!HasValidOwner()) return false;
 
 	const FVector Start = OwnerBoss->GetActorLocation();
-	// 🔥 고정 방향 대신 현재 forward vector 사용
 	const FVector ForwardDir = OwnerBoss->GetActorForwardVector();
 	const FVector End = Start + ForwardDir * Distance;
 	
@@ -384,7 +387,6 @@ bool UCBossPattern_Rush::SweepAhead(FHitResult& OutHit, float Distance) const
 	QueryParams.AddIgnoredActor(OwnerBoss.Get());
 	QueryParams.bTraceComplex = false;
 
-	// 🔥 투사체 무시 (BP_BossProjectile 등)
 	TArray<AActor*> AllActors;
 	UGameplayStatics::GetAllActorsOfClass(GetWorld(), AActor::StaticClass(), AllActors);
 	for (AActor* Actor : AllActors)
@@ -429,7 +431,6 @@ bool UCBossPattern_Rush::SweepAhead(FHitResult& OutHit, float Distance) const
 void UCBossPattern_Rush::CheckOverlappingActors()
 {
 	if (!HasValidOwner()) return;
-
 	UCapsuleComponent* Capsule = OwnerBoss->GetCapsuleComponent();
 	if (!Capsule) return;
 
@@ -438,68 +439,18 @@ void UCBossPattern_Rush::CheckOverlappingActors()
 
 	for (AActor* OtherActor : OverlappingActors)
 	{
-		if (!OtherActor || OtherActor == OwnerBoss.Get())
+		if (OtherActor && OtherActor != OwnerBoss.Get())
 		{
-			continue;
-		}
-
-		TWeakObjectPtr<AActor> WeakOther = OtherActor;
-		if (DamagedPlayers.Contains(WeakOther))
-		{
-			continue;
-		}
-
-		ACharacter* HitCharacter = Cast<ACharacter>(OtherActor);
-		if (!HitCharacter)
-		{
-			continue;
-		}
-
-		AController* HitController = HitCharacter->GetController();
-		if (Cast<AAIController>(HitController))
-		{
-			continue;
-		}
-
-		UE_LOG(LogTemp, Warning, TEXT("[Rush] OVERLAP DETECTED Player: %s"), *OtherActor->GetName());
-
-		float ActualDamage = UGameplayStatics::ApplyDamage
-		(
-			OtherActor, 
-			RushDamage, 
-			OwnerBoss->GetController(), 
-			OwnerBoss.Get(), 
-			nullptr
-		);
-		UE_LOG(LogTemp, Warning, TEXT("[Rush] OVERLAP Damage Applied: %.1f"), ActualDamage);
-
-		FVector KnockDirection = LockedRushDirection;
-		if (KnockDirection.IsNearlyZero())
-		{
-			KnockDirection = (HitCharacter->GetActorLocation() - OwnerBoss->GetActorLocation()).GetSafeNormal2D();
-			if (KnockDirection.IsNearlyZero())
+			if (ACharacter* HitChar = Cast<ACharacter>(OtherActor))
 			{
-				KnockDirection = FVector::ForwardVector;
+				// 플레이어 확인
+				if (!Cast<AAIController>(HitChar->GetController()))
+				{
+					ProcessPlayerHit(OtherActor);
+					return; 
+				}
 			}
 		}
-
-		FVector LaunchVelocity = KnockDirection * RushLaunchPower;
-		LaunchVelocity.Z += RushLaunchUp;
-		HitCharacter->LaunchCharacter(LaunchVelocity, true, true);
-		
-		UE_LOG(LogTemp, Warning, TEXT("[Rush] OVERLAP Launch: Power=%.1f, Up=%.1f"), 
-			RushLaunchPower, RushLaunchUp);
-
-		if (UCPlayerKnockbackComponent* KnockbackComp = HitCharacter->FindComponentByClass<UCPlayerKnockbackComponent>())
-		{
-			KnockbackComp->StartKnockback(OwnerBoss.Get());
-			UE_LOG(LogTemp, Warning, TEXT("[Rush] OVERLAP Knockback Component Triggered"));
-		}
-
-		DamagedPlayers.Add(WeakOther);
-
-		EndRushingInternal(ERushEndReason::HitPlayer, OtherActor);
-		return; 
 	}
 }
 
@@ -652,6 +603,35 @@ void UCBossPattern_Rush::HandleRushMovementStop()
 	BeginRecoveryInternal(ERushEndReason::MaxTime, nullptr);
 }
 
+void UCBossPattern_Rush::ProcessPlayerHit(AActor* TargetActor)
+{
+	if (!HasValidOwner() || !TargetActor) return;
+
+	TWeakObjectPtr<AActor> WeakTarget = TargetActor;
+	if (DamagedPlayers.Contains(WeakTarget)) return;
+
+	// 데미지 적용
+	UGameplayStatics::ApplyDamage(TargetActor, RushDamage, OwnerBoss->GetController(), OwnerBoss.Get(), nullptr);
+
+	// 넉백 적용
+	ACharacter* HitCharacter = Cast<ACharacter>(TargetActor);
+	if (HitCharacter)
+	{
+		FVector KnockDirection = LockedRushDirection.IsNearlyZero() ? OwnerBoss->GetActorForwardVector() : LockedRushDirection;
+		FVector LaunchVelocity = KnockDirection * RushLaunchPower;
+		LaunchVelocity.Z += RushLaunchUp;
+		HitCharacter->LaunchCharacter(LaunchVelocity, true, true);
+
+		if (UCPlayerKnockbackComponent* KnockbackComp = HitCharacter->FindComponentByClass<UCPlayerKnockbackComponent>())
+		{
+			KnockbackComp->StartKnockback(OwnerBoss.Get());
+		}
+	}
+
+	DamagedPlayers.Add(WeakTarget);
+	EndRushingInternal(ERushEndReason::HitPlayer, TargetActor);
+}
+
 // Helper Functions
 void UCBossPattern_Rush::HandlePatternComplete()
 {
@@ -684,7 +664,6 @@ void UCBossPattern_Rush::HandlePatternComplete()
 
 	EnterState(ERushState::Cooldown);
 	
-	// ✅ 쿨다운 적용 여부 결정
 	bool bApplyCooldown = true;
 	
 	if (LastEndReason == ERushEndReason::Aborted)
