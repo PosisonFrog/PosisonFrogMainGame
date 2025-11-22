@@ -452,6 +452,17 @@ void UCCutsceneWidget::DisplayFrame(const FCutsceneFrame& Frame)
         PlayShakeEffect(NewFrameImage, Frame.ShakeIntensity, Frame.ShakeDuration);
     }
 
+    if (Frame.FrameSound)
+    {
+        // 프레임에 설정된 볼륨으로 재생
+        PlayFrameEffectSound(Frame.FrameSound, Frame.FrameSoundVolume);
+        
+        if (bShowDebugInfo)
+        {
+            UE_LOG(LogTemp, Log, TEXT("[Cutscene] Playing frame sound: %s (Vol: %.1f)"), *Frame.FrameSound->GetName(), Frame.FrameSoundVolume);
+        }
+    }
+
     if (bShowDebugInfo)
     {
         UE_LOG(LogTemp, Log, TEXT("[Cutscene] Displayed frame. Total active frames: %d"), ActiveFrameImages.Num());
@@ -492,6 +503,14 @@ void UCCutsceneWidget::PlayShakeEffect(UImage* TargetImage, float Intensity, flo
     if (bShowDebugInfo)
     {
         UE_LOG(LogTemp, Log, TEXT("[Cutscene] Shake effect started on image: Intensity=%.2f, Duration=%.2f"), Intensity, Duration);
+    }
+}
+
+void UCCutsceneWidget::PlayFrameEffectSound(USoundBase* Sound, float Volume, float Pitch)
+{
+    if (Sound)
+    {
+        UGameplayStatics::PlaySound2D(this, Sound, Volume, Pitch);
     }
 }
 

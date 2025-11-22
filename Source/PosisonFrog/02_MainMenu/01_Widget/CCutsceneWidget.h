@@ -114,6 +114,18 @@ struct FCutsceneFrame
     // 흔들림 지속 시간 (초)
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cutscene|Effects", meta = (EditCondition = "bShakeOnTransition", ClampMin = "0.1", ClampMax = "2.0"))
     float ShakeDuration = 0.3f;
+
+    // ─────────────────────────────
+    // 오디오 설정
+    // ─────────────────────────────
+    
+    // 이 컷이 나올 때 재생할 사운드 (선택)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cutscene|Audio")
+    USoundBase* FrameSound = nullptr;
+
+    // 사운드 볼륨 (0.0 ~ 1.0 이상)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cutscene|Audio", meta = (EditCondition = "FrameSound != nullptr", ClampMin = "0.0", UIMax = "2.0"))
+    float FrameSoundVolume = 1.0f;
 };
 
 /**
@@ -285,6 +297,8 @@ protected:
     // 화면 흔들림 효과 재생 (특정 이미지 위젯)
     void PlayShakeEffect(UImage* TargetImage, float Intensity, float Duration);
 
+    void PlayFrameEffectSound(USoundBase* Sound, float Volume = 1.0f, float Pitch = 1.0f);
+    
     // 화면 흔들림 종료 콜백
     UFUNCTION()
     void OnShakeFinished();
