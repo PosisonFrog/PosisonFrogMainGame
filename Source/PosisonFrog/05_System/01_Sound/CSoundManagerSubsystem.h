@@ -81,8 +81,7 @@ public:
 private:
     // ─────────── BGM 관리 ───────────
     
-    // [중요 수정] WeakPtr 대신 Strong Reference(UPROPERTY) 사용
-    // 이렇게 해야 GC(가비지 컬렉터)가 재생 중인 BGM 컴포넌트를 청소하지 않습니다.
+    // GC(가비지 컬렉터)가 재생 중인 BGM 컴포넌트를 없애고 있었음
     UPROPERTY()
     TObjectPtr<UAudioComponent> BGMAudioComponent = nullptr;
 
