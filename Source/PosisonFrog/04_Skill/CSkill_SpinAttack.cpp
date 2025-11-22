@@ -278,6 +278,7 @@ void UCSkill_SpinAttack::CollectTargetsInRadius(TArray<AActor*>& OutTargets, flo
 
 void UCSkill_SpinAttack::ApplyDamageTo(AActor* Target, float DamageAmount, TSubclassOf<UDamageType> InDamageType) const
 {
+    
     if (!Target || DamageAmount <= 0.f) return;
 
     AActor* Owner = GetOwner();
@@ -288,6 +289,12 @@ void UCSkill_SpinAttack::ApplyDamageTo(AActor* Target, float DamageAmount, TSubc
     // 일반 데미지 타입 -> 스택 증가 없음
     if (!InDamageType)
         InDamageType = UDamageType::StaticClass();
+
+
+    if (ACPlayerCharacter* PlayerChar = Cast<ACPlayerCharacter>(OwnerChar))
+    {
+        PlayerChar->PlayAttackHitSound();
+    }
     
     UGameplayStatics::ApplyDamage(
         Target,
