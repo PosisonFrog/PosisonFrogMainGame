@@ -125,15 +125,36 @@ void UCPlayerWeaponComponent::HandleWeaponHit(AActor* InstigatorActor, AActor* H
     
     if (bEnableHitKnockback)
     {
+        // 보스인지 확인 (Boss 태그로 확인)
+        bool bIsBoss = HitActor->ActorHasTag(FName("Boss"));
+
+        // 보스면 보스용 넉백 값 사용, 아니면 일반 넉백 값 사용
+        float CurrentKnockbackStrength = 0.f;
+        float CurrentKnockbackUpStrength = 0.f;
+
         // 배열 범위 체크 - 범위를 벗어나면 마지막 값 사용
         const int32 KnockbackIndex = FMath::Min(CurrentCombo, HitKnockbackStrengths.Num() - 1);
-        const float CurrentKnockbackStrength = HitKnockbackStrengths.IsValidIndex(KnockbackIndex) 
-            ? HitKnockbackStrengths[KnockbackIndex] 
-            : 650.f; // 기본값
-            
-        const float CurrentKnockbackUpStrength = HitKnockbackUpStrengths.IsValidIndex(KnockbackIndex)
-            ? HitKnockbackUpStrengths[KnockbackIndex]
-            : 120.f; // 기본값
+
+        if (bIsBoss)
+        {
+            CurrentKnockbackStrength = BossKnockbackStrengths.IsValidIndex(KnockbackIndex) 
+                ? BossKnockbackStrengths[KnockbackIndex] 
+                : 250.f; // 보스 기본값
+        
+            CurrentKnockbackUpStrength = BossKnockbackUpStrengths.IsValidIndex(KnockbackIndex)
+                ? BossKnockbackUpStrengths[KnockbackIndex]
+                : 60.f; // 보스 기본값
+        }
+        else
+        {
+            CurrentKnockbackStrength = HitKnockbackStrengths.IsValidIndex(KnockbackIndex) 
+                ? HitKnockbackStrengths[KnockbackIndex] 
+                : 650.f; // 일반 적 기본값
+        
+            CurrentKnockbackUpStrength = HitKnockbackUpStrengths.IsValidIndex(KnockbackIndex)
+                ? HitKnockbackUpStrengths[KnockbackIndex]
+                : 120.f; // 일반 적 기본값
+        }
         
         // 넉백 강도 체크 수정
         if (CurrentKnockbackStrength > 0.f)
