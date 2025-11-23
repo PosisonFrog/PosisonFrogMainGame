@@ -16,11 +16,14 @@
 #include "05_System/01_Sound//CSoundDataAsset.h"
 #include "00_Character/CMainGameModeBase.h"
 #include "00_Character/00_Player/CPlayerCharacter.h"
+#include "00_Character/02_Component/00_PlayerComponent/CFuryGaugeComponent.h"
 #include "02_MainMenu/01_Widget/CCutsceneWidget.h"
 #include "02_MainMenu/01_Widget/CMainMenuWidget.h"
+#include "03_Combat/Damage/DamageType_FuryCountable.h"
 #include "Blueprint/UserWidget.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Engine/DamageEvents.h"
 #include "Kismet/GameplayStatics.h"
 
 ACEnemyBossCharacter::ACEnemyBossCharacter()
@@ -163,6 +166,17 @@ float ACEnemyBossCharacter::TakeDamage(float DamageAmount, FDamageEvent const& D
 		return AppliedDamage;
 	}
 
+	const bool bCountsForFury = DamageEvent.DamageTypeClass && DamageEvent.DamageTypeClass->IsChildOf(UDamageType_FuryCountable::StaticClass());
+
+	if (bCountsForFury && EventInstigator)
+	{
+		if (APawn* InstPawn = EventInstigator->GetPawn())
+		{
+			if (UCFuryGaugeComponent* Fury = InstPawn->FindComponentByClass<UCFuryGaugeComponent>())
+				Fury->AddStack(1);
+		}
+	}
+	
 	if (HealthComponent)
 	{
 		float OldHealth = HealthComponent->GetHealth();

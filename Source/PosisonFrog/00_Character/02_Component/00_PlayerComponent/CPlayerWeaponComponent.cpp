@@ -521,12 +521,24 @@ void UCPlayerWeaponComponent::ApplyComboHitStop(AActor* HitActor, float PlayerDu
                     }
                 }
 
-                // 히트스톱 적용
-                HitStopSys->StartPlayerAndEnemyHitStop(
-                    OwnerChar.Get(), HitActor,
-                    PlayerDuration, PlayerTimeScale,
-                    EnemyDuration, EnemyTimeScale
-                );
+                // 보스인지 확인
+                bool bIsBoss = HitActor && HitActor->ActorHasTag(FName("Boss"));
+
+                // 히트스톱 적용 (보스가 아닐 때만 적에게 적용)
+                if (bIsBoss)
+                {
+                    // 보스에게는 히트스톱 적용 안함, 플레이어만 적용
+                    HitStopSys->StartHitStop(OwnerChar.Get(), PlayerDuration, PlayerTimeScale);
+                }
+                else
+                {
+                    // 일반 적에게는 플레이어와 적 모두 히트스톱 적용
+                    HitStopSys->StartPlayerAndEnemyHitStop(
+                        OwnerChar.Get(), HitActor,
+                        PlayerDuration, PlayerTimeScale,
+                        EnemyDuration, EnemyTimeScale
+                    );
+                }
 
                 // 해머도 플레이어와 동일한 히트스톱
                 if (IsValid(CurrentWeapon))

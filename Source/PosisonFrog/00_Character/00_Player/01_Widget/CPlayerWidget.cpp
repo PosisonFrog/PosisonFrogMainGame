@@ -4,6 +4,7 @@
 #include "99_Util/CLog.h"
 #include "Components/CanvasPanelSlot.h"
 #include "Components/Image.h"
+#include "Components/Overlay.h"
 #include "Components/ProgressBar.h"
 #include "Components/TextBlock.h"
 
@@ -58,6 +59,9 @@ void UCPlayerWidget::NativeConstruct()
 
     if (UltAnimationImage)
         UltAnimationImage->SetVisibility(ESlateVisibility::Hidden);
+
+    if (Overlap_BossHp)
+        Overlap_BossHp->SetVisibility(ESlateVisibility::Hidden);
     
     HideSpinUltImages();
 }

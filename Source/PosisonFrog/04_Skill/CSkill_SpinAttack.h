@@ -98,7 +98,7 @@ protected:
     float AttackRadius = 250.f;
 
     UPROPERTY(EditDefaultsOnly, Category="Spin|Range",  meta=(ClampMin="0"))
-    float ZTolerance = 120.f;
+    float ZTolerance = 400.f;
 
     UPROPERTY(EditDefaultsOnly, Category="Spin|Control")
     bool bAutoRotateOwner = true;
@@ -188,6 +188,13 @@ protected:
    
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Finisher|Knockback", meta = (ClampMin = "0.0"))
     float FinisherKnockbackUpStrength = 400.f;
+
+    // 피니셔 넉백 (보스)
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Finisher|Knockback", meta = (ClampMin = "0.0"))
+    float FinisherBossKnockbackStrength = 600.f;
+   
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Finisher|Knockback", meta = (ClampMin = "0.0"))
+    float FinisherBossKnockbackUpStrength = 200.f;
 
 private:
     // 현재 재생 중인 스핀 이펙트 컴포넌트

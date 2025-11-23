@@ -376,17 +376,15 @@ void UCSkill_SpinAttack::DoFinisherImpact()
 
     ApplyFinisherHitStop(Targets);
 
-    // 피니셔 넉백: 플레이어 정면 방향으로 적들을 Launch
-    if (bEnableFinisherKnockback && FinisherKnockbackStrength > 0.f && Targets.Num() > 0)
+    // 피니셔 넉백: 플레이어 정면 방향으로 적들을 Launch (보스 판별하여 다른 강도 적용)
+    if (bEnableFinisherKnockback && Targets.Num() > 0)
     {
-        // 플레이어의 정면 방향 벡터 (수평만)
         FVector LaunchDirection = Owner->GetActorForwardVector();
         LaunchDirection.Z = 0.f;
         LaunchDirection.Normalize();
 
         if (!LaunchDirection.IsNearlyZero())
         {
-            // 히트스톱 종료 후 Launch 적용
             FTimerHandle KnockbackTimer;
             FTimerDelegate KnockbackDelegate;
             KnockbackDelegate.BindLambda([this, Targets, LaunchDirection]()
@@ -395,13 +393,23 @@ void UCSkill_SpinAttack::DoFinisherImpact()
                 {
                     if (ACharacter* HitCharacter = Cast<ACharacter>(Target))
                     {
-                        FVector LaunchVelocity = LaunchDirection * FinisherKnockbackStrength;
-                        if (FinisherKnockbackUpStrength > 0.f)
+                        // 보스인지 확인
+                        bool bIsBoss = HitCharacter->ActorHasTag(FName("Boss"));
+
+                        // 보스면 보스용 넉백 값 사용, 아니면 일반 넉백 값 사용
+                        float KnockbackStrength = bIsBoss ? FinisherBossKnockbackStrength : FinisherKnockbackStrength;
+                        float KnockbackUpStrength = bIsBoss ? FinisherBossKnockbackUpStrength : FinisherKnockbackUpStrength;
+
+                        if (KnockbackStrength > 0.f)
                         {
-                            LaunchVelocity.Z += FinisherKnockbackUpStrength;
+                            FVector LaunchVelocity = LaunchDirection * KnockbackStrength;
+                            if (KnockbackUpStrength > 0.f)
+                            {
+                                LaunchVelocity.Z += KnockbackUpStrength;
+                            }
+                            
+                            HitCharacter->LaunchCharacter(LaunchVelocity, true, KnockbackUpStrength > 0.f);
                         }
-                        
-                        HitCharacter->LaunchCharacter(LaunchVelocity, true, FinisherKnockbackUpStrength > 0.f);
                     }
                 }
             });
@@ -497,21 +505,24 @@ void UCSkill_SpinAttack::ApplySpinTickHitStop(const TArray<AActor*>& Targets)
     {
         if (UCHitStopSubsystem* HitStopSys = GameInst->GetSubsystem<UCHitStopSubsystem>())
         {
-            // 플레이어 히트스톱
             HitStopSys->StartHitStop(
                 Owner,
                 SpinTickPlayerHitStopDuration,
                 SpinTickPlayerHitStopTimeScale
             );
 
-            // 적들에게 히트스톱
+            // 보스가 아닌 적들에게만 히트스톱 적용
             for (AActor* T : Targets)
             {
-                HitStopSys->StartHitStop(
-                    T,
-                    SpinTickEnemyHitStopDuration,
-                    SpinTickEnemyHitStopTimeScale
-                );
+                bool bIsBoss = T->ActorHasTag(FName("Boss"));
+                if (!bIsBoss)
+                {
+                    HitStopSys->StartHitStop(
+                        T,
+                        SpinTickEnemyHitStopDuration,
+                        SpinTickEnemyHitStopTimeScale
+                    );
+                }
             }
         }
     }
@@ -530,21 +541,24 @@ void UCSkill_SpinAttack::ApplyFinisherHitStop(const TArray<AActor*>& Targets)
     {
         if (UCHitStopSubsystem* HitStopSys = GameInst->GetSubsystem<UCHitStopSubsystem>())
         {
-            // 플레이어 히트스톱
             HitStopSys->StartHitStop(
                 Owner,
                 FinisherPlayerHitStopDuration,
                 FinisherPlayerHitStopTimeScale
             );
 
-            // 적들에게 히트스톱
+            // 보스가 아닌 적들에게만 히트스톱 적용
             for (AActor* T : Targets)
             {
-                HitStopSys->StartHitStop(
-                    T,
-                    FinisherEnemyHitStopDuration,
-                    FinisherEnemyHitStopTimeScale
-                );
+                bool bIsBoss = T->ActorHasTag(FName("Boss"));
+                if (!bIsBoss)
+                {
+                    HitStopSys->StartHitStop(
+                        T,
+                        FinisherEnemyHitStopDuration,
+                        FinisherEnemyHitStopTimeScale
+                    );
+                }
             }
         }
     }
