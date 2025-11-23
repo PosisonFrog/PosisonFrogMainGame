@@ -161,6 +161,11 @@ void ACEnemyCharacterBase::Tick(float DeltaSeconds)
 
 }
 
+void ACEnemyCharacterBase::ReinitializeCollision()
+{
+	
+}
+
 void ACEnemyCharacterBase::RegisterForPlayerRespawnEvents()
 {
 	if (PlayerRespawnDelegateHandle.IsValid())
@@ -1102,6 +1107,21 @@ void ACEnemyCharacterBase::ResetForRespawn()
 	SetActorEnableCollision(true);
 	SetCanBeDamaged(true);
 
+	if (UWorld* World = this->GetWorld())
+	{
+		TWeakObjectPtr<ACEnemyCharacterBase> WeakThis(this);
+		World->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateLambda([WeakThis]()
+		{
+			if (WeakThis.IsValid())
+			{
+					WeakThis->ReinitializeCollision();
+			}
+	   }));
+	}
+	else
+	{
+		ReinitializeCollision();
+	}
 	OnResetForRespawn();
 }
 

@@ -24,7 +24,7 @@ public:
     
 protected:
 
-
+    virtual void ReinitializeCollision() override;
     virtual void PostInitProperties() override;
 #if WITH_EDITOR
     virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;

@@ -27,6 +27,7 @@ public:
 	virtual void Tick(float DeltaSeconds) override;
 	
 protected:
+	virtual void ReinitializeCollision() override;
 	virtual void PostInitProperties() override;
 	virtual void PostLoad() override;
 	virtual void OnConstruction(const FTransform& Transform) override;
@@ -88,7 +89,7 @@ protected:
 
 	/** 공격 유효 거리(안전망) */
 	UPROPERTY(EditAnywhere, Category="PF|Attack")
-	float AttackRangeTanker = 300.f;
+	float AttackRangeTanker = 400.f;
 
 	/** 1. 윈드업(예비동작) 시간 */
 	UPROPERTY(EditAnywhere, Category="PF|Attack")

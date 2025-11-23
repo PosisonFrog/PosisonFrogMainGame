@@ -64,8 +64,45 @@ ACRiotRobot::ACRiotRobot()
         MeshComp->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Ignore);
         MeshComp->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Ignore);
     }
+
+    if (UCapsuleComponent* CapsuleComp = GetCapsuleComponent())
+    {
+        CapsuleComp->SetCollisionObjectType(PF::Collision::RiotEnemy);
+        CapsuleComp->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+
+        CapsuleComp->SetCollisionResponseToAllChannels(ECR_Block);
+        CapsuleComp->SetCollisionResponseToChannel(ECC_Visibility, ECR_Ignore);
+        CapsuleComp->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
+        CapsuleComp->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Overlap);
+        CapsuleComp->SetCollisionResponseToChannel(ECC_GameTraceChannel3, ECR_Overlap);
+    }
     
     PrimaryActorTick.bCanEverTick = true; // Base의 Tick을 그대로 사용(전술은 컨트롤러 Tick에서)
+}
+
+void ACRiotRobot::ReinitializeCollision()
+{
+    if (USkeletalMeshComponent* MeshComp = GetMesh())
+    {
+        MeshComp->SetGenerateOverlapEvents(false);
+        MeshComp->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+
+        MeshComp->SetCollisionResponseToAllChannels(ECR_Overlap);
+        MeshComp->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Ignore);
+        MeshComp->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Ignore);
+    }
+
+    if (UCapsuleComponent* CapsuleComp = GetCapsuleComponent())
+    {
+        CapsuleComp->SetCollisionObjectType(PF::Collision::RiotEnemy);
+        CapsuleComp->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+
+        CapsuleComp->SetCollisionResponseToAllChannels(ECR_Block);
+        CapsuleComp->SetCollisionResponseToChannel(ECC_Visibility, ECR_Ignore);
+        CapsuleComp->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
+        CapsuleComp->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Overlap);
+        CapsuleComp->SetCollisionResponseToChannel(ECC_GameTraceChannel3, ECR_Overlap);
+    }
 }
 
 void ACRiotRobot::PostInitProperties()

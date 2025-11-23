@@ -13,6 +13,7 @@
 
 // ─ 프로젝트 컴포넌트/유틸
 #include "CPlayerController.h"
+#include "Global.h"
 #include "NiagaraComponent.h"
 #include "NiagaraFunctionLibrary.h"
 #include "00_Character/CMainGameModeBase.h"
@@ -120,10 +121,13 @@ ACPlayerCharacter::ACPlayerCharacter()
         MeshComp->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
         MeshComp->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Overlap);
         MeshComp->SetCollisionResponseToChannel(ECC_GameTraceChannel3, ECR_Overlap);
+        MeshComp->SetCollisionResponseToChannel(ECC_GameTraceChannel5, ECR_Overlap);
     }
 
     if (UCapsuleComponent* CapsuleComp = GetCapsuleComponent())
     {
+        CapsuleComp->SetCollisionObjectType(PF::Collision::PlayerBody);
+        
         CapsuleComp->SetGenerateOverlapEvents(true);
         CapsuleComp->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 
@@ -131,6 +135,7 @@ ACPlayerCharacter::ACPlayerCharacter()
         CapsuleComp->SetCollisionResponseToChannel(ECC_Visibility, ECR_Ignore);
         CapsuleComp->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
         CapsuleComp->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Overlap);
+        CapsuleComp->SetCollisionResponseToChannel(ECC_GameTraceChannel5, ECR_Overlap);
     }
 }
 

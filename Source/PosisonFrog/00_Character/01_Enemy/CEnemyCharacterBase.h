@@ -213,6 +213,7 @@ protected:
     virtual void BeginPlay() override;
     virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override; 
     virtual void Tick(float DeltaSeconds) override;
+    virtual void ReinitializeCollision();
 
     // FSM
     virtual void Think(float DeltaTime);                // 현재 상태에 따라 적절한 행동

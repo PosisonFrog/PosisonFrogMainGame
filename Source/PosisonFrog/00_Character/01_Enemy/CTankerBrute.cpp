@@ -1,6 +1,7 @@
 ﻿#include "CTankerBrute.h"
 
 #include "AIController.h"
+#include "Global.h"
 #include "00_Character/02_Component/01_EnemyComponent/CTankerChargeComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Kismet/GameplayStatics.h"
@@ -48,6 +49,7 @@ ACTankerBrute::ACTankerBrute()
         CapsuleComp->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
         CapsuleComp->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Overlap);
         CapsuleComp->SetCollisionResponseToChannel(ECC_GameTraceChannel3, ECR_Overlap);
+
     }
 }
 
@@ -150,6 +152,38 @@ void ACTankerBrute::Tick(float DeltaSeconds)
     }
     
     UpdateChargeStopOverride(Now);
+}
+
+void ACTankerBrute::ReinitializeCollision()
+{
+    if (USkeletalMeshComponent* MeshComp = GetMesh())
+    {
+        MeshComp->SetCollisionObjectType(ECC_WorldStatic);
+
+        MeshComp->SetGenerateOverlapEvents(false);
+        MeshComp->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+        MeshComp->SetCollisionResponseToAllChannels(ECR_Overlap);
+    }
+
+    if (UCapsuleComponent* CapsuleComp = GetCapsuleComponent())
+    {
+        const float DesiredSeparation = CapsuleComp->GetScaledCapsuleRadius() * 2.f + 5.f;
+        SeparationRadius = FMath::Max(SeparationRadius, DesiredSeparation);
+
+        CapsuleComp->SetCollisionObjectType(ECC_Pawn);
+        CapsuleComp->SetGenerateOverlapEvents(true);
+        CapsuleComp->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+
+        CapsuleComp->SetCollisionResponseToAllChannels(ECR_Block);
+        CapsuleComp->SetCollisionResponseToChannel(ECC_Visibility, ECR_Ignore);
+        CapsuleComp->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
+        CapsuleComp->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+        CapsuleComp->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Overlap);
+        CapsuleComp->SetCollisionResponseToChannel(ECC_GameTraceChannel3, ECR_Overlap);
+
+        UE_LOG( LogTemp, Error , TEXT("[TankerBrute 콜리전] 리스폰 콜리전 초기화 완료"));
+    }
+    
 }
 
 
