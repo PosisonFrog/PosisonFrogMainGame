@@ -302,10 +302,7 @@ void UCPlayerWidget::UpdateBossHealthBar(float Current, float Max)
     if (!BossHpBar)
         return;
 
-    const float CurrentSegments = Current/SegmentSize;
-    const float MaxSegments = Max/SegmentSize;
-
-    const float Ratio = SafeRatio(CurrentSegments, MaxSegments);
+    const float Ratio = SafeRatio(Current, Max);
     BossHpBar->SetPercent(Ratio);
 }
 
@@ -317,7 +314,7 @@ void UCPlayerWidget::SubscribeToBoss(class ACEnemyBossCharacter* Boss)
     SubscribedBoss = Boss;
     
     // 보스의 HealthComponent에서 OnHealthChanged 구독
-    if (UCEnemyHealthComponent* HealthComp = Boss->FindComponentByClass<UCEnemyHealthComponent>())
+    if (UCEnemyHealthComponent* HealthComp = SubscribedBoss->FindComponentByClass<UCEnemyHealthComponent>())
     {
         HealthComp->OnHealthChanged.AddDynamic(this, &UCPlayerWidget::UpdateBossHealthBar);
         UpdateBossHealthBar(HealthComp->GetHealth(), HealthComp->GetMaxHealth()); // 초기화

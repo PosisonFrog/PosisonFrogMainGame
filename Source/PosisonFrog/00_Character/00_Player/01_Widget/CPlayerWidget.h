@@ -166,12 +166,6 @@ private:
 
     UPROPERTY(meta = (BindWidgetOptional))
     UProgressBar* BossHpBar = nullptr;
-
-    UPROPERTY(EditAnywhere, Category = "PF|HUD|BossHP")
-    float SegmentSize = 100.0f;
-
-    UPROPERTY(EditAnywhere, Category = "PF|HUD|BossHP")
-    float TotalSegments = 38.0f;
     
     UPROPERTY(Transient)
     TWeakObjectPtr<class ACEnemyBossCharacter> SubscribedBoss = nullptr;

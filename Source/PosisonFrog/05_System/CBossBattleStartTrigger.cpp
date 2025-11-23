@@ -156,6 +156,15 @@ void ACBossBattleStartTrigger::AttemptStartBossBattle(ACPlayerCharacter* PlayerC
     if (PC)
     {
         PlayerController = PC; // 멤버 변수에 저장
+
+        if (USkeletalMeshComponent* Mesh = PlayerCharacter->GetMesh())
+        {
+            if (UAnimInstance* AnimInstance = Mesh->GetAnimInstance())
+            {
+                // 0.2초 동안 부드럽게 기본 자세(Idle)로 돌아감
+                AnimInstance->Montage_Stop(0.0f); 
+            }
+        }
         
         // 1. 입력 무시 설정
         PC->SetIgnoreMoveInput(true);
@@ -389,19 +398,19 @@ void ACBossBattleStartTrigger::OnSequenceFinished()
         }
     }
 
-    /*if (IsValid(TargetBoss))
+    if (IsValid(TargetBoss))
     {
         TargetBoss->StartBossBattle(bSkipIntro);
 
         if (CurrentPlayer.IsValid())
         {
-            if (UCPlayerWidget* PlayerWidget = CurrentPlayer->PlayerWidget)
+            if (UCPlayerWidget* PlayerWidget = CurrentPlayer->GetPlayerWidget())
             {
                 PlayerWidget->SubscribeToBoss(TargetBoss);  // 델리게이트 구독
                 PlayerWidget->ShowBossHealthBar();           // UI 표시
             }
         }
-    }*/
+    }
     
     if (SequenceActor)
     {
@@ -448,14 +457,14 @@ void ACBossBattleStartTrigger::ManualTrigger()
     UE_LOG(LogTemp, Error, TEXT("[BossTrigger] Manual 보스 전투 시작"));
     TargetBoss->StartBossBattle(bSkipIntro);
 
-    /*if (CurrentPlayer.IsValid())
+    if (CurrentPlayer.IsValid())
     {
-        if (UCPlayerWidget* PlayerWidget = CurrentPlayer->PlayerWidget)
+        if (UCPlayerWidget* PlayerWidget = CurrentPlayer->GetPlayerWidget())
         {
             PlayerWidget->SubscribeToBoss(TargetBoss);
             PlayerWidget->ShowBossHealthBar();
         }
-    }*/
+    }
     
     bHasTriggered = true;
     
@@ -499,23 +508,11 @@ void ACBossBattleStartTrigger::ResetTrigger()
         TriggerBox->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
     }
 
-    /*if (UWorld* World = GetWorld())
+    if (UCPlayerWidget* PlayerWidget = CurrentPlayer->GetPlayerWidget())
     {
-        if (APlayerController* PC = World->GetFirstPlayerController())
-        {
-            if (APawn* PlayerPawn = PC->GetPawn())
-            {
-                if (ACPlayerCharacter* Player = Cast<ACPlayerCharacter>(PlayerPawn))
-                {
-                    if (UCPlayerWidget* PlayerWidget = Player->PlayerWidget)
-                    {
-                        PlayerWidget->UnsubscribeFromBoss();
-                        PlayerWidget->HideBossHealthBar();
-                    }
-                }
-            }
-        }
-    }*/
+        PlayerWidget->UnsubscribeFromBoss();
+        PlayerWidget->HideBossHealthBar();
+    }
     
     UE_LOG(LogTemp, Log, TEXT("[BossTrigger] 트리거 리셋 완료"));
 }
