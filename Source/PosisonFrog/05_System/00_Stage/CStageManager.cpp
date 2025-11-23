@@ -1154,6 +1154,15 @@ void ACStageManager::OnStageComplete(int32 StageID)
 		}
 	}
 
+	else if(StageID == 6)
+	{
+		int32 NodeIndex = FindNodeIndexById(CurrentNodeId);
+		if (StageFlowNodes.IsValidIndex(NodeIndex))
+		{
+			AdvanceToNode(StageFlowNodes[NodeIndex].NextNodeId);
+		}
+	}
+
 	
 	CLog::Log(FString::Printf(TEXT("[StageManager] StageID: %d"), StageID));
 	CLog::Log(FString::Printf(TEXT("[StageManager] ClearedStages에 이미 포함? %s"), 
@@ -1207,6 +1216,13 @@ void ACStageManager::OnStageComplete(int32 StageID)
 		CLog::Log(FString::Printf(TEXT("[StageManager] 일반 스테이지(%d) 클리어 - 다음 스테이지 자동 진행 시도"), StageID));
 		// 다음 스테이지 처리
 		int32 NextStage = StageID + 1;
+
+		if (ManualStartStages.Contains(NextStage))
+		{
+			CLog::Log(FString::Printf(TEXT("[StageManager] 스테이지 %d 클리어. 다음 스테이지(%d)는 트리거 작동 대기 (자동 스폰 안함)"), StageID, NextStage));
+			return; 
+		}
+		
 		if (PreloadedStages.Contains(NextStage))
 		{
 			CLog::Log(FString::Printf(TEXT("[StageManager] 다음 스테이지 (%d) 이미 로딩되어 있음 - 활성화 중"), NextStage));

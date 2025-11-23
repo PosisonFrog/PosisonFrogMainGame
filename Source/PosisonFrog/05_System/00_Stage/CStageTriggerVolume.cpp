@@ -39,10 +39,16 @@ void ACStageTriggerVolume::OnTriggerEnter(AActor* OverlappedActor, AActor* Other
 	
 	if (!OtherActor || !OtherActor->IsA<ACPlayerCharacter>())
 		return;
+	
 
-	if (StageManager->GetCurrentStage() == 7)
+	if (StageManager->GetCurrentStage() == 7 || (StageManager->GetCurrentStage() == 6 && StageManager->IsStageCleared(6))) 
 	{
+		UE_LOG(LogTemp, Log, TEXT("[StageTrigger] 조건 만족 -> 컷신 시작"));
 		StartMiddleCutscene();
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[StageTrigger] 조건 불만족! (Stage 7이어야 함)"));
 	}
 
 	bHasTriggered = true;
