@@ -65,6 +65,7 @@ public:
     // ─ 애니메이션
     FORCEINLINE UComboStackComponent* GetComboStackComponent() const { return ComboStackComponent; }
  
+    FORCEINLINE UCPlayerWidget* GetPlayerWidget() const { return PlayerWidget; }
 
     // ─────────── IBuffable ───────────
     // ─ 인터페이스 구현
