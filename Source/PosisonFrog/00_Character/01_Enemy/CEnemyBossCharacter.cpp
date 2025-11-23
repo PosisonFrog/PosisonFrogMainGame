@@ -63,6 +63,10 @@ ACEnemyBossCharacter::ACEnemyBossCharacter()
 		MeshComp->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 
 		MeshComp->SetCollisionResponseToAllChannels(ECR_Overlap);
+		MeshComp->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
+		MeshComp->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Block);
+		MeshComp->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Block);
+		MeshComp->SetCollisionResponseToChannel(ECC_GameTraceChannel3, ECR_Block);
 	}
 
 	if (UCapsuleComponent* CapsuleComp = GetCapsuleComponent())
