@@ -178,8 +178,9 @@ void ACStageManager::CheckStageComplete(int32 StageID)
 void ACStageManager::PrepareForRespawn(int32 TargetStageID)
 {
 	ResetSpawnState();
-
-	if (CurrentStage == 9 && TargetStageID == 9)
+	
+	
+	if (CurrentStage >= 9 && TargetStageID >= 9)
 	{
 		CLog::Log(TEXT("[StageManager] 보스 스테이지 리스폰 감지 - 보스 초기화 시도"));
 		// 1. 월드에 있는 보스 캐릭터를 찾습니다. (보스는 1명이므로 GetActorOfClass 사용)
@@ -265,13 +266,14 @@ void ACStageManager::PrepareForRespawn(int32 TargetStageID)
 		}
 	}
 	
-	CurrentStage = TargetStageID;
-
 	for (auto ClearIterator = ClearedStages.CreateIterator(); ClearIterator; ++ClearIterator)
 	{
 		if (*ClearIterator > TargetStageID)
 			ClearIterator.RemoveCurrent();
 	}
+	
+	CurrentStage = TargetStageID;
+	
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -725,7 +727,7 @@ void ACStageManager::ResetBossBattleForRespawn()
 	if (!IsValid(BossBarrier))
 		return;
 
-	if (BossBarrier->IsBossBattleActive() || !BossBarrier->IsOpen())
+	if (BossBarrier->IsBossBattleActive() && !BossBarrier->IsOpen())
 	{
 		CLog::Log(TEXT("[StageManager] ResetBossBattleForRespawn - reopening boss barrier"));
 		BossBarrier->OnBossBattleEnd();
