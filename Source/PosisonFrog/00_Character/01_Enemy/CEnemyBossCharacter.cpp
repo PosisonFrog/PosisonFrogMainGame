@@ -406,7 +406,6 @@ void ACEnemyBossCharacter::HandleBossDeath(AActor* DeadActor)
 	}
 
 
-	// 3. [수정] 플레이어 HUD 즉시 숨김
 	APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
 	if (PC)
 	{
@@ -417,7 +416,6 @@ void ACEnemyBossCharacter::HandleBossDeath(AActor* DeadActor)
 		}
 	}
 
-	// 4. [수정] 0.5초 뒤 컷신 재생 예약
 	if (UWorld* World = GetWorld())
 	{
 		World->GetTimerManager().ClearAllTimersForObject(this); // 기존 타이머 정리

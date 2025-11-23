@@ -179,7 +179,7 @@ void ACStageManager::PrepareForRespawn(int32 TargetStageID)
 {
 	ResetSpawnState();
 
-	if (CurrentStage == 8 && TargetStageID == 8)
+	if (CurrentStage == 9 && TargetStageID == 9)
 	{
 		CLog::Log(TEXT("[StageManager] 보스 스테이지 리스폰 감지 - 보스 초기화 시도"));
 		// 1. 월드에 있는 보스 캐릭터를 찾습니다. (보스는 1명이므로 GetActorOfClass 사용)

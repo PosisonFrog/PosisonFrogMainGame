@@ -121,9 +121,9 @@ public:
 	void ResetBossBattleForRespawn();
 	
 	// ──────────── 상태 조회 ────────────
-	int32 GetRemainingEnemies(int32 StageID) const;
-	int32 GetCurrentStage() const { return CurrentStage; }
-	bool IsStageCleared(int32 StageID) const;
+	FORCEINLINE int32 GetRemainingEnemies(int32 StageID) const;
+	FORCEINLINE int32 GetCurrentStage() const { return CurrentStage; }
+	FORCEINLINE bool IsStageCleared(int32 StageID) const;
 	
 	// ──────────── 이벤트 ────────────
 	UPROPERTY() FOnStageCleared OnStageCleared;
@@ -194,6 +194,9 @@ private:
 	UPROPERTY(VisibleAnywhere, Category = "Stage|Info")
 	int32 CurrentStage = 1;
 
+
+
+private:
 	UPROPERTY(VisibleAnywhere, Category = "Stage|Info")
 	int32 CurrentNodeId = INDEX_NONE;
 	
