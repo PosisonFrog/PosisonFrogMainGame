@@ -150,6 +150,29 @@ void ACBossBattleStartTrigger::AttemptStartBossBattle(ACPlayerCharacter* PlayerC
     if (bUsedTrigger)
         return;
 
+
+    APlayerController* PC = Cast<APlayerController>(PlayerCharacter->GetController());
+    if (PC)
+    {
+        PlayerController = PC; // 멤버 변수에 저장
+        
+        // 1. 입력 무시 설정
+        PC->SetIgnoreMoveInput(true);
+        PC->SetIgnoreLookInput(true);
+        
+        // 2. 현재 누르고 있던 입력 벡터 초기화 (미끄러짐 방지 핵심)
+        PlayerCharacter->DisableInput(PC); 
+        
+        // 3. 물리적인 이동 즉시 정지
+        if (UCharacterMovementComponent* MovementComp = PlayerCharacter->GetCharacterMovement())
+        {
+            MovementComp->StopMovementImmediately(); // 현재 속도 0으로 만듦
+            MovementComp->DisableMovement();         // 이동 기능 끔
+        }
+        
+        UE_LOG(LogTemp, Log, TEXT("[BossTrigger] 트리거 진입 즉시 플레이어 정지 처리 완료"));
+    }
+
     ShowWarningUI();
     
     GetWorld()->GetTimerManager().SetTimer(
@@ -220,13 +243,7 @@ void ACBossBattleStartTrigger::PlayIntroSequence()
     APlayerController* PC = GetWorld()->GetFirstPlayerController();
     if (PC)
     {
-        PlayerController = PC;
-        PC->DisableInput(PC);
-        PC->SetIgnoreMoveInput(true); // 이동 입력 명시적 무시
-        PC->SetIgnoreLookInput(true); // 회전 입력 명시적 무시
         PC->bShowMouseCursor = false;
-        
-        UE_LOG(LogTemp, Log, TEXT("[BossTrigger] 플레이어 입력 비활성화"));
     }
     
     if (CurrentPlayer.IsValid())
@@ -235,8 +252,6 @@ void ACBossBattleStartTrigger::PlayIntroSequence()
         
         if (UCharacterMovementComponent* MovementComp = CurrentPlayer->GetCharacterMovement())
         {
-            MovementComp->StopMovementImmediately();
-            MovementComp->DisableMovement();
             MovementComp->SetComponentTickEnabled(false);
         }
         
@@ -321,35 +336,46 @@ void ACBossBattleStartTrigger::RepositionPlayer(ACPlayerCharacter* PlayerCharact
 
 void ACBossBattleStartTrigger::OnSequenceFinished()
 {
-    UE_LOG(LogTemp, Log, TEXT("[BossTrigger] 시퀀스 종료 - 보스 전투 시작"));
+    UE_LOG(LogTemp, Log, TEXT("[BossTrigger] 시퀀스 종료 - 보스 전투 시작 및 입력 복구"));
     
-    if (PlayerController.IsValid())
-    {
-        PlayerController->EnableInput(PlayerController.Get());
-        PlayerController->SetIgnoreMoveInput(false);
-        PlayerController->SetIgnoreLookInput(false);
-        
-        UE_LOG(LogTemp, Log, TEXT("[BossTrigger] 플레이어 입력 재활성화"));
-    }
-    
+    APlayerController* PC = PlayerController.IsValid() ? PlayerController.Get() : nullptr;
+
     if (CurrentPlayer.IsValid())
     {
-        if (UCharacterMovementComponent* MovementComp = CurrentPlayer->GetCharacterMovement())
+        ACPlayerCharacter* Player = CurrentPlayer.Get();
+
+     
+        if (PC)
         {
-            MovementComp->SetComponentTickEnabled(true);
-            MovementComp->SetMovementMode(MOVE_Walking);
+            Player->EnableInput(PC);
+        }
+
+        if (UCharacterMovementComponent* MovementComp = Player->GetCharacterMovement())
+        {
+            MovementComp->SetComponentTickEnabled(true); 
+            MovementComp->Activate();                   
+            MovementComp->SetMovementMode(MOVE_Walking); 
+            MovementComp->Velocity = FVector::ZeroVector; 
         }
         
-        if (USpringArmComponent* SpringArm = CurrentPlayer->GetCameraBoom())
+        if (USpringArmComponent* SpringArm = Player->GetCameraBoom())
         {
             SpringArm->bUsePawnControlRotation = bOriginalUsePawnControlRotation;
         }
         
-        CurrentPlayer->bUseControllerRotationYaw = bOriginalUseControllerRotationYaw;
+        Player->bUseControllerRotationYaw = bOriginalUseControllerRotationYaw;
         
-        UE_LOG(LogTemp, Log, TEXT("[BossTrigger] 카메라 회전 입력 복원"));
+        UE_LOG(LogTemp, Log, TEXT("[BossTrigger] 캐릭터 이동/회전/입력 상태 완벽 복구"));
+    }
+
+    if (PC)
+    {
+        PC->SetIgnoreMoveInput(false); 
+        PC->SetIgnoreLookInput(false); 
+        PC->bShowMouseCursor = false;  
     }
     
+
     TArray<AActor*> FoundActors;
     UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACStageManager::StaticClass(), FoundActors);
 
@@ -358,7 +384,6 @@ void ACBossBattleStartTrigger::OnSequenceFinished()
         ACStageManager* StageManager = Cast<ACStageManager>(FoundActors[0]);
         if (IsValid(StageManager))
         {
-            UE_LOG(LogTemp, Log, TEXT("[BossTrigger] StageManager에 보스 전투 시작 알림"));
             StageManager->OnBossBattleStartRequested();
         }
     }
@@ -366,7 +391,6 @@ void ACBossBattleStartTrigger::OnSequenceFinished()
     if (IsValid(TargetBoss))
     {
         TargetBoss->StartBossBattle(bSkipIntro);
-        UE_LOG(LogTemp, Log, TEXT("[BossTrigger] 보스 전투 시작됨"));
     }
     
     if (SequenceActor)
@@ -378,7 +402,6 @@ void ACBossBattleStartTrigger::OnSequenceFinished()
     PlayerController.Reset();
     CurrentPlayer.Reset();
 }
-
 
 
 
@@ -441,34 +464,7 @@ void ACBossBattleStartTrigger::SetTriggerEnabled(bool bEnabled)
     }
 }
 
-/*void ACBossBattleStartTrigger::ResetTrigger()
-{
-    bHasTriggered = false;
-    SetTriggerEnabled(true);
-    
-    if (IsValid(TriggerBox))
-    {
-        TriggerBox->UpdateOverlaps();
-             
-        TArray<AActor*> OverlappingActors;
-        TriggerBox->GetOverlappingActors(OverlappingActors, ACPlayerCharacter::StaticClass());
-             
-        if (OverlappingActors.Num() > 0)
-        {
-            for (AActor* Actor : OverlappingActors)
-            {
-                if (ACPlayerCharacter* PlayerCharacter = Cast<ACPlayerCharacter>(Actor))
-                {
-                    UE_LOG(LogTemp, Log, TEXT("[BossTrigger] ResetTrigger - 플레이어가 이미 트리거 내부에 있음"));
-                    AttemptStartBossBattle(PlayerCharacter);
-                    break;
-                }
-            }
-        }
-    }
-    
-    UE_LOG(LogTemp, Log, TEXT("[BossTrigger] 리스폰으로 트리거 초기화"));
-}*/
+
 
 void ACBossBattleStartTrigger::ResetTrigger()
 {

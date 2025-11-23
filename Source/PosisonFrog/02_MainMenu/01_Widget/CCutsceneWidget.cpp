@@ -177,6 +177,8 @@ void UCCutsceneWidget::StartCutscene()
     BP_OnCutsceneStarted();
     BP_OnFrameChanged(CurrentPageIndex, CurrentFrameIndex);
 
+    LockInput(1.0f);
+    
     if (bShowDebugInfo)
     {
         UE_LOG(LogTemp, Log, TEXT("[Cutscene] Started!"));

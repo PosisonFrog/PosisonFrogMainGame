@@ -121,9 +121,9 @@ public:
 	void ResetBossBattleForRespawn();
 	
 	// ──────────── 상태 조회 ────────────
-	FORCEINLINE int32 GetRemainingEnemies(int32 StageID) const;
+	int32 GetRemainingEnemies(int32 StageID) const;
 	FORCEINLINE int32 GetCurrentStage() const { return CurrentStage; }
-	FORCEINLINE bool IsStageCleared(int32 StageID) const;
+	bool IsStageCleared(int32 StageID) const;
 	
 	// ──────────── 이벤트 ────────────
 	UPROPERTY() FOnStageCleared OnStageCleared;
