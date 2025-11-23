@@ -500,6 +500,13 @@ void ACBossBattleStartTrigger::ResetTrigger()
     // 상태 초기화
     bHasTriggered = false;
     bIsEnabled = true;
+    bUsedTrigger = false;
+
+    if (UWorld* World = GetWorld())
+    {
+        World->GetTimerManager().ClearTimer(WarningTimerHandle);
+        World->GetTimerManager().ClearTimer(SequenceTimerHandle);
+    }
     
     if (IsValid(TriggerBox))
     {
@@ -508,10 +515,27 @@ void ACBossBattleStartTrigger::ResetTrigger()
         TriggerBox->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
     }
 
-    if (UCPlayerWidget* PlayerWidget = CurrentPlayer->GetPlayerWidget())
+    CurrentPlayer = nullptr;
+    PlayerController = nullptr;
+    
+    if (UWorld* World = GetWorld())
     {
-        PlayerWidget->UnsubscribeFromBoss();
-        PlayerWidget->HideBossHealthBar();
+        // 로컬 플레이어 컨트롤러 가져오기
+        if (APlayerController* PC = World->GetFirstPlayerController())
+        {
+            // 현재 빙의된(새로 스폰된) 폰 가져오기
+            if (ACPlayerCharacter* NewPlayer = Cast<ACPlayerCharacter>(PC->GetPawn()))
+            {
+                if (UCPlayerWidget* PlayerWidget = NewPlayer->GetPlayerWidget())
+                {
+                    // 안전하게 UI 초기화
+                    PlayerWidget->UnsubscribeFromBoss();
+                    PlayerWidget->HideBossHealthBar();
+                    
+                    UE_LOG(LogTemp, Log, TEXT("[BossTrigger] 새 플레이어 UI 초기화 완료"));
+                }
+            }
+        }
     }
     
     UE_LOG(LogTemp, Log, TEXT("[BossTrigger] 트리거 리셋 완료"));

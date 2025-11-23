@@ -66,10 +66,13 @@ ACEnemyBossCharacter::ACEnemyBossCharacter()
 		MeshComp->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 
 		MeshComp->SetCollisionResponseToAllChannels(ECR_Overlap);
-		MeshComp->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
-		MeshComp->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Block);
+		MeshComp->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+		MeshComp->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Overlap);
 		MeshComp->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Block);
 		MeshComp->SetCollisionResponseToChannel(ECC_GameTraceChannel3, ECR_Block);
+		MeshComp->SetCollisionResponseToChannel(ECC_GameTraceChannel4, ECR_Ignore);
+		
+
 	}
 
 	if (UCapsuleComponent* CapsuleComp = GetCapsuleComponent())
@@ -83,8 +86,10 @@ ACEnemyBossCharacter::ACEnemyBossCharacter()
 		CapsuleComp->SetCollisionResponseToChannel(ECC_Visibility, ECR_Ignore);
 		CapsuleComp->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
 		CapsuleComp->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
-		CapsuleComp->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Overlap);
+		CapsuleComp->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Block);
 		CapsuleComp->SetCollisionResponseToChannel(ECC_GameTraceChannel3, ECR_Overlap);
+		CapsuleComp->SetCollisionResponseToChannel(ECC_GameTraceChannel4, ECR_Ignore);
+
 	}
 }
 
