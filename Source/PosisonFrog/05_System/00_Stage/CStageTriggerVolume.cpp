@@ -63,15 +63,14 @@ void ACStageTriggerVolume::StartMiddleCutscene()
 		ImageCutsceneWidget = CreateWidget<UCCutsceneWidget>(PC, ImageCutsceneWidgetClass);
 		if (ImageCutsceneWidget)
 		{
-
 			ImageCutsceneWidget->OnCutsceneFinished.AddDynamic(this, &ACStageTriggerVolume::OnImageCutsceneFinished);
 			
 			if (PauseSubsystem)
 			{
 				PauseSubsystem->RequestPause(PC);   // 게임 시간 정지
 				PauseSubsystem->SetCanPause(false); // ESC 메뉴 호출 방지
-				
 			}
+			
 			FInputModeUIOnly InputMode;
 			PC->SetInputMode(InputMode);
 			InputMode.SetWidgetToFocus(ImageCutsceneWidget->TakeWidget()); 
