@@ -84,8 +84,6 @@ private:
     
     UPROPERTY(EditAnywhere, Category = "Boss Battle|Timing", meta = (ClampMin = "0.0"))
     float DelayBeforeSequence = 1.0f;
-
-    
     
     /** 인트로를 스킵할지 여부 */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Boss Battle", meta = (AllowPrivateAccess = "true"))

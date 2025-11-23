@@ -5,6 +5,7 @@
 #include "Components/BoxComponent.h"
 #include "00_Character/01_Enemy/CEnemyBossCharacter.h"
 #include "00_Character/00_Player/CPlayerCharacter.h"
+#include "00_Character/00_Player/01_Widget/CPlayerWidget.h"
 #include "00_Stage/CStageManager.h"
 #include "Blueprint/UserWidget.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -388,10 +389,19 @@ void ACBossBattleStartTrigger::OnSequenceFinished()
         }
     }
 
-    if (IsValid(TargetBoss))
+    /*if (IsValid(TargetBoss))
     {
         TargetBoss->StartBossBattle(bSkipIntro);
-    }
+
+        if (CurrentPlayer.IsValid())
+        {
+            if (UCPlayerWidget* PlayerWidget = CurrentPlayer->PlayerWidget)
+            {
+                PlayerWidget->SubscribeToBoss(TargetBoss);  // 델리게이트 구독
+                PlayerWidget->ShowBossHealthBar();           // UI 표시
+            }
+        }
+    }*/
     
     if (SequenceActor)
     {
@@ -437,6 +447,16 @@ void ACBossBattleStartTrigger::ManualTrigger()
     
     UE_LOG(LogTemp, Error, TEXT("[BossTrigger] Manual 보스 전투 시작"));
     TargetBoss->StartBossBattle(bSkipIntro);
+
+    /*if (CurrentPlayer.IsValid())
+    {
+        if (UCPlayerWidget* PlayerWidget = CurrentPlayer->PlayerWidget)
+        {
+            PlayerWidget->SubscribeToBoss(TargetBoss);
+            PlayerWidget->ShowBossHealthBar();
+        }
+    }*/
+    
     bHasTriggered = true;
     
     if (bTriggerOnce)
@@ -478,6 +498,24 @@ void ACBossBattleStartTrigger::ResetTrigger()
         TriggerBox->SetGenerateOverlapEvents(true);
         TriggerBox->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
     }
+
+    /*if (UWorld* World = GetWorld())
+    {
+        if (APlayerController* PC = World->GetFirstPlayerController())
+        {
+            if (APawn* PlayerPawn = PC->GetPawn())
+            {
+                if (ACPlayerCharacter* Player = Cast<ACPlayerCharacter>(PlayerPawn))
+                {
+                    if (UCPlayerWidget* PlayerWidget = Player->PlayerWidget)
+                    {
+                        PlayerWidget->UnsubscribeFromBoss();
+                        PlayerWidget->HideBossHealthBar();
+                    }
+                }
+            }
+        }
+    }*/
     
     UE_LOG(LogTemp, Log, TEXT("[BossTrigger] 트리거 리셋 완료"));
 }

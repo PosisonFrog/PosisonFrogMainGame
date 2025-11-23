@@ -74,6 +74,22 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "PF|HUD")
     void OnUltimateDeactivated();
+
+    // ───────── 보스 체력 UI ─────────
+    UFUNCTION(BlueprintCallable, Category = "PF|HUD")
+    void ShowBossHealthBar();
+
+    UFUNCTION(BlueprintCallable, Category = "PF|HUD")
+    void HideBossHealthBar();
+
+    UFUNCTION(BlueprintCallable, Category = "PF|HUD")
+    void UpdateBossHealthBar(float Current, float Max);
+
+    UFUNCTION(BlueprintCallable, Category = "PF|HUD")
+    void SubscribeToBoss(class ACEnemyBossCharacter* Boss);
+
+    UFUNCTION(BlueprintCallable, Category = "PF|HUD")
+    void UnsubscribeFromBoss();
     
 protected:
     virtual void NativeOnInitialized() override;
@@ -149,7 +165,16 @@ private:
     UOverlay* Overlap_BossHp = nullptr;
 
     UPROPERTY(meta = (BindWidgetOptional))
-    UProgressBar* BossHpBar = nullptr; 
+    UProgressBar* BossHpBar = nullptr;
+
+    UPROPERTY(EditAnywhere, Category = "PF|HUD|BossHP")
+    float SegmentSize = 100.0f;
+
+    UPROPERTY(EditAnywhere, Category = "PF|HUD|BossHP")
+    float TotalSegments = 38.0f;
+    
+    UPROPERTY(Transient)
+    TWeakObjectPtr<class ACEnemyBossCharacter> SubscribedBoss = nullptr;
     
     // ─────────── 표시/연출 관련 기본값 ───────────
     UPROPERTY(EditAnywhere, Category = "PF|HUD|HP")

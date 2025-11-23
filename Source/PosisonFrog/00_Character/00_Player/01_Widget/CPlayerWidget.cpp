@@ -1,6 +1,8 @@
 #include "CPlayerWidget.h"
 
 #include "MediaPlayer.h"
+#include "00_Character/01_Enemy/CEnemyBossCharacter.h"
+#include "00_Character/02_Component/01_EnemyComponent/CEnemyHealthComponent.h"
 #include "99_Util/CLog.h"
 #include "Components/CanvasPanelSlot.h"
 #include "Components/Image.h"
@@ -60,8 +62,7 @@ void UCPlayerWidget::NativeConstruct()
     if (UltAnimationImage)
         UltAnimationImage->SetVisibility(ESlateVisibility::Hidden);
 
-    if (Overlap_BossHp)
-        Overlap_BossHp->SetVisibility(ESlateVisibility::Hidden);
+    HideBossHealthBar();
     
     HideSpinUltImages();
 }
@@ -73,6 +74,8 @@ void UCPlayerWidget::NativeDestruct()
         UltMediaPlayer->Close();
         UltMediaTexture = nullptr;
     }
+
+    UnsubscribeFromBoss();
     
     Super::NativeDestruct();
 }
@@ -260,8 +263,6 @@ void UCPlayerWidget::OnUltimateActivated()
             HpBarChangeDelay,
             false);
     }
-    
-
 }
 
 void UCPlayerWidget::OnUltimateDeactivated()
@@ -282,6 +283,57 @@ void UCPlayerWidget::OnUltimateDeactivated()
     {
         GetWorld()->GetTimerManager().ClearTimer(TimerHandle_HpBarChange);
     }
+}
+
+void UCPlayerWidget::ShowBossHealthBar()
+{
+    if (Overlap_BossHp)
+        Overlap_BossHp->SetVisibility(ESlateVisibility::Visible);
+}
+
+void UCPlayerWidget::HideBossHealthBar()
+{
+    if (Overlap_BossHp)
+        Overlap_BossHp->SetVisibility(ESlateVisibility::Hidden);
+}
+
+void UCPlayerWidget::UpdateBossHealthBar(float Current, float Max)
+{
+    if (!BossHpBar)
+        return;
+
+    const float CurrentSegments = Current/SegmentSize;
+    const float MaxSegments = Max/SegmentSize;
+
+    const float Ratio = SafeRatio(CurrentSegments, MaxSegments);
+    BossHpBar->SetPercent(Ratio);
+}
+
+void UCPlayerWidget::SubscribeToBoss(class ACEnemyBossCharacter* Boss)
+{
+    UnsubscribeFromBoss(); // 기존 구독 해제
+    
+    if (!Boss) return;
+    SubscribedBoss = Boss;
+    
+    // 보스의 HealthComponent에서 OnHealthChanged 구독
+    if (UCEnemyHealthComponent* HealthComp = Boss->FindComponentByClass<UCEnemyHealthComponent>())
+    {
+        HealthComp->OnHealthChanged.AddDynamic(this, &UCPlayerWidget::UpdateBossHealthBar);
+        UpdateBossHealthBar(HealthComp->GetHealth(), HealthComp->GetMaxHealth()); // 초기화
+    }
+}
+
+void UCPlayerWidget::UnsubscribeFromBoss()
+{
+    if (!SubscribedBoss.IsValid()) return;
+    
+    if (UCEnemyHealthComponent* HealthComp = SubscribedBoss->FindComponentByClass<UCEnemyHealthComponent>())
+    {
+        HealthComp->OnHealthChanged.RemoveDynamic(this, &UCPlayerWidget::UpdateBossHealthBar);
+    }
+    
+    SubscribedBoss.Reset();
 }
 
 void UCPlayerWidget::StopDashFX()
