@@ -67,11 +67,11 @@ protected:
 
 	/** 발사체 데미지 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Projectile|Damage")
-	float Damage = 20.f;
+	float Damage = 0.f;
 
 	/** 발사체 속도 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Projectile|Movement")
-	float ProjectileSpeed = 1500.f;
+	float ProjectileSpeed = 0.f;
 
 	/** 발사체 수명 (초) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Projectile|Lifetime")

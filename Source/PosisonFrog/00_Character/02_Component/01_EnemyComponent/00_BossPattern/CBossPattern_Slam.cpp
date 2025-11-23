@@ -1,6 +1,8 @@
 #include "CBossPattern_Slam.h"
 #include "00_Character/01_Enemy/CEnemyBossCharacter.h"
+#include "00_Character/01_Enemy/01_AIController/BossAIController.h"
 #include "00_Character/02_Component/01_EnemyComponent/CEnemyWeaponComponent.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Particles/ParticleSystem.h"
 #include "Sound/SoundBase.h"
@@ -15,14 +17,12 @@ bool UCBossPattern_Slam::ExecutePattern(int32 PhaseIndex, const FBossPatternDefi
 {
 	Super::ExecutePattern(PhaseIndex, PatternData);
 
-	// ✅ 유효성 검증
 	if (!OwnerBoss.IsValid())
 	{
 		UE_LOG(LogTemp, Error, TEXT("[Slam] ExecutePattern REJECTED - Invalid OwnerBoss"));
 		return false;
 	}
 
-	// ✅ 쿨다운 체크
 	if (IsOnCooldown())
 	{
 		UE_LOG(LogTemp, Error, TEXT("[Slam] ExecutePattern REJECTED - Pattern is on cooldown"));
@@ -35,11 +35,27 @@ bool UCBossPattern_Slam::ExecutePattern(int32 PhaseIndex, const FBossPatternDefi
 
 	CurrentPatternData = PatternData;
 
-	// ✅ 기존 타이머 정리
 	ClearTimers();
 
-	float Duration = 0.0f;
+	if (AAIController* AI = GetBossAI())
+	{
+		if (ABossAIController* BossAI = Cast<ABossAIController>(AI))
+		{
+			BossAI->SetChaseEnabled(false); // 추적 끄기
+			BossAI->StopMovement();         // 이동 멈추기
+		}
+	}
+	LockedImpactLocation = OwnerBoss->GetActorLocation() + (OwnerBoss->GetActorForwardVector() * 530.0f);
+	if (UCharacterMovementComponent* MoveComp = OwnerBoss->GetCharacterMovement())
+	{
+		bSavedOrientRotation = MoveComp->bOrientRotationToMovement; 
+		MoveComp->bOrientRotationToMovement = false; 
+		MoveComp->bUseControllerDesiredRotation = false; 
+        
+		MoveComp->StopMovementImmediately();
+	}
 
+	float Duration = 0.0f;
 	if (SlamMontage)
 	{
 		Duration = PlayMontage(SlamMontage);
@@ -48,14 +64,13 @@ bool UCBossPattern_Slam::ExecutePattern(int32 PhaseIndex, const FBossPatternDefi
 			Duration = PatternData.ExecutionTime > 0.f ? PatternData.ExecutionTime : 1.5f;
 		}
 
-		// 임팩트 타이밍 (몽타주 60% 지점)
 		if (UWorld* World = GetWorld())
 		{
 			World->GetTimerManager().SetTimer(
 				TH_ImpactEffect, 
 				this, 
 				&UCBossPattern_Slam::PlayImpactEffectsAndDamage, 
-				Duration * 0.6f, 
+				Duration * 0.52f, //몽타주 재생 진행률 49퍼에서 데미지 입히기
 				false
 			);
 		}
@@ -66,7 +81,7 @@ bool UCBossPattern_Slam::ExecutePattern(int32 PhaseIndex, const FBossPatternDefi
 		Duration = PatternData.ExecutionTime > 0.f ? PatternData.ExecutionTime : 1.0f;
 	}
 
-	// ✅ DataAsset의 RecoveryTime 사용
+	// DataAsset의 RecoveryTime 사용
 	float FinishTime = Duration + CurrentPatternData.RecoveryTime;
 	
 	if (UWorld* World = GetWorld())
@@ -83,21 +98,43 @@ bool UCBossPattern_Slam::ExecutePattern(int32 PhaseIndex, const FBossPatternDefi
 			FinishTime, Duration, CurrentPatternData.RecoveryTime);
 	}
 	
-	return true;  // ✅ 성공 반환
+	return true;  
 }
 
 void UCBossPattern_Slam::OnPatternEnd()
 {
+	if (AAIController* AI = GetBossAI())
+	{
+		if (ABossAIController* BossAI = Cast<ABossAIController>(AI))
+		{
+			BossAI->SetChaseEnabled(true);
+		}
+	}
+	
+	if (OwnerBoss.IsValid())
+	{
+		if (UCharacterMovementComponent* MoveComp = OwnerBoss->GetCharacterMovement())
+		{
+			MoveComp->bOrientRotationToMovement = bSavedOrientRotation;
+		}
+	}
+	
 	Super::OnPatternEnd();
-
-	// ✅ 타이머 정리
 	ClearTimers();
-
+	
 	UE_LOG(LogTemp, Log, TEXT("[Slam] Pattern ended"));
 }
 
 void UCBossPattern_Slam::Cleanup()
 {
+	if (OwnerBoss.IsValid())
+	{
+		if (UCharacterMovementComponent* MoveComp = OwnerBoss->GetCharacterMovement())
+		{
+			MoveComp->bOrientRotationToMovement = true; // 강제 복구
+		}
+	}
+	
 	Super::Cleanup();
 	ClearTimers();
 }
@@ -122,14 +159,12 @@ void UCBossPattern_Slam::PlayImpactEffectsAndDamage()
 	if (!OwnerBoss.IsValid()) return;
 	UWorld* World = OwnerBoss->GetWorld();
 	if (!World) return;
-
-	const FVector ImpactLocation = OwnerBoss->GetActorLocation();
-
+	
 	// 데미지 적용
 	UGameplayStatics::ApplyRadialDamage(
 		World,
 		SlamDamage,
-		ImpactLocation,
+		LockedImpactLocation,
 		DamageRadius,
 		nullptr, 
 		TArray<AActor*>(), 
@@ -137,7 +172,7 @@ void UCBossPattern_Slam::PlayImpactEffectsAndDamage()
 		OwnerBoss->GetController(),
 		true 
 	);
-	UE_LOG(LogTemp, Warning, TEXT("[Slam] Applied radial damage at %s"), *ImpactLocation.ToString());
+	UE_LOG(LogTemp, Warning, TEXT("[Slam] Applied radial damage at %s"), *LockedImpactLocation.ToString());
 
 	// 이펙트
 	if (GroundImpactEffect)
@@ -145,7 +180,7 @@ void UCBossPattern_Slam::PlayImpactEffectsAndDamage()
 		UGameplayStatics::SpawnEmitterAtLocation(
 			World,
 			GroundImpactEffect,
-			ImpactLocation,
+			LockedImpactLocation,
 			FRotator::ZeroRotator
 		);
 	}
@@ -156,7 +191,7 @@ void UCBossPattern_Slam::PlayImpactEffectsAndDamage()
 		UGameplayStatics::PlaySoundAtLocation(
 			World,
 			GroundImpactSound,
-			ImpactLocation
+			LockedImpactLocation
 		);
 	}
 

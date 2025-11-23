@@ -27,37 +27,52 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Barrage")
 	TObjectPtr<UAnimMontage> BarrageMontage;
 
-	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Barrage")
+	//데이터 에셋에서 관리되는 값
+	UPROPERTY(VisibleAnywhere, Category = "Pattern|Barrage")
 	TSubclassOf<AActor> ProjectileClass;
 
+	//데이터 에셋에서 관리되는 값
+	UPROPERTY(VisibleAnywhere, Category = "Pattern|Barrage")
+	float FallSpeed = 0.0f;
+
+	//데이터 에셋에서 관리되는 값
+	UPROPERTY(VisibleAnywhere, Category = "Pattern|Barrage")
+	float DropHeight = 0.0f;
+
+	//데이터 에셋에서 관리되는 값
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Barrage")
 	TSubclassOf<AActor> WarningDecalClass;
 
-	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Barrage")
-	float ShotInterval = 0.1f;
+	//데이터 에셋에서 관리되는 값
+	UPROPERTY(VisibleAnywhere, Category = "Pattern|Barrage")
+	float RandomSpawnRadius = 0.0f;
 
+	//데이터 에셋에서 관리되는 값
+	UPROPERTY(VisibleAnywhere, Category = "Pattern|Barrage")
+	float ShotInterval = 0.0f;
+
+	
+
+	//---------데칼 세팅 변수--------
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Barrage")
 	float DecalPreviewTime = 1.0f;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Barrage")
 	float CoconutFallDelay  = 1.5f;
-
-	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Barrage")
-	float RandomSpawnRadius = 1000.0f;
-
-	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Barrage")
-	float WarningDecalRadius = 200.0f;
 	
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Barrage")
-	float FallSpeed = 20000.0f;
+	float WarningDecalRadius = 200.0f;
 
+	
+	//----------데미지 변수 -------------
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Barrage")
-	float DropHeight = 2500.0f;
-
+	float BarrageDamage = 30.0f;
+	
+	
 private:
 	FBossPatternDefinition CurrentPatternData;
 	
-	int32 CurrentMaxShots = 15;
+	int32 CurrentMaxShots = 0;
 	int32 BarrageShotCount = 0;
 	TArray<FVector> PrePlannedDropLocations;
 

@@ -3,6 +3,7 @@
 #include "00_Character/02_Component/01_EnemyComponent/CEnemyWeaponComponent.h"
 #include "00_Character/01_Enemy/01_AIController/BossAIController.h"
 #include "AIController.h"
+#include "00_Character/01_Enemy/02_Weapon/CBossProjectile.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/ProjectileMovementComponent.h"
 #include "Components/PrimitiveComponent.h"
@@ -18,6 +19,35 @@ bool UCBossPattern_Barrage::ExecutePattern(int32 PhaseIndex, const FBossPatternD
 {
 	Super::ExecutePattern(PhaseIndex, PatternData);
 
+
+	//-------------데이터 에셋 연동----------------
+	
+	if (PatternData.ProjectileRain.ProjectileClass)
+	{
+		ProjectileClass = PatternData.ProjectileRain.ProjectileClass;
+	}
+
+	if (PatternData.ProjectileRain.SpawnRadius > 0.f)
+	{
+		RandomSpawnRadius = PatternData.ProjectileRain.SpawnRadius;
+	}
+    
+	if (PatternData.ProjectileRain.SpawnHeight > 0.f)
+	{
+		DropHeight = PatternData.ProjectileRain.SpawnHeight;
+	}
+
+	if (FMath::Abs(PatternData.ProjectileRain.InitialVelocity.Z) > 0.f)
+	{
+		FallSpeed = FMath::Abs(PatternData.ProjectileRain.InitialVelocity.Z);
+	}
+	
+	if (PatternData.ProjectileRain.SpawnInterval > 0.f)
+	{
+		ShotInterval = PatternData.ProjectileRain.SpawnInterval;
+	}
+
+	
 	UE_LOG(LogTemp, Warning, TEXT("[Barrage] Executing barrage attack - Phase %d"), PhaseIndex);
 	UE_LOG(LogTemp, Log, TEXT("[Barrage] ExecutionTime: %.2f, RecoveryTime: %.2f, Cooldown: %.2f"), 
 		PatternData.ExecutionTime, PatternData.RecoveryTime, PatternData.Cooldown);
@@ -43,14 +73,37 @@ bool UCBossPattern_Barrage::ExecutePattern(int32 PhaseIndex, const FBossPatternD
 	if (AActor* Player = GetPlayerTarget())
 	{
 		const FVector PlayerLocation = Player->GetActorLocation();
-		
+		UWorld* World = GetWorld();
+
 		for (int32 i = 0; i < CurrentMaxShots; ++i)
 		{
 			const FVector2D RandomOffset = FMath::RandPointInCircle(RandomSpawnRadius);
-			FVector DropLocation = PlayerLocation + FVector(RandomOffset.X, RandomOffset.Y, 0.0f);
-			PrePlannedDropLocations.Add(DropLocation);
+			FVector TraceStart = PlayerLocation + FVector(RandomOffset.X, RandomOffset.Y, 0.0f);
+			
+			TraceStart.Z += 500.0f; 
+			FVector TraceEnd = TraceStart - FVector(0.0f, 0.0f, 2000.0f);
+            
+			FHitResult HitResult;
+			FCollisionQueryParams Params;
+			Params.AddIgnoredActor(Player); 
+			Params.AddIgnoredActor(OwnerBoss.Get()); 
 
-			UE_LOG(LogTemp, Log, TEXT("[Barrage] Planned drop location %d: %s"), i, *DropLocation.ToString());
+			FVector FinalDropLocation = TraceStart; // 기본값
+
+			// ECC_Visibility 또는 ECC_WorldStatic 채널로 바닥 검출
+			if (World && World->LineTraceSingleByChannel(HitResult, TraceStart, TraceEnd, ECC_WorldStatic, Params))
+			{
+				FinalDropLocation = HitResult.ImpactPoint;
+				FinalDropLocation.Z += 5.0f; 
+			}
+			else
+			{
+				// 못찾으면 플레이어 발밑.
+				FinalDropLocation = PlayerLocation + FVector(RandomOffset.X, RandomOffset.Y, -88.0f); 
+			}
+
+			PrePlannedDropLocations.Add(FinalDropLocation);
+			UE_LOG(LogTemp, Log, TEXT("[Barrage] Planned drop location %d: %s"), i, *FinalDropLocation.ToString());
 		}
 	}
 
@@ -214,16 +267,21 @@ void UCBossPattern_Barrage::FireBarrageShot()
 
 		if (AActor* Projectile = SafeWorld->SpawnActor<AActor>(ProjectileClassCopy, ProjectileTransform, ProjectileParams))
 		{
-			FVector InitialVelocity = FVector(0.0f, 0.0f, -SafeThis->FallSpeed);
-			if (UProjectileMovementComponent* ProjectileMovement = Projectile->FindComponentByClass<UProjectileMovementComponent>())
+			if (ACBossProjectile* BossProjectile = Cast<ACBossProjectile>(Projectile))
 			{
-				ProjectileMovement->Velocity = InitialVelocity;
+				BossProjectile->InitProjectile(
+					SafeBossPtr, 
+					SafeThis->BarrageDamage, 
+					SafeThis->FallSpeed, 
+					FVector::DownVector 
+				);
 			}
-			else if (UPrimitiveComponent* PrimitiveComp = Cast<UPrimitiveComponent>(Projectile->GetRootComponent()))
+			else 
 			{
-				if (PrimitiveComp->IsSimulatingPhysics())
+				FVector InitialVelocity = FVector(0.0f, 0.0f, -SafeThis->FallSpeed);
+				if (UProjectileMovementComponent* ProjectileMovement = Projectile->FindComponentByClass<UProjectileMovementComponent>())
 				{
-					PrimitiveComp->SetPhysicsLinearVelocity(InitialVelocity);
+					ProjectileMovement->Velocity = InitialVelocity;
 				}
 			}
 		}

@@ -7,6 +7,7 @@
 
 /**
  * 기본 공격 패턴
+ * AnimNotifyState_BossAttack을 통해 충돌 검사 구간을 제어합니다.
  */
 UCLASS(ClassGroup=(Boss), meta=(BlueprintSpawnableComponent))
 class POSISONFROG_API UCBossPattern_BasicAttack : public UCBossPatternBase
@@ -20,11 +21,9 @@ public:
 	virtual void OnPatternEnd() override;
 	virtual void Cleanup() override;
 	
-	UFUNCTION(BlueprintCallable, Category = "Pattern|BasicAttack")
-	void Anim_AttackStart();
-	
-	UFUNCTION(BlueprintCallable, Category = "Pattern|BasicAttack")
-	void Anim_AttackEnd();
+	// [노티파이 스테이트 연동 함수]
+	void StartAttackCollision(); // 공격 판정 시작 (리스트 초기화)
+	void CheckAttackCollision(); // 매 프레임 충돌 검사
 
 protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern|BasicAttack")
@@ -37,31 +36,33 @@ protected:
 	FName RightHandSocketName = FName("hand_rSocket");
 	
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern|BasicAttack|Collision")
-	float AttackSphereRadius = 80.0f;
+	float AttackSphereRadius = 300.0f;
 	
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern|BasicAttack|Damage")
 	float BasicAttackDamage = 30.0f;
 	
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern|BasicAttack|Damage")
-	float KnockbackPower = 800.0f;
+	float KnockbackPower = 2500.0f;
 	
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern|BasicAttack|Damage")
-	float KnockbackUpForce = 200.0f;
+	float KnockbackUpForce = 300.0f;
 	
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern|BasicAttack|Debug")
 	bool bDrawDebug = false;
 
+
+
 private:
+
+	FVector LockedAttackDirection = FVector::ForwardVector;
 	FBossPatternDefinition CurrentPatternData;
 	
+	// 중복 피격 방지용
 	TSet<TWeakObjectPtr<AActor>> HitActors;
 	
-	bool bCollisionActive = false;
-	
-	FTimerHandle CollisionCheckTimer;
+	// 패턴 종료용 타이머
 	FTimerHandle FinishTimer;
 	
-	void CheckCollision();
 	void FinishPatternInternal();
 	void ClearTimers();
 };

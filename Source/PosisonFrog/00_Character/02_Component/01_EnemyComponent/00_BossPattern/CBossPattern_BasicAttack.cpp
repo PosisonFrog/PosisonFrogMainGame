@@ -1,10 +1,12 @@
 #include "CBossPattern_BasicAttack.h"
 #include "00_Character/01_Enemy/CEnemyBossCharacter.h"
 #include "00_Character/02_Component/01_EnemyComponent/CEnemyWeaponComponent.h"
+#include "00_Character/02_Component/00_PlayerComponent/CPlayerKnockbackComponent.h" // 넉백 컴포넌트
 #include "GameFramework/Character.h"
 #include "Components/CapsuleComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "DrawDebugHelpers.h"
+#include "Engine/DamageEvents.h"
 
 UCBossPattern_BasicAttack::UCBossPattern_BasicAttack()
 {
@@ -23,36 +25,28 @@ bool UCBossPattern_BasicAttack::ExecutePattern(int32 PhaseIndex, const FBossPatt
 		return false;
 	}
 
-	UWorld* World = GetWorld();
-	if (!World)
-	{
-		UE_LOG(LogTemp, Error, TEXT("[BasicAttack] ExecutePattern REJECTED - World is null"));
-		return false;
-	}
-
 	if (IsOnCooldown())
 	{
 		UE_LOG(LogTemp, Error, TEXT("[BasicAttack] ExecutePattern REJECTED - Pattern is on cooldown"));
 		return false;
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("[BasicAttack] Executing basic attack - Phase %d"), PhaseIndex);
-	UE_LOG(LogTemp, Log, TEXT("[BasicAttack] ExecutionTime: %.2f, RecoveryTime: %.2f"), 
-		PatternData.ExecutionTime, PatternData.RecoveryTime);
+	UE_LOG(LogTemp, Log, TEXT("[BasicAttack] Executing Phase %d (Dmg: %.1f)"), PhaseIndex, BasicAttackDamage);
 
 	CurrentPatternData = PatternData;
 	
+	// 상태 초기화
 	HitActors.Empty();
-	bCollisionActive = false;
 	ClearTimers();
 
 	float Duration = 0.0f;
 
+	// 1. 몽타주 재생
 	if (AttackMontage)
 	{
 		Duration = PlayMontage(AttackMontage);
-		UE_LOG(LogTemp, Log, TEXT("[BasicAttack] Montage Duration: %.2f"), Duration);
 	}
+	// (백업) 몽타주 없으면 웨폰 컴포넌트 사용
 	else if (WeaponComponent.IsValid())
 	{
 		WeaponComponent->SetCurrentAttackIndex(AttackIndex);
@@ -60,11 +54,13 @@ bool UCBossPattern_BasicAttack::ExecutePattern(int32 PhaseIndex, const FBossPatt
 		Duration = 1.0f;
 	}
 
+	// 2. 지속 시간 보정
 	if (Duration <= 0.0f) 
 	{
 		Duration = PatternData.ExecutionTime > 0.0f ? PatternData.ExecutionTime : 1.0f;
 	}
 
+	// 3. 패턴 종료 타이머 설정 (Execution + Recovery)
 	float TotalTime = Duration + CurrentPatternData.RecoveryTime;
 	
 	TWeakObjectPtr<UCBossPattern_BasicAttack> WeakThis(this);
@@ -77,181 +73,138 @@ bool UCBossPattern_BasicAttack::ExecutePattern(int32 PhaseIndex, const FBossPatt
 		}
 	});
 	
-	World->GetTimerManager().SetTimer(FinishTimer, FinishDelegate, TotalTime, false);
-	
-	UE_LOG(LogTemp, Log, TEXT("[BasicAttack] Pattern will finish in %.2f seconds (Execution: %.2f + Recovery: %.2f)"), 
-		TotalTime, Duration, CurrentPatternData.RecoveryTime);
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().SetTimer(FinishTimer, FinishDelegate, TotalTime, false);
+	}
 	
 	return true; 
 }
 
-void UCBossPattern_BasicAttack::Anim_AttackStart()
+// [노티파이 호출] 공격 판정 시작
+void UCBossPattern_BasicAttack::StartAttackCollision()
 {
-	UE_LOG(LogTemp, Warning, TEXT("[BasicAttack] Attack collision ACTIVATED"));
-	
-	bCollisionActive = true;
 	HitActors.Empty();
-	
-	UWorld* World = GetWorld();
-	if (World)
-	{
-		TWeakObjectPtr<UCBossPattern_BasicAttack> WeakThis(this);
-		FTimerDelegate CollisionDelegate;
-		CollisionDelegate.BindLambda([WeakThis]()
-		{
-			if (WeakThis.IsValid())
-			{
-				WeakThis->CheckCollision();
-				UE_LOG(LogTemp, Warning, TEXT("[BasicAttack] Checking collision..."));
-			}
-			else
-			{
-				UE_LOG(LogTemp, Error, TEXT("[BasicAttack] Fails to check collision - WeakThis is invalid"));
-			}
-		});
-		
-		World->GetTimerManager().SetTimer(
-			CollisionCheckTimer,
-			CollisionDelegate,
-			0.016f, 
-			true 
-		);
-	}
+	UE_LOG(LogTemp, Log, TEXT("[BasicAttack] Collision Check START (Hit List Reset)"));
 }
 
-void UCBossPattern_BasicAttack::Anim_AttackEnd()
+// [노티파이 호출] 매 프레임 충돌 검사
+void UCBossPattern_BasicAttack::CheckAttackCollision()
 {
-	UE_LOG(LogTemp, Warning, TEXT("[BasicAttack] Attack collision DEACTIVATED"));
-	
-	bCollisionActive = false;
-	
-	if (UWorld* World = GetWorld())
-	{
-		World->GetTimerManager().ClearTimer(CollisionCheckTimer);
-	}
+	if (!OwnerBoss.IsValid()) return;
+
+    UWorld* World = GetWorld();
+    if (!World) return;
+
+    USkeletalMeshComponent* Mesh = OwnerBoss->GetMesh();
+    if (!Mesh) return;
+
+    // 1. 소켓 위치 찾기
+    FVector SocketLocation = FVector::ZeroVector;
+    if (Mesh->DoesSocketExist(RightHandSocketName))
+    {
+        SocketLocation = Mesh->GetSocketLocation(RightHandSocketName);
+    }
+    else
+    {
+        // 소켓 없으면 보스 앞쪽으로 대충 잡음 (안전장치)
+        SocketLocation = OwnerBoss->GetActorLocation() + OwnerBoss->GetActorForwardVector() * 100.0f;
+    }
+    
+    // 2. 스윕(Sweep) 검사
+    TArray<FHitResult> HitResults;
+    FCollisionQueryParams QueryParams;
+    QueryParams.AddIgnoredActor(OwnerBoss.Get());
+    QueryParams.bTraceComplex = false;
+
+    // ★ 중요: ECC_Pawn 대신 ECC_WorldDynamic 사용 (플레이어 캡슐 감지용)
+    bool bHit = World->SweepMultiByChannel(
+        HitResults,
+        SocketLocation,
+        SocketLocation, // 시작=끝 (구체 오버랩과 동일 효과)
+        FQuat::Identity,
+        ECC_GameTraceChannel1, 
+        FCollisionShape::MakeSphere(AttackSphereRadius),
+        QueryParams
+    );
+
+    // 디버그 드로잉
+    if (bDrawDebug)
+    {
+        DrawDebugSphere(World, SocketLocation, AttackSphereRadius, 12, 
+            bHit ? FColor::Red : FColor::Green, false, 0.05f); 
+    }
+
+    if (!bHit) return;
+
+    // 3. 결과 처리
+    for (const FHitResult& Hit : HitResults)
+    {
+        AActor* HitActor = Hit.GetActor();
+        if (!HitActor) continue;
+
+        // 이미 맞은 대상은 건너뜀
+        if (HitActors.Contains(HitActor)) continue;
+
+        // 플레이어인지 확인 (Character)
+        ACharacter* HitCharacter = Cast<ACharacter>(HitActor);
+        if (!HitCharacter) continue;
+
+        // [데미지 적용]
+        UGameplayStatics::ApplyDamage(
+            HitCharacter,
+            BasicAttackDamage,
+            OwnerBoss->GetController(),
+            OwnerBoss.Get(),
+            UDamageType::StaticClass()
+        );
+    	
+        
+    	if (HitCharacter)
+    	{
+    		FVector KnockDirection = LockedAttackDirection.IsNearlyZero() ? OwnerBoss->GetActorForwardVector() : LockedAttackDirection;
+    		FVector LaunchVelocity = KnockDirection * KnockbackPower;
+    		LaunchVelocity.Z += KnockbackUpForce;
+    		HitCharacter->LaunchCharacter(LaunchVelocity, true, true);
+
+    		if (UCPlayerKnockbackComponent* KnockbackComp = HitCharacter->FindComponentByClass<UCPlayerKnockbackComponent>())
+    		{
+    			KnockbackComp->StartKnockback(OwnerBoss.Get());
+    		}
+    	}
+
+        // 피격 목록에 등록 (이번 공격 중복 피격 방지)
+        HitActors.Add(HitActor);
+
+        UE_LOG(LogTemp, Warning, TEXT("[BasicAttack] HIT CONFIRMED: %s (Dmg: %.1f)"), *HitActor->GetName(), BasicAttackDamage);
+    }
 }
 
-void UCBossPattern_BasicAttack::CheckCollision()
+void UCBossPattern_BasicAttack::FinishPatternInternal()
 {
-	if (!bCollisionActive || !OwnerBoss.IsValid())
-	{
-		return;
-	}
-
-	UWorld* World = GetWorld();
-	if (!World) return;
-
-	USkeletalMeshComponent* mesh = OwnerBoss->GetMesh();
-	if (!mesh || !mesh->DoesSocketExist(RightHandSocketName))
-	{
-		if (bDrawDebug)
-		{
-			UE_LOG(LogTemp, Warning, TEXT("[BasicAttack] Socket '%s' not found!"), *RightHandSocketName.ToString());
-		}
-		return;
-	}
-
-	FVector SocketLocation = mesh->GetSocketLocation(RightHandSocketName);
-	
-	TArray<FHitResult> HitResults;
-	FCollisionQueryParams QueryParams;
-	QueryParams.AddIgnoredActor(OwnerBoss.Get());
-	QueryParams.bTraceComplex = false;
-
-	bool bHit = World->SweepMultiByChannel(
-		HitResults,
-		SocketLocation,
-		SocketLocation,
-		FQuat::Identity,
-		ECC_Pawn,
-		FCollisionShape::MakeSphere(AttackSphereRadius),
-		QueryParams
-	);
-
-	if (bDrawDebug)
-	{
-		DrawDebugSphere(
-			World,
-			SocketLocation,
-			AttackSphereRadius,
-			12,
-			bHit ? FColor::Red : FColor::Green,
-			false,
-			0.1f
-		);
-	}
-
-	if (!bHit) return;
-
-	for (const FHitResult& Hit : HitResults)
-	{
-		AActor* HitActor = Hit.GetActor();
-		if (!HitActor) continue;
-
-		if (HitActors.Contains(HitActor))
-		{
-			continue;
-		}
-
-		ACharacter* HitCharacter = Cast<ACharacter>(HitActor);
-		if (!HitCharacter) continue;
-
-		// 데미지 적용
-		UGameplayStatics::ApplyDamage(
-			HitCharacter,
-			BasicAttackDamage,
-			OwnerBoss->GetController(),
-			OwnerBoss.Get(),
-			UDamageType::StaticClass()
-		);
-
-		// 넉백
-		FVector KnockDirection = (HitCharacter->GetActorLocation() - OwnerBoss->GetActorLocation()).GetSafeNormal();
-		FVector LaunchVelocity = KnockDirection * KnockbackPower;
-		LaunchVelocity.Z += KnockbackUpForce;
-		HitCharacter->LaunchCharacter(LaunchVelocity, true, true);
-
-		HitActors.Add(HitActor);
-
-		UE_LOG(LogTemp, Warning, TEXT("[BasicAttack] HIT: %s, Damage: %.1f, Knockback: %.1f"), 
-			*HitActor->GetName(), BasicAttackDamage, KnockbackPower);
-	}
+	//UE_LOG(LogTemp, Log, TEXT("[BasicAttack] Pattern Duration Finished"));
+	ClearTimers();
+	FinishPattern(true); // 쿨다운 적용하며 종료
 }
 
 void UCBossPattern_BasicAttack::OnPatternEnd()
 {
 	Super::OnPatternEnd();
-
 	ClearTimers();
-	
-	bCollisionActive = false;
-	
-	UE_LOG(LogTemp, Log, TEXT("[BasicAttack] OnPatternEnd called"));
+	HitActors.Empty();
 }
 
 void UCBossPattern_BasicAttack::Cleanup()
 {
 	Super::Cleanup();
 	ClearTimers();
-	bCollisionActive = false;
-}
-
-void UCBossPattern_BasicAttack::FinishPatternInternal()
-{
-	UE_LOG(LogTemp, Log, TEXT("[BasicAttack] FinishPatternInternal called"));
-	
-	bCollisionActive = false;
-	ClearTimers();
-	
-	FinishPattern(true);
+	HitActors.Empty();
 }
 
 void UCBossPattern_BasicAttack::ClearTimers()
 {
-	if (UWorld* World = GetWorld())
+	if (GetWorld())
 	{
-		FTimerManager& TimerManager = World->GetTimerManager();
-		TimerManager.ClearTimer(CollisionCheckTimer);
-		TimerManager.ClearTimer(FinishTimer);
+		GetWorld()->GetTimerManager().ClearTimer(FinishTimer);
 	}
 }

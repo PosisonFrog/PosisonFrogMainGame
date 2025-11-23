@@ -46,7 +46,7 @@ protected:
 	float SlamDamage = 30.0f;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Slam")
-	float DamageRadius = 500.0f;
+	float DamageRadius = 600.0f;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Slam")
 	float SlamLaunchPower = 1000.0f;
@@ -55,4 +55,7 @@ private:
 	FBossPatternDefinition CurrentPatternData;
 	FTimerHandle TH_Finish;
 	FTimerHandle TH_ImpactEffect;
+
+	FVector LockedImpactLocation;
+	bool bSavedOrientRotation = false;
 };
