@@ -5,6 +5,7 @@
 #include "Blueprint/UserWidget.h"
 #include "CPlayerWidget.generated.h"
 
+class UOverlay;
 class UMediaTexture;
 class UMediaSource;
 class UMediaPlayer;
@@ -142,6 +143,13 @@ private:
 
     UPROPERTY(meta = (BindWidgetOptional))
     UImage* SpinStack_4 = nullptr;
+
+    // 보스 체력
+    UPROPERTY(meta = (BindWidgetOptional))
+    UOverlay* Overlap_BossHp = nullptr;
+
+    UPROPERTY(meta = (BindWidgetOptional))
+    UProgressBar* BossHpBar = nullptr; 
     
     // ─────────── 표시/연출 관련 기본값 ───────────
     UPROPERTY(EditAnywhere, Category = "PF|HUD|HP")
