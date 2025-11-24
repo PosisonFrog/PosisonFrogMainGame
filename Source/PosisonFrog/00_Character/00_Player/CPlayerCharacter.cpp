@@ -707,7 +707,10 @@ void ACPlayerCharacter::OnHitByTankerCharge(AActor* HitPlayer, FVector Knockback
     // 콤보 리셋
     if (ComboStackComponent)
     {
-        ComboStackComponent->OnReset(ECSCResetReason::Reset_BA_Rush);
+        if (bRankAllReset)
+            ComboStackComponent->OnReset(ECSCResetReason::Reset_BA_Rush);
+        else
+            ComboStackComponent->DemoteOneRank();
     }
 }
 

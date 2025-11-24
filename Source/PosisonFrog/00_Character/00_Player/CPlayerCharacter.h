@@ -273,6 +273,9 @@ protected:
     UPROPERTY(EditDefaultsOnly, Category = "Ultimate|Animation")
     UAnimMontage* UltimateHammerMontage;
 
+    UPROPERTY(EditAnywhere, Category = "CSC")
+    bool bRankAllReset = false;
+    
 private:
     FTimerHandle TimerHandle_UltDuration;
     FTimerHandle TimerHandle_UltUITick;

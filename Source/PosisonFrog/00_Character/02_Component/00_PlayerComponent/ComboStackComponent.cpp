@@ -120,6 +120,17 @@ void UComboStackComponent::OnReset(ECSCResetReason Reason)
     ResetInternal(true, true);
 }
 
+void UComboStackComponent::DemoteOneRank()
+{
+    if (!GetWorld())
+    {
+        return;
+    }
+
+    const float CurrentTime = GetWorld()->GetTimeSeconds();
+    TryDemoteOneStep(CurrentTime);
+}
+
 bool UComboStackComponent::CanCastUlt() const
 {
     return Rank == EComboRank::S && UltState == EUltState::Ready;
@@ -204,9 +215,9 @@ void UComboStackComponent::HandleDecay(float CurrentTime)
         return;
     }
 
-   if (!bIsDecaying)
-        {
-       if (CurrentTime - LastHitTime >= Config.DecayStartDelay)
+    if (!bIsDecaying)
+    {
+        if (CurrentTime - LastHitTime >= Config.DecayStartDelay)
         {
             EnterDecay(CurrentTime);
         }
