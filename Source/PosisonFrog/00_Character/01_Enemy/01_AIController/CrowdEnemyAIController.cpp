@@ -20,8 +20,8 @@ void ACrowdEnemyAIController::OnPossess(APawn* InPawn)
     // 컨트롤러가 올바른 Pawn에 빙의되었는지 확인합니다. (디버깅용 로그)
     if (Cast<ACEnemyCharacterBase>(InPawn))
     {
-        CLog::Print(*InPawn->GetName(), 1, 2.f, FColor::Yellow);
-        CLog::Print(TEXT("ACrowdEnemyAIController가 위 폰에 빙의함."), 1, 2.f, FColor::Yellow);
+        //CLog::Print(*InPawn->GetName(), 1, 2.f, FColor::Yellow);
+        //CLog::Print(TEXT("ACrowdEnemyAIController가 위 폰에 빙의함."), 1, 2.f, FColor::Yellow);
     }
 }
 

@@ -58,4 +58,5 @@ private:
 
 	FVector LockedImpactLocation;
 	bool bSavedOrientRotation = false;
+	bool bSavedUseControllerDesiredRotation = false;
 };

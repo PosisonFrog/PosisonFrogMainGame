@@ -48,7 +48,9 @@ bool UCBossPattern_Slam::ExecutePattern(int32 PhaseIndex, const FBossPatternDefi
 	LockedImpactLocation = OwnerBoss->GetActorLocation() + (OwnerBoss->GetActorForwardVector() * 530.0f);
 	if (UCharacterMovementComponent* MoveComp = OwnerBoss->GetCharacterMovement())
 	{
-		bSavedOrientRotation = MoveComp->bOrientRotationToMovement; 
+		bSavedOrientRotation = MoveComp->bOrientRotationToMovement;
+		bSavedUseControllerDesiredRotation = MoveComp->bUseControllerDesiredRotation;
+		
 		MoveComp->bOrientRotationToMovement = false; 
 		MoveComp->bUseControllerDesiredRotation = false; 
         
@@ -116,6 +118,7 @@ void UCBossPattern_Slam::OnPatternEnd()
 		if (UCharacterMovementComponent* MoveComp = OwnerBoss->GetCharacterMovement())
 		{
 			MoveComp->bOrientRotationToMovement = bSavedOrientRotation;
+			MoveComp->bUseControllerDesiredRotation = bSavedUseControllerDesiredRotation;
 		}
 	}
 	
@@ -201,6 +204,21 @@ void UCBossPattern_Slam::PlayImpactEffectsAndDamage()
 		if (APlayerController* PC = UGameplayStatics::GetPlayerController(World, 0))
 		{
 			PC->ClientStartCameraShake(GroundImpactShake);
+		}
+	}
+
+	if (OwnerBoss.IsValid())
+	{
+		if (ABossAIController* BossAI = Cast<ABossAIController>(GetBossAI()))
+		{
+			// AI 추적을 켜서 회전 계산을 시작하게 함 (이동은 MoveTo가 호출되어야 하므로 제자리 회전만 함)
+			BossAI->SetChaseEnabled(true); 
+		}
+
+		if (UCharacterMovementComponent* MoveComp = OwnerBoss->GetCharacterMovement())
+		{
+			// 컨트롤러 방향(AI가 바라보는 곳)으로 몸을 돌리도록 설정 복구
+			MoveComp->bUseControllerDesiredRotation = true;
 		}
 	}
 }
