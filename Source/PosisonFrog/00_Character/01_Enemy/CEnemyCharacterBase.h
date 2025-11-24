@@ -214,6 +214,7 @@ protected:
     virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override; 
     virtual void Tick(float DeltaSeconds) override;
     virtual void ReinitializeCollision();
+    virtual void FellOutOfWorld(const class UDamageType& dmgType) override;
 
     // FSM
     virtual void Think(float DeltaTime);                // 현재 상태에 따라 적절한 행동

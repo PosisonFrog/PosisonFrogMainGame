@@ -21,6 +21,7 @@
 #include "TimerManager.h"
 #include "00_Character/01_Enemy/CEnemyBossCharacter.h"
 #include "00_Character/01_Enemy/CRiotRobotHordeTrigger.h"
+#include "GameFramework/CharacterMovementComponent.h"
 
 ACStageManager::ACStageManager()
 {
@@ -95,6 +96,12 @@ void ACStageManager::BeginPlay()
 	}
 	
 	CLog::Log(TEXT("[StageManager] BeginPlay 완료!"));
+
+
+	// 5초마다 한 번씩 몬스터 위치가 이상한지 체크하는 타이머 실행
+	GetWorldTimerManager().SetTimer(FailSafeTimer, this, &ACStageManager::CheckForStuckEnemies, 5.0f, true);
+    
+	LastEnemyDeathTime = GetWorld()->GetTimeSeconds();
 }
 
 void ACStageManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -1463,6 +1470,7 @@ void ACStageManager::OnEnemyDied(AActor* DeadActor)
 		CLog::Log(FString::Printf(TEXT("[ACStageManager::OnEnemyDied] 스테이지 %d 적 사망. 남은 적: %d"),
 			FoundStage, Remaining));
 	}
+	LastEnemyDeathTime = GetWorld()->GetTimeSeconds();
 }
 
 void ACStageManager::CheckPreloadTrigger()
@@ -1642,4 +1650,67 @@ void ACStageManager::RespawnTutorialEnemies(int32 StageID, FName StepId)
     
 	SpawnTutorialEnemies(StageID, Rule.EnemyClass, Rule.EnemyCount);
 	FillPlayerForRule(Rule);
+}
+
+void ACStageManager::Debug_TeleportRemainingEnemiesToPlayer()
+{
+	// 1. 플레이어 위치 찾기
+	APawn* Player = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+	if (!Player) return;
+
+	FVector PlayerLoc = Player->GetActorLocation();
+	FVector Forward = Player->GetActorForwardVector();
+
+	// 2. 현재 스테이지의 살아있는 적 찾기
+	if (TArray<TObjectPtr<ACEnemyCharacterBase>>* Enemies = StageEnemies.Find(CurrentStage))
+	{
+		int32 Count = 0;
+		for (auto& EnemyPtr : *Enemies)
+		{
+			ACEnemyCharacterBase* Enemy = EnemyPtr.Get();
+            
+			// 살아있는 녀석만
+			if (IsValid(Enemy) && !Enemy->IsPendingKillPending())
+			{
+				// 플레이어 앞쪽 공중으로 강제 소환
+				FVector TeleportPos = PlayerLoc + (Forward * 300.0f) + FVector(0, 0, 150.0f);
+                
+				// 겹치지 않게 조금씩 옆으로
+				TeleportPos += FVector(Count * 50.0f, Count * 50.0f, 0); 
+
+				Enemy->SetActorLocation(TeleportPos);
+                
+				// 혹시 움직임이 멈췄을 수 있으니 물리/AI 리셋
+				if (auto* MoveComp = Enemy->GetCharacterMovement())
+				{
+					MoveComp->StopMovementImmediately();
+					MoveComp->SetMovementMode(MOVE_Walking);
+				}
+                
+				CLog::Log(FString::Printf(TEXT("길 잃은 몬스터 [%s] 강제 소환!"), *Enemy->GetName()));
+				Count++;
+			}
+		}
+	}
+}
+
+void ACStageManager::CheckForStuckEnemies()
+{
+	int32 Remaining = GetRemainingEnemies(CurrentStage);
+    
+	// 2. 적이 5마리 이하로 남았는데 (너무 많을 때는 렉 걸릴 수 있으니 제외)
+	if (Remaining > 0 && Remaining <= 5)
+	{
+		float CurrentTime = GetWorld()->GetTimeSeconds();
+        
+		// 마지막으로 적이 죽은 지 20초가 지나면 끼었다고 판단
+		if (CurrentTime - LastEnemyDeathTime > 20.0f)
+		{
+			CLog::Log(TEXT("[StageManager] 교착 상태 감지! 남은 적들을 플레이어 앞으로 강제 소환합니다."));
+			Debug_TeleportRemainingEnemiesToPlayer(); // 아까 만든 소환 함수 실행!
+            
+			// 소환했으니 시간 다시 갱신 (계속 소환되는 것 방지)
+			LastEnemyDeathTime = CurrentTime;
+		}
+	}
 }

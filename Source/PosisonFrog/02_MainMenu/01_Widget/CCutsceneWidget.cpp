@@ -176,8 +176,6 @@ void UCCutsceneWidget::StartCutscene()
     // 블루프린트 이벤트 호출
     BP_OnCutsceneStarted();
     BP_OnFrameChanged(CurrentPageIndex, CurrentFrameIndex);
-
-    LockInput(1.0f);
     
     if (bShowDebugInfo)
     {

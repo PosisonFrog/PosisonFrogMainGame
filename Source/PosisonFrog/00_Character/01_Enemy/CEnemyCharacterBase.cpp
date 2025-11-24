@@ -166,6 +166,20 @@ void ACEnemyCharacterBase::ReinitializeCollision()
 	
 }
 
+void ACEnemyCharacterBase::FellOutOfWorld(const class UDamageType& dmgType)
+{
+	CLog::Log(FString::Printf(TEXT("[%s] 맵 밖으로 떨어짐 감지! 초기 위치로 복귀합니다."), *GetName()));
+
+	// 저장해둔 초기 위치로 이동
+	ResetToInitialTransform();
+
+	// 떨어지던 가속도가 남아있을 수 있으므로 물리/이동 속도 초기화
+	if (GetCharacterMovement())
+	{
+		GetCharacterMovement()->StopMovementImmediately();
+	}
+}
+
 void ACEnemyCharacterBase::RegisterForPlayerRespawnEvents()
 {
 	if (PlayerRespawnDelegateHandle.IsValid())

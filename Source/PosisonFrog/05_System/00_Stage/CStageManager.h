@@ -282,5 +282,14 @@ protected:
 
 	void RespawnTutorialEnemies(int32 StageID, FName StepId);
 
+	void Debug_TeleportRemainingEnemiesToPlayer();
+	void CheckForStuckEnemies();
+	float LastEnemyDeathTime = 0.0f;
+
+	
+    
+	// 자동 소환을 체크할 타이머
+	FTimerHandle FailSafeTimer;
+
 	FTimerHandle RespawnTimerHandle;
 };
