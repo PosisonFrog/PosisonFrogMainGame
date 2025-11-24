@@ -1106,22 +1106,6 @@ void ACEnemyCharacterBase::ResetForRespawn()
 	
 	SetActorEnableCollision(true);
 	SetCanBeDamaged(true);
-
-	if (UWorld* World = this->GetWorld())
-	{
-		TWeakObjectPtr<ACEnemyCharacterBase> WeakThis(this);
-		World->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateLambda([WeakThis]()
-		{
-			if (WeakThis.IsValid())
-			{
-					WeakThis->ReinitializeCollision();
-			}
-	   }));
-	}
-	else
-	{
-		ReinitializeCollision();
-	}
 	OnResetForRespawn();
 }
 

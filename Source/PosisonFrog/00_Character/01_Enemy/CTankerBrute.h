@@ -89,7 +89,7 @@ protected:
 
 	/** 공격 유효 거리(안전망) */
 	UPROPERTY(EditAnywhere, Category="PF|Attack")
-	float AttackRangeTanker = 400.f;
+	float AttackRangeTanker = 500.f;
 
 	/** 1. 윈드업(예비동작) 시간 */
 	UPROPERTY(EditAnywhere, Category="PF|Attack")

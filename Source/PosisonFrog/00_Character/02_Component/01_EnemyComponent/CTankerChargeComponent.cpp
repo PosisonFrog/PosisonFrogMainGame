@@ -206,6 +206,7 @@ void UCTankerChargeComponent::ResetForRespawn()
     {
         OnChargeStateChanged.Broadcast(State, PreviousState);
     }
+    UE_LOG(LogTemp, Log, TEXT("[ChargeComp] 리스폰 리셋 완료: State -> Idle"));
 }
 
 void UCTankerChargeComponent::Anim_ChargeStart()

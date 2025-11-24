@@ -118,10 +118,15 @@ void ACTankerBrute::OnResetForRespawn_Implementation()
     
     ClearAttackTimers();
     
+    bIsAttacking = false;         
+    bIsPerformingMelee = false;   
+    AttackStartedTime = 0.f;
+    
     if (ChargeComp)
     {
         ChargeComp->ResetForRespawn();
     }
+    UE_LOG(LogTemp, Log, TEXT("[CTankerBrute] 리스폰 상태 초기화 완료 (bIsAttacking 리셋)"));
 }
 
 void ACTankerBrute::OnRespawned_Implementation()
@@ -311,7 +316,8 @@ void ACTankerBrute::StartAttack()
     LastAttackTime = GetWorld()->GetTimeSeconds();
     bIsPerformingMelee = true;
     AttackStartedTime = GetWorld()->GetTimeSeconds();
-
+    bIsAttacking = true;
+    
     StopMove();
     PlayMontageIfValid(AttackMontage);
     
