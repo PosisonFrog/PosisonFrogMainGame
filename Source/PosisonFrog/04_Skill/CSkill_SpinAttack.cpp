@@ -21,6 +21,8 @@
 #include "00_Character/00_Player/CHitStopSubsystem.h"
 #include "00_Character/02_Component/CHitStopComponent.h"
 #include "00_Character/02_Component/00_PlayerComponent/CUltimateBuffComponent.h"
+#include "00_Character/02_Component/00_PlayerComponent/ComboStackComponent.h"
+
 
 UCSkill_SpinAttack::UCSkill_SpinAttack()
 {
@@ -235,6 +237,17 @@ void UCSkill_SpinAttack::SpinTick()
         ApplyDamageTo(T, DamageThisTick, DamageTypeClass);
     }
 
+    if (Targets.Num() > 0)
+    {
+        if (ACPlayerCharacter* PlayerChar = Cast<ACPlayerCharacter>(OwnerChar.Get()))
+        {
+            if (UComboStackComponent* ComboComp = PlayerChar->GetComboStackComponent())
+            {
+                ComboComp->OnDirectHit(TEXT("Spin_Attack"), Now);
+            }
+        }
+    }
+
     ApplySpinTickHitStop(Targets);
 }
 
@@ -378,7 +391,21 @@ void UCSkill_SpinAttack::DoFinisherImpact()
             FinisherDamageTypeClass);
     }
 
+    if (Targets.Num() > 0)
+    {
+        if (ACPlayerCharacter* PlayerChar = Cast<ACPlayerCharacter>(OwnerChar.Get()))
+        {
+            if (UComboStackComponent* ComboComp = PlayerChar->GetComboStackComponent())
+            {
+                const float Now = GetWorld()->GetTimeSeconds();
+                ComboComp->OnDirectHit(TEXT("Spin_Finisher"), Now);
+            }
+        }
+    }
+    
     ApplyFinisherHitStop(Targets);
+
+    
 
     // 피니셔 넉백: 플레이어 정면 방향으로 적들을 Launch (보스 판별하여 다른 강도 적용)
     if (bEnableFinisherKnockback && Targets.Num() > 0)

@@ -11,6 +11,7 @@
 #include "GameFramework/DamageType.h"
 #include "Animation/AnimInstance.h"
 #include "Animation/AnimMontage.h"
+#include "00_Character/02_Component/00_PlayerComponent/ComboStackComponent.h"
 
 #include "Global.h"
 #include "00_Character/00_Player/CHitStopSubsystem.h"
@@ -251,6 +252,15 @@ void UCSkill_CommandLaunchSlam::Anim_PerformLaunch()
             Inst,
             OwnerChar.Get(),
             LaunchDamageClass);
+        }
+    }
+
+    if (ACPlayerCharacter* PlayerChar = Cast<ACPlayerCharacter>(OwnerChar.Get()))
+    {
+        if (UComboStackComponent* ComboComp = PlayerChar->GetComboStackComponent())
+        {
+            const float Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.f;
+            ComboComp->OnDirectHit(TEXT("Command_Launch"), Now);
         }
     }
 
@@ -607,6 +617,15 @@ void UCSkill_CommandLaunchSlam::DoShockwaveImpact()
             ShockwaveDamageType); // Fury 스택 X
     }
 
+    if (ACPlayerCharacter* PlayerChar = Cast<ACPlayerCharacter>(OwnerChar.Get()))
+    {
+        if (UComboStackComponent* ComboComp = PlayerChar->GetComboStackComponent())
+        {
+            const float Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.f;
+            ComboComp->OnDirectHit(TEXT("Command_Slam"), Now);
+        }
+    }
+    
     // 히트스톱 적용
     ApplySlamHitStop(Affected);
 }
