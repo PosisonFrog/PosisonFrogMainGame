@@ -252,6 +252,9 @@ void UCSkill_SpinAttack::CollectTargetsInRadius(TArray<AActor*>& OutTargets, flo
     FCollisionObjectQueryParams ObjParams;
     ObjParams.AddObjectTypesToQuery(ECC_Pawn);
     ObjParams.AddObjectTypesToQuery(PF::Collision::RiotEnemy);
+    ObjParams.AddObjectTypesToQuery(PF::Collision::EnemyBody); 
+    ObjParams.AddObjectTypesToQuery(PF::Collision::Projectile); 
+    ObjParams.AddObjectTypesToQuery(PF::Collision::BossCharacter); 
     
     FCollisionShape Sphere = FCollisionShape::MakeSphere(Radius);
     FCollisionQueryParams  QueryParams(SCENE_QUERY_STAT(SpinAttackOverlap), false, Owner);
@@ -269,8 +272,9 @@ void UCSkill_SpinAttack::CollectTargetsInRadius(TArray<AActor*>& OutTargets, flo
 
         // 높이 필터
         const float ZDiff = FMath::Abs(HitActor->GetActorLocation().Z - Center.Z);
-        if (ZDiff > ZTolerance) continue;
 
+        if (ZDiff > ZTolerance) continue;
+        
         // TODO: 팀/태그/클래스(ACEnemyCharacterBase 등) 필터링 추가 권장
         OutTargets.Add(HitActor);
     }

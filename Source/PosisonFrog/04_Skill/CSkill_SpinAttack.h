@@ -98,7 +98,7 @@ protected:
     float AttackRadius = 250.f;
 
     UPROPERTY(EditDefaultsOnly, Category="Spin|Range",  meta=(ClampMin="0"))
-    float ZTolerance = 400.f;
+    float ZTolerance = 500.f;
 
     UPROPERTY(EditDefaultsOnly, Category="Spin|Control")
     bool bAutoRotateOwner = true;
