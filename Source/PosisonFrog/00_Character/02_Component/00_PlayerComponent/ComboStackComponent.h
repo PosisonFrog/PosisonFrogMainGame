@@ -100,6 +100,9 @@ public:
     void OnReset(ECSCResetReason Reason);
 
     UFUNCTION(BlueprintCallable, Category="CSC")
+    void DemoteOneRank();
+    
+    UFUNCTION(BlueprintCallable, Category="CSC")
     bool CanCastUlt() const;
 
     UFUNCTION(BlueprintCallable, Category="CSC")
