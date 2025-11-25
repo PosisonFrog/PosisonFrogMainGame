@@ -191,6 +191,7 @@ private:
     UPROPERTY(EditAnywhere, Category = "PF|HUD|Fury", meta = (ClampMin = "0"))
     int32 FuryStack1Threshold = 1;
     
+    
     UPROPERTY(EditAnywhere, Category = "PF|HUD|Fury", meta = (ClampMin = "0"))
     int32 FuryStack2Threshold = 3;
     

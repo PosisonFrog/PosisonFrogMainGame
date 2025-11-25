@@ -33,6 +33,7 @@ ACHealOrb::ACHealOrb()
     PickupSphere->SetCollisionResponseToChannel(ECC_GameTraceChannel1,ECR_Overlap);
     PickupSphere->SetGenerateOverlapEvents(true);
 
+    
     // --- Detect ---
     DetectSphere = CreateDefaultSubobject<USphereComponent>(TEXT("DetectSphere"));
     DetectSphere->SetupAttachment(PickupSphere);

@@ -26,6 +26,7 @@ ACBossStageBarrier::ACBossStageBarrier()
 	BarrierMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 }
 
+
 void ACBossStageBarrier::BeginPlay()
 {
 	Super::BeginPlay();

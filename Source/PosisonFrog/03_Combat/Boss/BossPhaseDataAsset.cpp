@@ -26,6 +26,7 @@ EDataValidationResult UBossPhaseDataAsset::IsDataValid(FDataValidationContext& C
 		}
 		
 
+		
 		for (int32 PatternIdx = 0; PatternIdx < Phase.Patterns.Num(); ++PatternIdx)
 		{
 			const FBossPatternDefinition& Pattern = Phase.Patterns[PatternIdx]; 

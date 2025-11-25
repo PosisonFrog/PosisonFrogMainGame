@@ -49,6 +49,7 @@ void UCSkill_CommandLaunchSlam::TickComponent(float DeltaTime, ELevelTick, FActo
         }
         return;
     }
+    
 
     if (State == ECommandAirState::Launching)
     {

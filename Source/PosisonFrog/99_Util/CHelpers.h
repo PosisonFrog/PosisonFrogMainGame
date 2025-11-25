@@ -22,6 +22,7 @@
 	Text->Text = FText::FromString(GetName().Replace(L"Default__", L""));\
 }
 
+
 class POSISONFROG_API CHelpers
 {
 public:

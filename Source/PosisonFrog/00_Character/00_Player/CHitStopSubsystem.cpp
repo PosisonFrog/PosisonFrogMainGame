@@ -28,6 +28,7 @@ void UCHitStopSubsystem::Deinitialize()
 	Super::Deinitialize();
 }
 
+
 bool UCHitStopSubsystem::StartHitStop(AActor* TargetActor, float Duration, float TimeScale)
 {
 	if (!IsValid(TargetActor))
