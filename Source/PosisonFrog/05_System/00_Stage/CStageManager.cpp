@@ -805,7 +805,13 @@ void ACStageManager::CollectBarriers()
 	{
 		ACStageBarrier* Barrier = Cast<ACStageBarrier>(Actor);
 		if (IsValid(Barrier))
+		{
 			StageBarriers.Add(Barrier->SectionID, Barrier);
+			if (!Barrier->OnBarrierOpened.IsAlreadyBound(this, &ACStageManager::OnStageBarrierOpened))
+			{
+				Barrier->OnBarrierOpened.AddDynamic(this, &ACStageManager::OnStageBarrierOpened);
+			}
+		}
 	}
 }
 
@@ -1177,7 +1183,6 @@ void ACStageManager::OnStageComplete(int32 StageID)
 	CLog::Log(FString::Printf(TEXT("[StageManager] ClearedStages에 이미 포함? %s"), 
 		ClearedStages.Contains(StageID) ? TEXT("Yes - 무시됨") : TEXT("No - 진행")));
 	
-	// 중요: 중복 호출 방지
 	if (ClearedStages.Contains(StageID))
 	{
 		CLog::Log(TEXT("[StageManager] 이미 클리어된 스테이지 - 중복 호출 감지"));
@@ -1195,7 +1200,6 @@ void ACStageManager::OnStageComplete(int32 StageID)
 	CLog::Log(TEXT("[StageManager] 3단계: OpenStageBarrier 호출 중 (일반 배리어)"));
 	OpenStageBarrier(StageID);
 	
-	// 핵심 변경: 보스 배리어 체크 추가
 	CLog::Log(TEXT("[StageManager] 4단계: OpenBossBarrier 호출 중 (보스 배리어)"));
 	OpenBossBarrier(StageID);
 
@@ -1217,9 +1221,9 @@ void ACStageManager::OnStageComplete(int32 StageID)
 	OnStageCleared.Broadcast(StageID);
 	CLog::Log(TEXT("[StageManager] OnStageCleared 브로드캐스트 완료"));
 
-	// 현재 스테이지가 '마지막 튜토리얼 ID(105)'보다 클 때만 자동 스폰 로직 실행
-	// 즉, 101~105 클리어 시에는 실행 안 됨 -> 트리거 밟아야 스폰됨
-	// 105 클리어 시 -> 106 자동 스폰됨
+	// 현재 스테이지가 '마지막 튜토리얼 ID(5)'보다 클 때만 자동 스폰 로직 실행
+	// 즉, 1~5 클리어 시에는 실행 안 됨 -> 트리거 밟아야 스폰됨
+	// 5 클리어 시 -> 6 자동 스폰됨
 	if (StageID >= LastTutorialStageID)
 	{
 		CLog::Log(FString::Printf(TEXT("[StageManager] 일반 스테이지(%d) 클리어 - 다음 스테이지 자동 진행 시도"), StageID));
@@ -1654,14 +1658,13 @@ void ACStageManager::RespawnTutorialEnemies(int32 StageID, FName StepId)
 
 void ACStageManager::Debug_TeleportRemainingEnemiesToPlayer()
 {
-	// 1. 플레이어 위치 찾기
 	APawn* Player = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
 	if (!Player) return;
 
 	FVector PlayerLoc = Player->GetActorLocation();
 	FVector Forward = Player->GetActorForwardVector();
 
-	// 2. 현재 스테이지의 살아있는 적 찾기
+	//  살아있는 적 찾기
 	if (TArray<TObjectPtr<ACEnemyCharacterBase>>* Enemies = StageEnemies.Find(CurrentStage))
 	{
 		int32 Count = 0;
@@ -1672,15 +1675,13 @@ void ACStageManager::Debug_TeleportRemainingEnemiesToPlayer()
 			// 살아있는 녀석만
 			if (IsValid(Enemy) && !Enemy->IsPendingKillPending())
 			{
-				// 플레이어 앞쪽 공중으로 강제 소환
 				FVector TeleportPos = PlayerLoc + (Forward * 300.0f) + FVector(0, 0, 150.0f);
                 
-				// 겹치지 않게 조금씩 옆으로
 				TeleportPos += FVector(Count * 50.0f, Count * 50.0f, 0); 
 
 				Enemy->SetActorLocation(TeleportPos);
                 
-				// 혹시 움직임이 멈췄을 수 있으니 물리/AI 리셋
+				// 물리/AI 리셋
 				if (auto* MoveComp = Enemy->GetCharacterMovement())
 				{
 					MoveComp->StopMovementImmediately();
@@ -1698,19 +1699,42 @@ void ACStageManager::CheckForStuckEnemies()
 {
 	int32 Remaining = GetRemainingEnemies(CurrentStage);
     
-	// 2. 적이 5마리 이하로 남았는데 (너무 많을 때는 렉 걸릴 수 있으니 제외)
 	if (Remaining > 0 && Remaining <= 5)
 	{
 		float CurrentTime = GetWorld()->GetTimeSeconds();
         
-		// 마지막으로 적이 죽은 지 20초가 지나면 끼었다고 판단
 		if (CurrentTime - LastEnemyDeathTime > 13.0f)
 		{
 			CLog::Log(TEXT("[StageManager] 교착 상태 감지! 남은 적들을 플레이어 앞으로 강제 소환합니다."));
-			Debug_TeleportRemainingEnemiesToPlayer(); // 아까 만든 소환 함수 실행!
+			Debug_TeleportRemainingEnemiesToPlayer(); 
             
-			// 소환했으니 시간 다시 갱신 (계속 소환되는 것 방지)
+			
 			LastEnemyDeathTime = CurrentTime;
 		}
 	}
 }
+
+void ACStageManager::OnStageBarrierOpened(int32 SectionID)
+{
+	CLog::Log(FString::Printf(TEXT("[StageManager] 배리어 %d 열림 감지!"), SectionID));
+
+	// 튜토리얼 매니저가 없으면 가져오기
+	if (!IsValid(TutorialManager))
+	{
+		if (UGameInstance* GI = GetGameInstance())
+			TutorialManager = GI->GetSubsystem<UCTutorialManager>();
+	}
+
+	if (IsValid(TutorialManager))
+	{
+		// 규칙: 배리어 번호 + 1 = 해금 레벨
+		// Barrier 1 열림 -> Lv 2 (Dash)
+		// Barrier 2 열림 -> Lv 3 (Command)
+		int32 NewLevel = SectionID + 1;
+		
+		TutorialManager->SetUnlockLevel(NewLevel);
+		
+		CLog::Log(FString::Printf(TEXT("[StageManager] 튜토리얼 레벨 %d로 해금 요청"), NewLevel));
+	}
+}
+

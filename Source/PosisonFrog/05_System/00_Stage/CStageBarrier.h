@@ -70,6 +70,10 @@ public:
 	UPROPERTY()
 	TObjectPtr<UMaterialInstanceDynamic> DynamicMaterial;
 
+	// ──────────── 이벤트 ────────────
+	UPROPERTY(EditAnywhere, Category = "Barrier|Events")
+	FOnBarrierOpened OnBarrierOpened;
+	
 protected:
 	
 	// ──────────── 거리 설정 ────────────
@@ -85,7 +89,5 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Barrier|Visibility", meta = (ClampMin = "0.0", ClampMax = "1.0"))
 	float MaxOpacity = 0.7f;
 
-	// ──────────── 이벤트 ────────────
-	UPROPERTY(EditAnywhere, Category = "Barrier|Events")
-	FOnBarrierOpened OnBarrierOpened;
+	
 };

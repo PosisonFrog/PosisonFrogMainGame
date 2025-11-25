@@ -67,16 +67,21 @@ FVector UCPlayerDashComponent::ResolveDashDirection() const
         return D.GetSafeNormal();
     }
 
-    FVector Dir = OwnerChar->GetActorForwardVector();
-
-    if (bUseCameraYaw)
+    if (OwnerChar.IsValid())
     {
-        if (AController* C = OwnerChar->GetController())
+        // GetLastMovementInputVector(): AddMovementInput으로 들어온 마지막 벡터 반환
+        FVector InputDir = OwnerChar->GetLastMovementInputVector();
+        
+        // 입력값이 0이 아니라면(키를 누르고 있다면) 해당 방향 사용
+        if (!InputDir.IsNearlyZero())
         {
-            const FRotator YawRot(0.f, C->GetControlRotation().Yaw, 0.f);
-            Dir = FRotationMatrix(YawRot).GetUnitAxis(EAxis::X);
+            InputDir.Z = 0.f; // 수평 대쉬 보장
+            return InputDir.GetSafeNormal();
         }
     }
+    
+    FVector Dir = OwnerChar->GetActorForwardVector();
+    
 
     Dir.Z = 0.f;
     if (Dir.IsNearlyZero()) Dir = FVector::ForwardVector;

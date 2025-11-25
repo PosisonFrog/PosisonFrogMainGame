@@ -284,6 +284,9 @@ protected:
 
 	void Debug_TeleportRemainingEnemiesToPlayer();
 	void CheckForStuckEnemies();
+
+	UFUNCTION()
+	void OnStageBarrierOpened(int32 SectionID);
 	float LastEnemyDeathTime = 0.0f;
 
 	

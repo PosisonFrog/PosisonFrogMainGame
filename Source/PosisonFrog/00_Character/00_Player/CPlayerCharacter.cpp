@@ -463,6 +463,9 @@ void ACPlayerCharacter::OnAttackDashReady()
 // ────────────────────────────────────────────────────────────────────────────
 void ACPlayerCharacter::DashStart()
 {
+    if (!CheckTutorialActionAllowed(ETutorialActionType::Dash_Used))
+        return;
+    
     if (SpinAttackComponent && SpinAttackComponent->IsSkillActive())
         SpinAttackComponent->StopSpin();
     
@@ -746,6 +749,9 @@ float ACPlayerCharacter::TakeDamage(float DamageAmount, struct FDamageEvent cons
 // ────────────────────────────────────────────────────────────────────────────
 void ACPlayerCharacter::UseUltimate()
 {
+    if (!CheckTutorialActionAllowed(ETutorialActionType::Ult_Used))
+        return;
+    
     if (IsUltimateActive() || !UltimateBuffComponent)
         return;
 
@@ -927,6 +933,22 @@ void ACPlayerCharacter::SpawnUltVFXOnHammer()
     }
 }
 
+bool ACPlayerCharacter::CheckTutorialActionAllowed(ETutorialActionType ActionType)
+{
+    if (UGameInstance* GI = GetGameInstance())
+    {
+        if (UCTutorialManager* TM = GI->GetSubsystem<UCTutorialManager>())
+        {
+            if (!TM->IsActionAllowed(ActionType))
+            {
+                CLog::Log(TEXT("[Player->TutorialManager] : 아직 해당 스킬을 사용할 수 없습니다."));
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
 /*void ACPlayerCharacter::SetUltimateGauge(float UltGauge)
 {
     CurUltGauge = FMath::Clamp(UltGauge, 0.0f, MaxUltGauge);
@@ -943,6 +965,9 @@ void ACPlayerCharacter::SpawnUltVFXOnHammer()
 // ────────────────────────────────────────────────────────────────────────────
 void ACPlayerCharacter::OnSpinPressed()
 {
+    if (!CheckTutorialActionAllowed(ETutorialActionType::Spin_Used))
+        return;
+    
     if (CommandLaunchSlamComponent && CommandLaunchSlamComponent->ShouldBlockOtherActions())
         return;
 
@@ -981,11 +1006,15 @@ void ACPlayerCharacter::OnSpinReleased()
 // ────────────────────────────────────────────────────────────────────────────
 void ACPlayerCharacter::OnCommandPressed()
 {
+    if (!CheckTutorialActionAllowed(ETutorialActionType::Command_Used))
+        return;
+    
     if (SpinAttackComponent && SpinAttackComponent->IsSkillActive())
         return;
     
     if (KnockbackComponent && KnockbackComponent->IsKnockedBack())
         return;
+    
     
     
     if (CommandLaunchSlamComponent)

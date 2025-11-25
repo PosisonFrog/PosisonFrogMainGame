@@ -104,6 +104,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Tutorial")
 	FName GetCurrentStepId() const;
 
+	UFUNCTION(BlueprintCallable, Category = "Tutorial")
+	bool IsActionAllowed(ETutorialActionType ActionType) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Tutorial")
+	void SetUnlockLevel(int32 NewLevel);
+	
 public: // Delegate
 	UPROPERTY(BlueprintAssignable, Category = "Tutorial") FTutorialStepEvent OnTutorialStepStarted;
 	UPROPERTY(BlueprintAssignable, Category = "Tutorial") FTutorialStepEvent OnTutorialStepCompleted;
@@ -135,6 +141,7 @@ private:
 	UPROPERTY(EditAnywhere, Category = "Tutorial|Data")
 	TObjectPtr<UDataTable> TutorialDataTable;
 
+	
 	UPROPERTY()
 	TArray<FTutorialStep> ActiveSteps;
 
@@ -143,6 +150,7 @@ private:
 
 	int32 CurrentStepIndex = INDEX_NONE;
 	int32 CurrentCount = 0;
+	int32 CurrentUnlockLevel = 1;
 	bool bSequenceActive = false;
 	bool bStepInProgress = false;
 };

@@ -140,6 +140,9 @@ private:
     // 궁극기 무기 이펙트 재생 관련
     UFUNCTION() void CleanupUltVFX();
     UFUNCTION() void SpawnUltVFXOnHammer();
+
+    //─────────── 튜토리얼 스킬 해제 ───────────
+    bool CheckTutorialActionAllowed(ETutorialActionType ActionType);
     
 public:
     //void AddUltimateGain(float Gain);
@@ -371,5 +374,7 @@ private:
 
     // [추가] 튜토리얼 매니저에게 행동 알림을 보내는 헬퍼 함수
     void NotifyTutorialAction(ETutorialActionType Action);
+
+    FName TutorialCurrentName = NAME_None;
     
 };

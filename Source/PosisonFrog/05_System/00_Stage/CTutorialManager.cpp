@@ -151,6 +151,35 @@ FName UCTutorialManager::GetCurrentStepId() const
 	return NAME_None;
 }
 
+bool UCTutorialManager::IsActionAllowed(ETutorialActionType ActionType) const
+{
+	int32 RequiredLevel = 0;
+
+	switch (ActionType)
+	{
+	case ETutorialActionType::None:             return true;
+	case ETutorialActionType::BasicCombo_3Hit:  RequiredLevel = 1; break; 
+	case ETutorialActionType::Dash_Used:        RequiredLevel = 2; break; 
+	case ETutorialActionType::Command_Used:     RequiredLevel = 3; break; 
+	case ETutorialActionType::Spin_Used:        RequiredLevel = 4; break; 
+	case ETutorialActionType::Ult_Used:         RequiredLevel = 5; break; 
+	default: return true;
+	}
+
+	// 현재 레벨이 요구 레벨보다 높거나 같으면 사용 가능
+	return CurrentUnlockLevel >= RequiredLevel;
+}
+
+void UCTutorialManager::SetUnlockLevel(int32 NewLevel)
+{
+	if (NewLevel > CurrentUnlockLevel)
+	{
+		CurrentUnlockLevel = NewLevel;
+		CLog::Log(FString::Printf(TEXT("[TutorialManager] 튜토리얼 레벨 강제 변경: Lv %d"), CurrentUnlockLevel));
+	}
+}
+
+
 void UCTutorialManager::BeginStep(int32 StepIndex)
 {
 	if (!IsValidStepIndex(StepIndex))
