@@ -36,11 +36,7 @@ private:
 	AActor* TargetPlayer;
 
 	/** 타겟 플레이어 유효성 확인 및 갱신 */
-	bool EnsureValidTarget();
-	
-	/** 회전 속도 (degree per second) */
-	UPROPERTY(EditAnywhere, Category="AI")
-	float RotationSpeed = 360.f;
+	bool EnsureValidTarget();;
 
 	/** 추적을 시작할 거리 */
 	UPROPERTY(EditAnywhere, Category="AI|Chase")

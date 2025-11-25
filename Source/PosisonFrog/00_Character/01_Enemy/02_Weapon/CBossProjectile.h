@@ -59,6 +59,9 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components")
 	TObjectPtr<UNiagaraComponent> TrailEffect;
 
+	UPROPERTY(EditDefaultsOnly, Category = "Components")
+	TSubclassOf<UCameraShakeBase> GroundImpactShake;
+	
 	// ───────── 설정 ─────────
 	
 	/** 플레이어 식별 태그 */

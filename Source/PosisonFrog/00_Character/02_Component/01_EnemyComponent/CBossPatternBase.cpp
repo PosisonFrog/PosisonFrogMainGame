@@ -154,8 +154,7 @@ void UCBossPatternBase::StartCooldown()
 void UCBossPatternBase::FinishPattern(bool bApplyCooldown)
 {
 	//OnPatternEnd();
-	
-	// ✅ 패턴이 성공적으로 끝났으면 쿨다운 적용
+
 	if (bApplyCooldown)
 	{
 		StartCooldown();

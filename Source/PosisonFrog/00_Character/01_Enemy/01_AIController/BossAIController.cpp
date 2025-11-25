@@ -92,16 +92,22 @@ void ABossAIController::Tick(float DeltaTime)
 	if (!Direction.IsNearlyZero())
 	{
 		FRotator TargetRotation = Direction.Rotation();
-		FRotator CurrentRotation = GetControlRotation();
+
+		float Speed = ControlledPawn->GetVelocity().Size();
+		if (Speed < 10.0f) 
+		{
+			FRotator CurrentRotation = ControlledPawn->GetActorRotation();
+			FRotator NewRotation = FMath::RInterpTo(
+				CurrentRotation, 
+				TargetRotation, 
+				DeltaTime, 
+				3.0f // 회전 속도.
+			);
+			
+			ControlledPawn->SetActorRotation(NewRotation);
+		}
 		
-		FRotator NewRotation = FMath::RInterpTo(
-			CurrentRotation, 
-			TargetRotation, 
-			DeltaTime, 
-			8.0f
-		);
-		
-		SetControlRotation(NewRotation);
+		SetControlRotation(TargetRotation);
 	}
 	
 	TimeSinceMoveUpdate += DeltaTime;
@@ -151,7 +157,6 @@ void ABossAIController::Tick(float DeltaTime)
 				UE_LOG(LogTemp, Log, TEXT("[BossAI] Already at goal"));
 			}
 		}
-		// 적당한 거리 (유지)
 		else
 		{
 			UE_LOG(LogTemp, Log, TEXT("[BossAI] In range (%.1f), maintaining..."), DistanceToTarget);

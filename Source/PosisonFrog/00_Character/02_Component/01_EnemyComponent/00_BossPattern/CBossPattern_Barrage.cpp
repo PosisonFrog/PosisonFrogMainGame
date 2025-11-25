@@ -1,10 +1,6 @@
 #include "CBossPattern_Barrage.h"
 #include "00_Character/01_Enemy/CEnemyBossCharacter.h"
-#include "00_Character/02_Component/01_EnemyComponent/CEnemyWeaponComponent.h"
-#include "00_Character/01_Enemy/01_AIController/BossAIController.h"
-#include "AIController.h"
 #include "00_Character/01_Enemy/02_Weapon/CBossProjectile.h"
-#include "Kismet/GameplayStatics.h"
 #include "GameFramework/ProjectileMovementComponent.h"
 #include "Components/PrimitiveComponent.h"
 
@@ -62,12 +58,7 @@ bool UCBossPattern_Barrage::ExecutePattern(int32 PhaseIndex, const FBossPatternD
 	
 	CurrentMaxShots = FMath::Max(1, FMath::FloorToInt(PatternData.ExecutionTime / ShotInterval));
 	UE_LOG(LogTemp, Log, TEXT("[Barrage] Calculated Max Shots: %d"), CurrentMaxShots);
-
-	if (ABossAIController* BossAI = Cast<ABossAIController>(GetBossAI()))
-	{
-		BossAI->SetChaseEnabled(false);
-		UE_LOG(LogTemp, Log, TEXT("[Barrage] Disabled chase for Barrage"));
-	}
+	
 
 	PrePlannedDropLocations.Empty();
 	if (AActor* Player = GetPlayerTarget())
@@ -88,9 +79,8 @@ bool UCBossPattern_Barrage::ExecutePattern(int32 PhaseIndex, const FBossPatternD
 			Params.AddIgnoredActor(Player); 
 			Params.AddIgnoredActor(OwnerBoss.Get()); 
 
-			FVector FinalDropLocation = TraceStart; // 기본값
+			FVector FinalDropLocation = TraceStart; 
 
-			// ECC_Visibility 또는 ECC_WorldStatic 채널로 바닥 검출
 			if (World && World->LineTraceSingleByChannel(HitResult, TraceStart, TraceEnd, ECC_WorldStatic, Params))
 			{
 				FinalDropLocation = HitResult.ImpactPoint;
@@ -116,11 +106,6 @@ void UCBossPattern_Barrage::OnPatternEnd()
 {
 	Super::OnPatternEnd();
 	ClearAllTimers();
-	if (ABossAIController* BossAI = Cast<ABossAIController>(GetBossAI()))
-	{
-		BossAI->SetChaseEnabled(true);
-		UE_LOG(LogTemp, Log, TEXT("[Barrage] Re-enabled chase after Barrage"));
-	}
 
 	PrePlannedDropLocations.Empty();
 	BarrageShotCount = 0;

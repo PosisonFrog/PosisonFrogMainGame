@@ -1704,7 +1704,7 @@ void ACStageManager::CheckForStuckEnemies()
 		float CurrentTime = GetWorld()->GetTimeSeconds();
         
 		// 마지막으로 적이 죽은 지 20초가 지나면 끼었다고 판단
-		if (CurrentTime - LastEnemyDeathTime > 20.0f)
+		if (CurrentTime - LastEnemyDeathTime > 13.0f)
 		{
 			CLog::Log(TEXT("[StageManager] 교착 상태 감지! 남은 적들을 플레이어 앞으로 강제 소환합니다."));
 			Debug_TeleportRemainingEnemiesToPlayer(); // 아까 만든 소환 함수 실행!

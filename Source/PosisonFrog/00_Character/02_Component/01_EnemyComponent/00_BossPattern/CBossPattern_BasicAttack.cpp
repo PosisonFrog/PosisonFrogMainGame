@@ -35,18 +35,15 @@ bool UCBossPattern_BasicAttack::ExecutePattern(int32 PhaseIndex, const FBossPatt
 
 	CurrentPatternData = PatternData;
 	
-	// 상태 초기화
 	HitActors.Empty();
 	ClearTimers();
 
 	float Duration = 0.0f;
 
-	// 1. 몽타주 재생
 	if (AttackMontage)
 	{
 		Duration = PlayMontage(AttackMontage);
 	}
-	// (백업) 몽타주 없으면 웨폰 컴포넌트 사용
 	else if (WeaponComponent.IsValid())
 	{
 		WeaponComponent->SetCurrentAttackIndex(AttackIndex);
@@ -54,13 +51,11 @@ bool UCBossPattern_BasicAttack::ExecutePattern(int32 PhaseIndex, const FBossPatt
 		Duration = 1.0f;
 	}
 
-	// 2. 지속 시간 보정
 	if (Duration <= 0.0f) 
 	{
 		Duration = PatternData.ExecutionTime > 0.0f ? PatternData.ExecutionTime : 1.0f;
 	}
 
-	// 3. 패턴 종료 타이머 설정 (Execution + Recovery)
 	float TotalTime = Duration + CurrentPatternData.RecoveryTime;
 	
 	TWeakObjectPtr<UCBossPattern_BasicAttack> WeakThis(this);
@@ -81,14 +76,13 @@ bool UCBossPattern_BasicAttack::ExecutePattern(int32 PhaseIndex, const FBossPatt
 	return true; 
 }
 
-// [노티파이 호출] 공격 판정 시작
 void UCBossPattern_BasicAttack::StartAttackCollision()
 {
 	HitActors.Empty();
 	UE_LOG(LogTemp, Log, TEXT("[BasicAttack] Collision Check START (Hit List Reset)"));
 }
 
-// [노티파이 호출] 매 프레임 충돌 검사
+// 매 프레임 충돌 검사
 void UCBossPattern_BasicAttack::CheckAttackCollision()
 {
 	if (!OwnerBoss.IsValid()) return;
@@ -99,7 +93,6 @@ void UCBossPattern_BasicAttack::CheckAttackCollision()
     USkeletalMeshComponent* Mesh = OwnerBoss->GetMesh();
     if (!Mesh) return;
 
-    // 1. 소켓 위치 찾기
     FVector SocketLocation = FVector::ZeroVector;
     if (Mesh->DoesSocketExist(RightHandSocketName))
     {
@@ -107,28 +100,25 @@ void UCBossPattern_BasicAttack::CheckAttackCollision()
     }
     else
     {
-        // 소켓 없으면 보스 앞쪽으로 대충 잡음 (안전장치)
         SocketLocation = OwnerBoss->GetActorLocation() + OwnerBoss->GetActorForwardVector() * 100.0f;
     }
     
-    // 2. 스윕(Sweep) 검사
+    //스윕 검사
     TArray<FHitResult> HitResults;
     FCollisionQueryParams QueryParams;
     QueryParams.AddIgnoredActor(OwnerBoss.Get());
     QueryParams.bTraceComplex = false;
-
-    // ★ 중요: ECC_Pawn 대신 ECC_WorldDynamic 사용 (플레이어 캡슐 감지용)
+	
     bool bHit = World->SweepMultiByChannel(
         HitResults,
         SocketLocation,
-        SocketLocation, // 시작=끝 (구체 오버랩과 동일 효과)
+        SocketLocation,
         FQuat::Identity,
         ECC_GameTraceChannel1, 
         FCollisionShape::MakeSphere(AttackSphereRadius),
         QueryParams
     );
 
-    // 디버그 드로잉
     if (bDrawDebug)
     {
         DrawDebugSphere(World, SocketLocation, AttackSphereRadius, 12, 
@@ -137,7 +127,6 @@ void UCBossPattern_BasicAttack::CheckAttackCollision()
 
     if (!bHit) return;
 
-    // 3. 결과 처리
     for (const FHitResult& Hit : HitResults)
     {
         AActor* HitActor = Hit.GetActor();
@@ -162,7 +151,7 @@ void UCBossPattern_BasicAttack::CheckAttackCollision()
         
     	if (HitCharacter)
     	{
-    		FVector KnockDirection = LockedAttackDirection.IsNearlyZero() ? OwnerBoss->GetActorForwardVector() : LockedAttackDirection;
+    		FVector KnockDirection = OwnerBoss->GetActorForwardVector() ;
     		FVector LaunchVelocity = KnockDirection * KnockbackPower;
     		LaunchVelocity.Z += KnockbackUpForce;
     		HitCharacter->LaunchCharacter(LaunchVelocity, true, true);

@@ -103,6 +103,12 @@ void ACBossProjectile::InitProjectile(AActor* InShooter, float InDamage, float I
 void ACBossProjectile::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp,
                               FVector NormalImpulse, const FHitResult& Hit)
 {
+	UWorld* World = this->GetWorld();
+	if (!World)
+	{
+		return;
+	}
+	
 	// 중복 폭발 방지
 	if (bHasExploded)
 	{
@@ -142,12 +148,20 @@ void ACBossProjectile::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, U
 		}
 	}
 
+	if (GroundImpactShake)
+	{
+		if (APlayerController* PC = UGameplayStatics::GetPlayerController(World, 0))
+		{
+			PC->ClientStartCameraShake(GroundImpactShake);
+		}
+	}
 	// 폭발 및 제거
 	ExplodeAndDestroy(Hit.ImpactPoint);
 }
 
 void ACBossProjectile::ExplodeAndDestroy(const FVector& Location)
 {
+	
 	if (bHasExploded)
 	{
 		return;

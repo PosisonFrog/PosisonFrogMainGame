@@ -131,7 +131,7 @@ private:
     float LaunchStallTolerance = 0.3f;
     
     UPROPERTY(EditDefaultsOnly, Category="CommandSkill|Cooldown", meta=(ClampMin="0.0"))
-    float CooldownTime = 2.0f;
+    float CooldownTime = 1.0f;
     
     UPROPERTY(EditDefaultsOnly, Category="CommandSkill|Slam", meta=(ClampMin="200"))
     float SlamDownSpeed   = 2200.f;

@@ -617,7 +617,7 @@ void UCBossPattern_Rush::ProcessPlayerHit(AActor* TargetActor)
 	ACharacter* HitCharacter = Cast<ACharacter>(TargetActor);
 	if (HitCharacter)
 	{
-		FVector KnockDirection = LockedRushDirection.IsNearlyZero() ? OwnerBoss->GetActorForwardVector() : LockedRushDirection;
+		FVector KnockDirection = OwnerBoss->GetActorForwardVector();
 		FVector LaunchVelocity = KnockDirection * RushLaunchPower;
 		LaunchVelocity.Z += RushLaunchUp;
 		HitCharacter->LaunchCharacter(LaunchVelocity, true, true);

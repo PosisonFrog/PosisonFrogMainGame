@@ -66,7 +66,7 @@ private:
 	// 이펙트 스폰 회전 오프셋
 	UPROPERTY(EditAnywhere, Category = "Hammer|Hit Effects")
 	FRotator HitEffectRotationOffset = FRotator::ZeroRotator;
-
+	
 	// 이펙트 스케일
 	UPROPERTY(EditAnywhere, Category = "Hammer|Hit Effects", meta = (ClampMin = "0.1"))
 	float HitEffectScale = 1.0f;

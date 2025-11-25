@@ -41,21 +41,14 @@ bool UCBossPattern_Slam::ExecutePattern(int32 PhaseIndex, const FBossPatternDefi
 	{
 		if (ABossAIController* BossAI = Cast<ABossAIController>(AI))
 		{
-			BossAI->SetChaseEnabled(false); // 추적 끄기
+			BossAI->SetChaseEnabled(true); // 추적 끄기
 			BossAI->StopMovement();         // 이동 멈추기
 		}
 	}
+
+	
 	LockedImpactLocation = OwnerBoss->GetActorLocation() + (OwnerBoss->GetActorForwardVector() * 530.0f);
-	if (UCharacterMovementComponent* MoveComp = OwnerBoss->GetCharacterMovement())
-	{
-		bSavedOrientRotation = MoveComp->bOrientRotationToMovement;
-		bSavedUseControllerDesiredRotation = MoveComp->bUseControllerDesiredRotation;
-		
-		MoveComp->bOrientRotationToMovement = false; 
-		MoveComp->bUseControllerDesiredRotation = false; 
-        
-		MoveComp->StopMovementImmediately();
-	}
+	
 
 	float Duration = 0.0f;
 	if (SlamMontage)
@@ -113,15 +106,6 @@ void UCBossPattern_Slam::OnPatternEnd()
 		}
 	}
 	
-	if (OwnerBoss.IsValid())
-	{
-		if (UCharacterMovementComponent* MoveComp = OwnerBoss->GetCharacterMovement())
-		{
-			MoveComp->bOrientRotationToMovement = bSavedOrientRotation;
-			MoveComp->bUseControllerDesiredRotation = bSavedUseControllerDesiredRotation;
-		}
-	}
-	
 	Super::OnPatternEnd();
 	ClearTimers();
 	
@@ -130,14 +114,6 @@ void UCBossPattern_Slam::OnPatternEnd()
 
 void UCBossPattern_Slam::Cleanup()
 {
-	if (OwnerBoss.IsValid())
-	{
-		if (UCharacterMovementComponent* MoveComp = OwnerBoss->GetCharacterMovement())
-		{
-			MoveComp->bOrientRotationToMovement = true; // 강제 복구
-		}
-	}
-	
 	Super::Cleanup();
 	ClearTimers();
 }
@@ -162,6 +138,7 @@ void UCBossPattern_Slam::PlayImpactEffectsAndDamage()
 	if (!OwnerBoss.IsValid()) return;
 	UWorld* World = OwnerBoss->GetWorld();
 	if (!World) return;
+	
 	
 	// 데미지 적용
 	UGameplayStatics::ApplyRadialDamage(
@@ -204,21 +181,6 @@ void UCBossPattern_Slam::PlayImpactEffectsAndDamage()
 		if (APlayerController* PC = UGameplayStatics::GetPlayerController(World, 0))
 		{
 			PC->ClientStartCameraShake(GroundImpactShake);
-		}
-	}
-
-	if (OwnerBoss.IsValid())
-	{
-		if (ABossAIController* BossAI = Cast<ABossAIController>(GetBossAI()))
-		{
-			// AI 추적을 켜서 회전 계산을 시작하게 함 (이동은 MoveTo가 호출되어야 하므로 제자리 회전만 함)
-			BossAI->SetChaseEnabled(true); 
-		}
-
-		if (UCharacterMovementComponent* MoveComp = OwnerBoss->GetCharacterMovement())
-		{
-			// 컨트롤러 방향(AI가 바라보는 곳)으로 몸을 돌리도록 설정 복구
-			MoveComp->bUseControllerDesiredRotation = true;
 		}
 	}
 }
