@@ -22,6 +22,7 @@
 #include "00_Character/02_Component/CHitStopComponent.h"
 #include "00_Character/02_Component/00_PlayerComponent/CUltimateBuffComponent.h"
 #include "00_Character/02_Component/00_PlayerComponent/ComboStackComponent.h"
+#include "Engine/OverlapResult.h"
 
 
 UCSkill_SpinAttack::UCSkill_SpinAttack()

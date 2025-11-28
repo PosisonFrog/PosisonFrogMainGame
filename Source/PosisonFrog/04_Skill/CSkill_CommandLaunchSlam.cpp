@@ -12,6 +12,7 @@
 #include "Animation/AnimInstance.h"
 #include "Animation/AnimMontage.h"
 #include "00_Character/02_Component/00_PlayerComponent/ComboStackComponent.h"
+#include "Engine/OverlapResult.h"
 
 #include "Global.h"
 #include "00_Character/00_Player/CHitStopSubsystem.h"

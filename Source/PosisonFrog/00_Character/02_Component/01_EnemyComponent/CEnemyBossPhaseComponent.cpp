@@ -994,7 +994,7 @@ float UCEnemyBossPhaseComponent::GetEffectivePowerCost(const FBossPatternDefinit
    
      return PatternDef.PowerCost * FMath::Max(0.f, PhaseDefinition->PowerDrainMultiplier);
      
-    return 0.f; // 임시 반환값 <- 위에 수정되면 지워야함.
+    //return 0.f; // 임시 반환값 <- 위에 수정되면 지워야함.
 }
 
 float UCEnemyBossPhaseComponent::GetEffectivePowerReward(const FBossPatternDefinition& PatternDef) const

@@ -29,6 +29,7 @@
 #include "Engine/GameInstance.h"
 
 #include "Engine/DamageEvents.h"
+#include "Engine/OverlapResult.h"
 
 ACEnemyCharacterBase::ACEnemyCharacterBase()
 {

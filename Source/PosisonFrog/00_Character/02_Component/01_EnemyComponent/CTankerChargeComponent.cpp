@@ -741,7 +741,7 @@ bool UCTankerChargeComponent::EnsureOwnerAndMovement()
 
 bool UCTankerChargeComponent::HasValidTarget() const
 {
-    return TargetActor.IsValid() && !TargetActor->IsPendingKill();
+    return TargetActor.IsValid();
 }
 
 float UCTankerChargeComponent::DistanceToTarget2D() const

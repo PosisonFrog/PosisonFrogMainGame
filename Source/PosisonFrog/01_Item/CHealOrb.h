@@ -16,7 +16,7 @@ class UCHealOrbPoolSubsystem;
 // ===== Enums =====
 /** 힐 오브 상태 */
 UENUM(BlueprintType)
-enum class HealOrbState
+enum class HealOrbState : uint8
 {
     Spawn,
     Chase

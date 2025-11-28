@@ -435,8 +435,8 @@ void UOptionsMenuWidget::OnMouseSensChanged(float V)
     if (APlayerController* PC = GetOwningPlayer())
     {
         // UE5에서는 deprecated 함수 사용
-        PC->SetDeprecatedInputYawScale(MouseSensitivity);
-        PC->SetDeprecatedInputPitchScale(-MouseSensitivity);
+		PC->SetDeprecatedInputYawScale(MouseSensitivity); 
+        PC->SetDeprecatedInputPitchScale(-MouseSensitivity); 
     }
     
     if (GConfig)

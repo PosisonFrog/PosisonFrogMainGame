@@ -32,7 +32,8 @@ ACHealOrb* UCHealOrbPoolSubsystem::Acquire(UWorld* World, const FTransform& Xfor
 
 	if (InactivePool.Num() > 0)
 	{
-		Orb = InactivePool.Pop(false);
+		//Orb = InactivePool.Pop(false); 5.3 Legacy
+		Orb = InactivePool.Pop(EAllowShrinking::No);
 	}
 	else
 	{

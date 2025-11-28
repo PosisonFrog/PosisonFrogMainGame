@@ -197,7 +197,8 @@ void ACRiotRobotHordeTrigger::StartSpawnSequence()
                         SpawnEnemyFromInfo(PendingSpawnInfos[Index]);
                 }
 
-                PendingSpawnInfos.RemoveAt(0, ImmediateCount, false);
+                //PendingSpawnInfos.RemoveAt(0, ImmediateCount, false); - 5.3 Legacy
+				PendingSpawnInfos.Pop(EAllowShrinking::No);
         }
 
         if (PendingSpawnInfos.Num() == 0)        {
@@ -226,7 +227,8 @@ void ACRiotRobotHordeTrigger::SpawnEnemyBatch()
         while (PendingSpawnInfos.Num() > 0 && SpawnThisBatch < SpawnPerBatch)
         {
                 const FSpawnTransformInfo SpawnInfo = PendingSpawnInfos[0];
-                PendingSpawnInfos.RemoveAt(0, 1, false);
+				//PendingSpawnInfos.RemoveAt(0, 1, false); - 5.3 Legacy
+				PendingSpawnInfos.Pop(EAllowShrinking::No);
 
  SpawnEnemyFromInfo(SpawnInfo);
                 ++SpawnThisBatch;
@@ -390,7 +392,7 @@ void ACRiotRobotHordeTrigger::CleanupSpawnedEnemies()
         {
                 if (ACEnemyCharacterBase* Enemy = EnemyPtr.Get())
                 {
-                        if (!Enemy->IsPendingKill())
+                        if (!IsValid(Enemy))
                         {
                                 Enemy->Destroy();
                         }

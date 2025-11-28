@@ -41,7 +41,7 @@ struct FBossPatternSpawnTransform
     FName SocketName = NAME_None;
 
     /** 커스텀 액터 기준일 때 사용할 참조 */
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Spawn", meta=(EditCondition="Anchor==EBossPatternSpawnAnchor::CustomActor", AllowedClasses="Actor"))
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Spawn", meta=(EditCondition="Anchor==EBossPatternSpawnAnchor::CustomActor", AllowedClasses= "/Script/Engine.Actor"))
     TSoftObjectPtr<AActor> SpawnAnchor;
 
     /** 기준 위치에서 적용할 추가 위치 오프셋 */

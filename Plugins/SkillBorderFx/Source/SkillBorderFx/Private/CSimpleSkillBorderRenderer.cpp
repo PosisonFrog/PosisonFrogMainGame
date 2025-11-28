@@ -8,6 +8,8 @@
 #include "RenderTargetPool.h"
 #include "RHIStaticStates.h"
 #include "CSimpleSkillBorderCS.h"
+#include "RHI.h"
+#include "RHIResources.h"
 
 void FSimpleSkillBorderRenderer::CopyNow(UTexture2D* Source, UTextureRenderTarget2D* Dest)
 {
@@ -31,8 +33,8 @@ void FSimpleSkillBorderRenderer::Copy_RT(FRHICommandListImmediate& RHICmdList, F
     check(IsInRenderingThread());
     if (!SrcRes || !DstRes) return;
 
-    FTexture2DRHIRef SrcRHI = SrcRes->TextureRHI ? SrcRes->TextureRHI->GetTexture2D() : nullptr;
-    FTextureRHIRef   DstRHI = DstRes->GetRenderTargetTexture();
+    FTextureRHIRef SrcRHI = SrcRes->TextureRHI ? SrcRes->TextureRHI->GetTexture2D() : nullptr;
+    FTextureRHIRef DstRHI = DstRes->GetRenderTargetTexture();
     if (!SrcRHI || !DstRHI) return;
 
     FRDGBuilder GraphBuilder(RHICmdList, RDG_EVENT_NAME("SkillBorder_Copy"));
