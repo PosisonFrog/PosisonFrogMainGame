@@ -89,7 +89,7 @@ protected:
     float TickInterval = 0.05f;
 
     UPROPERTY(EditDefaultsOnly, Category="Spin|Damage", meta=(ClampMin="0"))
-    float BaseDPS = 140.f;
+    float BaseDPS = 80.f;
 
     UPROPERTY(EditDefaultsOnly, Category="Spin|Damage", meta=(ClampMin="1.0"))
     float FuryDPSMultiplier = 1.2f; // Fury "버프"만 반영 (스택 증가 X)
@@ -122,6 +122,7 @@ protected:
     UPROPERTY(EditDefaultsOnly, Category="Finisher|Anim", meta=(ClampMin="0"))
     float FinisherImpactDelay = 0.35f;
 
+
     UPROPERTY(EditDefaultsOnly, Category="Finisher|Damage", meta=(ClampMin="0"))
     float FinisherDamageDefault = 20.f;
 
@@ -145,21 +146,21 @@ protected:
 
     // 플레이어 히트스톱 설정
     UPROPERTY(EditAnywhere, Category = "Spin|HitStop|Player", meta = (ClampMin = "0.01", ClampMax = "0.5"))
-    float SpinTickPlayerHitStopDuration = 0.05f;
+    float SpinTickPlayerHitStopDuration = 0.1f;
 
     UPROPERTY(EditAnywhere, Category = "Spin|HitStop|Player", meta = (ClampMin = "0.0", ClampMax = "1.0"))
-    float SpinTickPlayerHitStopTimeScale = 0.3f;
+    float SpinTickPlayerHitStopTimeScale = 0.5f;
 
     // 적 히트스톱 설정
     UPROPERTY(EditAnywhere, Category = "Spin|HitStop|Enemy", meta = (ClampMin = "0.01", ClampMax = "0.5"))
-    float SpinTickEnemyHitStopDuration = 0.08f;
+    float SpinTickEnemyHitStopDuration = 0.4f;
 
     UPROPERTY(EditAnywhere, Category = "Spin|HitStop|Enemy", meta = (ClampMin = "0.0", ClampMax = "1.0"))
-    float SpinTickEnemyHitStopTimeScale = 0.2f;
+    float SpinTickEnemyHitStopTimeScale = 0.02f;
 
     // 히트스톱 적용 간격 (틱마다 적용하면 과하므로)
     UPROPERTY(EditAnywhere, Category = "Spin|HitStop", meta = (ClampMin = "0.1", ClampMax = "1.0"))
-    float SpinHitStopInterval = 0.2f;
+    float SpinHitStopInterval = 0.35f;
     
     // ───────── 피니셔 히트 스톱 ─────────
     UPROPERTY(EditAnywhere, Category = "Finisher|HitStop")
