@@ -27,7 +27,7 @@ namespace
 {
     FStreamableManager& GetMenuStreamableManager()
     {
-        if (UAssetManager* AssetManager = UAssetManager::GetIfValid())
+        if (UAssetManager* AssetManager = UAssetManager::GetIfInitialized())
         {
             return AssetManager->GetStreamableManager();
         }

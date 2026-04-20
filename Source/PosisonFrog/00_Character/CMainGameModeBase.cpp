@@ -47,14 +47,10 @@ void ACMainGameModeBase::BeginPlay()
 		}
 	}
 
-	TArray<AActor*> FoundActors;
-	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACStageManager::StaticClass(), FoundActors);
-	if (FoundActors.Num() > 0)
+	AActor* FoundActor = UGameplayStatics::GetActorOfClass(GetWorld(), ACStageManager::StaticClass());
+	if (ACStageManager* StageManager = Cast<ACStageManager>(FoundActor))
 	{
-		if (ACStageManager* StageManager = Cast<ACStageManager>(FoundActors[0]))
-		{
-			StageManager->OnCheckPointActivated.AddDynamic(this, &ACMainGameModeBase::OnCheckPointActivateEvent);
-		}
+		StageManager->OnCheckPointActivated.AddDynamic(this, &ACMainGameModeBase::OnCheckPointActivateEvent);
 	}
 	
 	StartGameplayBGM();
@@ -265,9 +261,6 @@ void ACMainGameModeBase::RespawnPlayerAtCheckPoint(ACPlayerController* PlayerCon
 		RequestStageRespawn();
 		ResetBossBattleState();
 
-		TArray<AActor*> AllEnemies;
-		UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACEnemyCharacterBase::StaticClass(), AllEnemies);
-
 		if (UGameInstance* GameInstance = GetGameInstance())
 		{
 			if (UCPawnLifecycleSubsystem* PawnLifecycle = GameInstance->GetSubsystem<UCPawnLifecycleSubsystem>())
@@ -349,12 +342,10 @@ void ACMainGameModeBase::RestorePlayerState(ACPlayerCharacter* Player)
 
 void ACMainGameModeBase::RequestStageRespawn()
 {
-	TArray<AActor*> FoundActors;
-	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACStageManager::StaticClass(), FoundActors);
-	
-	if (FoundActors.Num() > 0)
+	AActor* FoundActor = UGameplayStatics::GetActorOfClass(GetWorld(), ACStageManager::StaticClass());
+	if (FoundActor)
 	{
-		if (ACStageManager* StageManager = Cast<ACStageManager>(FoundActors[0]))
+		if (ACStageManager* StageManager = Cast<ACStageManager>(FoundActor))
 		{
 			const int32 TargetStageID = StageManager->GetCurrentStage();
 			StageManager->PrepareForRespawn(TargetStageID);

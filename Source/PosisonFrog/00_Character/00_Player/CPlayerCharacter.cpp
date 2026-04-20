@@ -1,4 +1,4 @@
-#include "CPlayerCharacter.h"
+﻿#include "CPlayerCharacter.h"
 
 #include "Camera/CameraComponent.h"
 #include "Camera/CameraShakeBase.h"
@@ -368,8 +368,11 @@ void ACPlayerCharacter::Look(const FInputActionValue& Value)
     const FVector2D Axis = Value.Get<FVector2D>(); 
     if (!Controller) return;
 
-    AddControllerYawInput(Axis.X);
-    AddControllerPitchInput(Axis.Y);
+    const ACPlayerController* PlayerController = Cast<ACPlayerController>(Controller);
+    const float MouseSensitivity = PlayerController ? PlayerController->GetMouseSensitivity() : 1.0f;
+
+    AddControllerYawInput(Axis.X * MouseSensitivity);
+    AddControllerPitchInput(-Axis.Y * -MouseSensitivity);
 }
 
 // ────────────────────────────────────────────────────────────────────────────

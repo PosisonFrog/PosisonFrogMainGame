@@ -139,6 +139,7 @@ private:
 	
 	// ──────────── 튜토리얼 플로우 ────────────
 	void InitializeStageFlow();
+	void RebuildStageFlowNodeIndex();
 	void EnterNode(int32 NodeId);
 	void AdvanceToNode(int32 NodeId);
 	int32 FindNodeIndexById(int32 NodeId) const;
@@ -177,10 +178,12 @@ private:
 	// ──────────── 데이터 저장 ────────────
 	TMap<int32, TArray<TObjectPtr<ACEnemySpawnZone>>> StageSpawnZones;
 	TMap<int32, TArray<TObjectPtr<ACEnemyCharacterBase>>> StageEnemies;
+	TMap<ACEnemyCharacterBase*, int32> EnemyStageLookup;
 	TMap<int32, TArray<TObjectPtr<ACRiotRobotHordeTrigger>>> StageHordeTriggers;  // ← HordeTrigger 기능
 
 	UPROPERTY(EditAnywhere, Category = "Stage|Flow")
 	TArray<FStageFlowNode> StageFlowNodes;
+	TMap<int32, int32> StageFlowNodeIndexById;
 	
 	UPROPERTY(VisibleAnywhere, Category = "Stage|Info")
 	TMap<int32, TObjectPtr<ACStageBarrier>> StageBarriers;

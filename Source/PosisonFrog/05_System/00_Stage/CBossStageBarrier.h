@@ -8,6 +8,7 @@
 
 class ACEnemyBossCharacter;
 class ACStageManager;
+class APawn;
 class UBoxComponent;
 class UStaticMeshComponent;
 
@@ -77,6 +78,9 @@ public:
 	UPROPERTY()
 	TObjectPtr<UMaterialInstanceDynamic> DynamicMaterial;
 
+	UPROPERTY(Transient)
+	TWeakObjectPtr<APawn> CachedPlayerPawn;
+
 	// 장벽이 완전히 비활성화되는 시간
 	UPROPERTY(EditAnywhere, Category = "BossBarrier|Settings")
 	float DeactivateDelay = 2.0f;
@@ -104,6 +108,9 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category = "BossBarrier|Visibility", meta = (ClampMin = "0.0", ClampMax = "1.0"))
 	float MaxOpacity = 0.7f;
+
+	UPROPERTY(EditAnywhere, Category = "BossBarrier|Visibility", meta = (ClampMin = "0.0"))
+	float OpacityUpdateInterval = 0.05f;
 	
 private:
 	// ──────────── 상태 ────────────

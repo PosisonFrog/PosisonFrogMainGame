@@ -11,6 +11,7 @@
 ACBossStageBarrier::ACBossStageBarrier()
 {
 	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.TickInterval = OpacityUpdateInterval;
 
 	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 
@@ -30,6 +31,7 @@ ACBossStageBarrier::ACBossStageBarrier()
 void ACBossStageBarrier::BeginPlay()
 {
 	Super::BeginPlay();
+	PrimaryActorTick.TickInterval = OpacityUpdateInterval;
 	
 	CLog::Log(TEXT("================================================================="));
 	CLog::Log(TEXT("[BossBarrier] BeginPlay"));
@@ -41,24 +43,12 @@ void ACBossStageBarrier::BeginPlay()
 	
 	// StageManager 찾기 및 등록
 	CLog::Log(TEXT("[BossBarrier] StageManager 검색"));
-	TArray<AActor*> FoundActors;
-	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACStageManager::StaticClass(), FoundActors);
+	ACStageManager* StageManager = Cast<ACStageManager>(UGameplayStatics::GetActorOfClass(GetWorld(), ACStageManager::StaticClass()));
 	
-	if (FoundActors.Num() == 0)
+	if (!IsValid(StageManager))
 	{
 		CLog::Log(TEXT("[BossBarrier] StageManager를 찾을 수 없음"));
 		CLog::Log(TEXT("[BossBarrier] 레벨에 ACStageManager가 배치되어 있는지 확인 필요"));
-		CLog::Log(TEXT("================================================================="));
-		return;
-	}
-	
-	if (FoundActors.Num() > 1)
-		CLog::Log(FString::Printf(TEXT("[BossBarrier] StageManager가 %d개 발견됨 - 첫 번째 사용"), FoundActors.Num()));
-	
-	ACStageManager* StageManager = Cast<ACStageManager>(FoundActors[0]);
-	if (!IsValid(StageManager))
-	{
-		CLog::Log(TEXT("[BossBarrier] StageManager 캐스팅 실패!"));
 		CLog::Log(TEXT("================================================================="));
 		return;
 	}
@@ -121,7 +111,8 @@ void ACBossStageBarrier::BeginPlay()
 	}
 
 	// 플레이어 찾기 테스트
-	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+	CachedPlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+	APawn* PlayerPawn = CachedPlayerPawn.Get();
 	if (IsValid(PlayerPawn))
 	{
 		CLog::Log(FString::Printf(TEXT("[BossBarrier] ✓ 플레이어 발견: %s"), *PlayerPawn->GetName()));
@@ -172,7 +163,12 @@ void ACBossStageBarrier::Tick(float DeltaTime)
 void ACBossStageBarrier::UpdateOpacityByDistance()
 {
 	// 플레이어 캐릭터 찾기
-	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+	APawn* PlayerPawn = CachedPlayerPawn.Get();
+	if (!IsValid(PlayerPawn))
+	{
+		CachedPlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+		PlayerPawn = CachedPlayerPawn.Get();
+	}
 	if (!IsValid(PlayerPawn))
 	{
 		static bool bLoggedOnce = false;
@@ -322,6 +318,7 @@ void ACBossStageBarrier::CloseBarrier()
 
 	bIsOpen = false;
 	CLog::Log(TEXT("[BossBarrier] bIsOpen = false 설정됨"));
+	PrimaryActorTick.TickInterval = OpacityUpdateInterval;
 
 	// Tick 활성화 (거리에 따른 투명도 조절을 위해)
 	SetActorTickEnabled(true);

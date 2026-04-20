@@ -12,6 +12,7 @@ class ULevelSequence;
 class ALevelSequenceActor;
 class ULevelSequencePlayer;        
 class UUserWidget;
+class ACStageManager;
 
 /**
  * 플레이어가 진입하면 보스 전투를 시작하는 트리거 볼륨
@@ -73,6 +74,9 @@ private:
     
     UPROPERTY(Transient)
     TWeakObjectPtr<APlayerController> PlayerController;
+
+    UPROPERTY(Transient)
+    TWeakObjectPtr<ACStageManager> StageManagerCache;
 
 private:
     

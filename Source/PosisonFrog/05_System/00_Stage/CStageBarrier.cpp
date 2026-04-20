@@ -11,6 +11,7 @@
 ACStageBarrier::ACStageBarrier()
 {
 	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.TickInterval = OpacityUpdateInterval;
 
 	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 
@@ -30,6 +31,7 @@ ACStageBarrier::ACStageBarrier()
 void ACStageBarrier::BeginPlay()
 {
 	Super::BeginPlay();
+	PrimaryActorTick.TickInterval = OpacityUpdateInterval;
 
 	CLog::Log(TEXT("================================================================="));
 	CLog::Log(FString::Printf(TEXT("[Barrier] 섹션 %d 바리게이트 생성 시작"), SectionID));
@@ -80,7 +82,8 @@ void ACStageBarrier::BeginPlay()
 		CLog::Log(TEXT("[Barrier] ✗ 경고: BarrierMesh가 nullptr입니다!"));
 	}
 
-	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+	CachedPlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+	APawn* PlayerPawn = CachedPlayerPawn.Get();
 	if (IsValid(PlayerPawn))
 	{
 		CLog::Log(FString::Printf(TEXT("[Barrier] ✓ 플레이어 발견: %s"), *PlayerPawn->GetName()));
@@ -123,7 +126,12 @@ void ACStageBarrier::Tick(float DeltaTime)
 
 void ACStageBarrier::UpdateOpacityByDistance()
 {
-	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+	APawn* PlayerPawn = CachedPlayerPawn.Get();
+	if (!IsValid(PlayerPawn))
+	{
+		CachedPlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+		PlayerPawn = CachedPlayerPawn.Get();
+	}
 	if (!IsValid(PlayerPawn))
 	{
 		static bool bLoggedOnce = false;
@@ -274,6 +282,7 @@ void ACStageBarrier::CloseBarrier()
 
 	bIsOpen = false;
 	CLog::Log(FString::Printf(TEXT("[ACStageBarrier::CloseBarrier] 섹션 %d 닫는 중."), SectionID));
+	PrimaryActorTick.TickInterval = OpacityUpdateInterval;
 
 	if (CollisionBox)
 		CollisionBox->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);

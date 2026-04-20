@@ -209,6 +209,7 @@ void ACStageManager::PrepareForRespawn(int32 TargetStageID)
 
 		for (ACEnemyCharacterBase* Enemy : StageIterator.Value())
 		{
+			EnemyStageLookup.Remove(Enemy);
 			if (IsValid(Enemy))
 				Enemy->Destroy();
 		}
@@ -288,6 +289,8 @@ void ACStageManager::PrepareForRespawn(int32 TargetStageID)
 // ────────────────────────────────────────────────────────────────────────────
 void ACStageManager::InitializeStageFlow()
 {
+	RebuildStageFlowNodeIndex();
+
 	CLog::Log(TEXT("========================================"));
 	CLog::Log(TEXT("[StageManager] InitializeStageFlow 시작!"));
 	CLog::Log(TEXT("========================================"));
@@ -462,14 +465,21 @@ void ACStageManager::EnterNode(int32 NodeId)
 	}
 }
 
-int32 ACStageManager::FindNodeIndexById(int32 NodeId) const
+void ACStageManager::RebuildStageFlowNodeIndex()
 {
+	StageFlowNodeIndexById.Empty(StageFlowNodes.Num());
+
 	for (int32 Index = 0; Index < StageFlowNodes.Num(); ++Index)
 	{
-		if (StageFlowNodes[Index].NodeId == NodeId)
-		{
-			return Index;
-		}
+		StageFlowNodeIndexById.Add(StageFlowNodes[Index].NodeId, Index);
+	}
+}
+
+int32 ACStageManager::FindNodeIndexById(int32 NodeId) const
+{
+	if (const int32* Index = StageFlowNodeIndexById.Find(NodeId))
+	{
+		return *Index;
 	}
 
 	return INDEX_NONE;
@@ -578,6 +588,7 @@ void ACStageManager::SpawnTutorialEnemies(int32 StageID, TSubclassOf<ACEnemyChar
 		if (IsValid(Enemy))
 		{
 			EnemyArray.Add(Enemy);
+			EnemyStageLookup.Add(Enemy, StageID);
 
 			// 사망 이벤트 등록
 			if (UCBaseHealthComponent* HealthComp = Enemy->FindComponentByClass<UCBaseHealthComponent>())
@@ -651,6 +662,7 @@ void ACStageManager::RegisterHordeEnemy(ACEnemyCharacterBase* Enemy, int32 Stage
 	}
 
 	StageEnemies.FindOrAdd(StageID).Add(Enemy);
+	EnemyStageLookup.Add(Enemy, StageID);
 
 	CLog::Log(FString::Printf(TEXT("[ACStageManager::RegisterHordeEnemy] Stage %d - HordeTrigger Enemy registered: %s"), 
 		StageID, *Enemy->GetName()));
@@ -964,6 +976,7 @@ void ACStageManager::ProcessSpawnBatch()
 					HealthComp->OnDeath.AddDynamic(this, &ACStageManager::OnEnemyDied);
 				}
 				StageEnemies.FindOrAdd(SpawningStage).Add(Enemy);
+				EnemyStageLookup.Add(Enemy, SpawningStage);
 
 				// AI 초기화를 다음 틱으로 지연 (CrowdManager 등록 문제 방지)
 				if (UWorld* World = GetWorld())
@@ -1052,6 +1065,10 @@ void ACStageManager::ActivatePreloadedStage(int32 StageID)
 	}
 
 	TArray<TObjectPtr<ACEnemyCharacterBase>>& EnemyArray = StageEnemies.FindOrAdd(StageID);
+	for (ACEnemyCharacterBase* Enemy : EnemyArray)
+	{
+		EnemyStageLookup.Remove(Enemy);
+	}
 	EnemyArray.Empty();
 	EnemyArray.Reserve(PreloadArray->Num());
 
@@ -1121,6 +1138,7 @@ void ACStageManager::ActivatePreloadedStage(int32 StageID)
 			Enemy->OnRespawned();
 		}
 		EnemyArray.Add(Enemy);
+		EnemyStageLookup.Add(Enemy, StageID);
 		ActivatedCount++;
 	}
 	PreloadedEnemies.Remove(StageID);
@@ -1352,29 +1370,16 @@ void ACStageManager::CollectBossBarrier()
 	if (IsValid(BossBarrier))
 		return;
 	
-	TArray<AActor*> FoundActors;
-	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACBossStageBarrier::StaticClass(), FoundActors);
-	
-	if (FoundActors.Num() == 0)
+	AActor* FoundActor = UGameplayStatics::GetActorOfClass(GetWorld(), ACBossStageBarrier::StaticClass());
+	ACBossStageBarrier* Barrier = Cast<ACBossStageBarrier>(FoundActor);
+	if (!IsValid(Barrier))
 	{
 		if (bEnableDebugLogs)
 			CLog::Log(TEXT("[StageManager] CollectBossBarrier: 레벨에 BossBarrier가 존재하지 않음"));
 		return;
 	}
 	
-	if (FoundActors.Num() > 1)
-	{
-		CLog::Log(FString::Printf(TEXT("[StageManager] CollectBossBarrier: BossBarrier %d개 발견"), FoundActors.Num()));
-	}
-	
-	for (AActor* Actor : FoundActors)
-	{
-		if (ACBossStageBarrier* Barrier = Cast<ACBossStageBarrier>(Actor))
-		{
-			RegisterBossBarrier(Barrier);
-			break;
-		}
-	}
+	RegisterBossBarrier(Barrier);
 }
 
 void ACStageManager::CollectHordeTriggers()
@@ -1431,19 +1436,10 @@ void ACStageManager::OnEnemyDied(AActor* DeadActor)
 		return;
 	
 	ACEnemyCharacterBase* DeadEnemy = Cast<ACEnemyCharacterBase>(DeadActor);
-	int32 FoundStage = -1; // 어느 스테이지의 적인지 찾기
-	
-	for (const auto& Pair : StageEnemies)
-	{
-		if (Pair.Value.Contains(DeadEnemy))
-		{
-			FoundStage = Pair.Key;
-			break;
-		}
-	}
-
-	if (FoundStage == -1)
+	const int32* FoundStagePtr = EnemyStageLookup.Find(DeadEnemy);
+	if (!FoundStagePtr)
 		return;
+	const int32 FoundStage = *FoundStagePtr;
 
 	int32 RemainingBefore = GetRemainingEnemies(FoundStage);
 	CLog::Log(FString::Printf(TEXT("[StageManager] 적 사망: Stage %d, 남은 적: %d"), FoundStage, RemainingBefore));
@@ -1597,6 +1593,8 @@ void ACStageManager::ClearAllEnemies()
 				if (!IsValid(Enemy))
 					continue;
 						
+				EnemyStageLookup.Remove(Enemy);
+						
 				if (UCBaseHealthComponent* HealthComp = Enemy->FindComponentByClass<UCBaseHealthComponent>())
 				{
 					HealthComp->OnDeath.RemoveDynamic(this, &ACStageManager::OnEnemyDied);
@@ -1615,6 +1613,7 @@ void ACStageManager::ClearAllEnemies()
 	
 	StageEnemies.Empty();
 	PreloadedEnemies.Empty();
+	EnemyStageLookup.Empty();
 }
 
 void ACStageManager::RespawnTutorialEnemies(int32 StageID, FName StepId)
@@ -1631,6 +1630,7 @@ void ACStageManager::RespawnTutorialEnemies(int32 StageID, FName StepId)
             
 			if (IsValid(Enemy))
 			{
+				EnemyStageLookup.Remove(Enemy);
 				if (UCBaseHealthComponent* HealthComp = Enemy->FindComponentByClass<UCBaseHealthComponent>())
 				{
 					HealthComp->OnDeath.RemoveDynamic(this, &ACStageManager::OnEnemyDied);

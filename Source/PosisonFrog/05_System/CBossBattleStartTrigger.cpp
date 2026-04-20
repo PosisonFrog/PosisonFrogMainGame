@@ -59,6 +59,8 @@ void ACBossBattleStartTrigger::BeginPlay()
         TriggerBox->OnComponentBeginOverlap.AddDynamic(this, &ACBossBattleStartTrigger::OnTriggerBeginOverlap);
     }
 
+    StageManagerCache = Cast<ACStageManager>(UGameplayStatics::GetActorOfClass(GetWorld(), ACStageManager::StaticClass()));
+
 }
 
 void ACBossBattleStartTrigger::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -386,16 +388,13 @@ void ACBossBattleStartTrigger::OnSequenceFinished()
     }
     
 
-    TArray<AActor*> FoundActors;
-    UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACStageManager::StaticClass(), FoundActors);
-
-    if (FoundActors.Num() > 0)
+    ACStageManager* StageManager = StageManagerCache.IsValid()
+        ? StageManagerCache.Get()
+        : Cast<ACStageManager>(UGameplayStatics::GetActorOfClass(GetWorld(), ACStageManager::StaticClass()));
+    StageManagerCache = StageManager;
+    if (IsValid(StageManager))
     {
-        ACStageManager* StageManager = Cast<ACStageManager>(FoundActors[0]);
-        if (IsValid(StageManager))
-        {
-            StageManager->OnBossBattleStartRequested();
-        }
+        StageManager->OnBossBattleStartRequested();
     }
 
     if (IsValid(TargetBoss))
@@ -441,17 +440,14 @@ void ACBossBattleStartTrigger::ManualTrigger()
     }
 
     // StageManager에 알림
-    TArray<AActor*> FoundActors;
-    UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACStageManager::StaticClass(), FoundActors);
-    
-    if (FoundActors.Num() > 0)
+    ACStageManager* StageManager = StageManagerCache.IsValid()
+        ? StageManagerCache.Get()
+        : Cast<ACStageManager>(UGameplayStatics::GetActorOfClass(GetWorld(), ACStageManager::StaticClass()));
+    StageManagerCache = StageManager;
+    if (IsValid(StageManager))
     {
-        ACStageManager* StageManager = Cast<ACStageManager>(FoundActors[0]);
-        if (IsValid(StageManager))
-        {
-            UE_LOG(LogTemp, Error, TEXT("[BossTrigger] Manual: StageManager에 알림 전송"));
-            StageManager->OnBossBattleStartRequested();
-        }
+        UE_LOG(LogTemp, Error, TEXT("[BossTrigger] Manual: StageManager에 알림 전송"));
+        StageManager->OnBossBattleStartRequested();
     }
     
     UE_LOG(LogTemp, Error, TEXT("[BossTrigger] Manual 보스 전투 시작"));

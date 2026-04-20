@@ -7,6 +7,7 @@
 #include "CStageBarrier.generated.h"
 
 class UBoxComponent;
+class APawn;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnBarrierOpened, int32, SectionID);
 
@@ -70,6 +71,9 @@ public:
 	UPROPERTY()
 	TObjectPtr<UMaterialInstanceDynamic> DynamicMaterial;
 
+	UPROPERTY(Transient)
+	TWeakObjectPtr<APawn> CachedPlayerPawn;
+
 	// ──────────── 이벤트 ────────────
 	UPROPERTY(EditAnywhere, Category = "Barrier|Events")
 	FOnBarrierOpened OnBarrierOpened;
@@ -88,6 +92,9 @@ protected:
 	// 최대 투명도 (0=완전투명, 1=완전불투명)
 	UPROPERTY(EditAnywhere, Category = "Barrier|Visibility", meta = (ClampMin = "0.0", ClampMax = "1.0"))
 	float MaxOpacity = 0.7f;
+
+	UPROPERTY(EditAnywhere, Category = "Barrier|Visibility", meta = (ClampMin = "0.0"))
+	float OpacityUpdateInterval = 0.05f;
 
 	
 };

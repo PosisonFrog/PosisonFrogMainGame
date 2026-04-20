@@ -565,26 +565,15 @@ bool ACEnemyCharacterBase::AcquireTarget()
 		return true;
 
 	// 가장 가까운 플레이어 탐색
-	TArray<AActor*> Players;
-	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACPlayerCharacter::StaticClass(), Players);
-
-	if (Players.Num() == 0)
+	ACPlayerCharacter* Player = Cast<ACPlayerCharacter>(UGameplayStatics::GetPlayerPawn(GetWorld(), 0));
+	if (!IsValid(Player))
 	{
 		Target = nullptr;
 		return false;
 	}
 
-	AActor* Closest = nullptr;
-	float MinDist = FLT_MAX;
-
-	for (AActor* P : Players)
-	{
-		const float D = FVector::Dist(GetActorLocation(), P->GetActorLocation());
-		if (D < MinDist) { MinDist = D; Closest = P; }
-	}
-
-	Target = Closest;
-	return (Target != nullptr);
+	Target = Player;
+	return true;
 }
 
 bool ACEnemyCharacterBase::HasVisualOnTarget() const

@@ -12,6 +12,7 @@
 #include "GameFramework/GameUserSettings.h"
 #include "Misc/ConfigCacheIni.h"
 #include "HAL/IConsoleManager.h"
+#include "00_Character/00_Player/CPlayerController.h"
 
 
 // Enhanced Input
@@ -432,11 +433,9 @@ void UOptionsMenuWidget::OnMouseSensChanged(float V)
                          MouseThumb_Low, MouseThumb_Mid, MouseThumb_High,
                          MouseThreshold_LowToMid, MouseThreshold_MidToHigh);
     
-    if (APlayerController* PC = GetOwningPlayer())
+    if (ACPlayerController* PC = Cast<ACPlayerController>(GetOwningPlayer()))
     {
-        // UE5에서는 deprecated 함수 사용
-		PC->SetDeprecatedInputYawScale(MouseSensitivity); 
-        PC->SetDeprecatedInputPitchScale(-MouseSensitivity); 
+		PC->SetMouseSensitivity(MouseSensitivity); 
     }
     
     if (GConfig)

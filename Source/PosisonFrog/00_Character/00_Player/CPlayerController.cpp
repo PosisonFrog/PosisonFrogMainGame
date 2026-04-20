@@ -49,9 +49,7 @@ void ACPlayerController::BeginPlay()
         
         if (GConfig->GetFloat(Section, TEXT("MouseSensitivity"), SavedSensitivity, GGameUserSettingsIni))
         {
-            SavedSensitivity = FMath::Clamp(SavedSensitivity, 0.1f, 2.0f);
-            SetDeprecatedInputYawScale(SavedSensitivity);
-            SetDeprecatedInputPitchScale(-SavedSensitivity);
+            SetMouseSensitivity(SavedSensitivity);
         }
     }
     
@@ -84,6 +82,11 @@ void ACPlayerController::BeginPlay()
             OrbHUDWidget->UpdateCounters(Pool->GetActiveCount(), Pool->GetTotalPicked());
         }
     }*/
+}
+
+void ACPlayerController::SetMouseSensitivity(float InSensitivity)
+{
+    MouseSensitivity = FMath::Clamp(InSensitivity, 0.1f, 2.0f);
 }
 
 void ACPlayerController::OnPossess(APawn* InPawn)

@@ -23,9 +23,10 @@ void UCPlayerWidget::NativeOnInitialized()
     if (HealthBar)
     {
         HealthBar->SetFillColorAndOpacity(HpColor_Normal);
-        
-        OriginalHpBarBrush = HealthBar->WidgetStyle.FillImage;
-        OriginalHpBarBackgroundBrush = HealthBar->WidgetStyle.BackgroundImage;
+
+        const FProgressBarStyle& HealthBarStyle = HealthBar->GetWidgetStyle();
+        OriginalHpBarBrush = HealthBarStyle.FillImage;
+        OriginalHpBarBackgroundBrush = HealthBarStyle.BackgroundImage;
 
         SaveOriginalHpBarTransform();
         SaveOriginalHpBarAnchors();
@@ -501,7 +502,7 @@ void UCPlayerWidget::SetHpBarImage(UTexture2D* NewTexture)
     if (!HealthBar || !NewTexture)
         return;
 
-    FProgressBarStyle NewStyle = HealthBar->WidgetStyle;
+    FProgressBarStyle NewStyle = HealthBar->GetWidgetStyle();
     
     // Fill 이미지 변경
     FSlateBrush NewFillBrush = NewStyle.FillImage;
@@ -531,7 +532,7 @@ void UCPlayerWidget::RestoreHpBarImage()
         return;
 
     // 원래 스타일로 복구
-    FProgressBarStyle OriginalStyle = HealthBar->WidgetStyle;
+    FProgressBarStyle OriginalStyle = HealthBar->GetWidgetStyle();
     OriginalStyle.FillImage = OriginalHpBarBrush;
     OriginalStyle.BackgroundImage = OriginalHpBarBackgroundBrush;
     

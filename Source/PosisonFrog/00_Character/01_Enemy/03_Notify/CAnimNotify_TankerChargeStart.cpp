@@ -3,9 +3,10 @@
 #include "GameFramework/Character.h"
 
 
-void UCAnimNotify_TankerChargeStart::Notify(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation)
+void UCAnimNotify_TankerChargeStart::Notify(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation,
+	const FAnimNotifyEventReference& EventReference)
 {
-	Super::Notify(MeshComp, Animation);
+	Super::Notify(MeshComp, Animation, EventReference);
 	
 	if (!MeshComp)
 		return;

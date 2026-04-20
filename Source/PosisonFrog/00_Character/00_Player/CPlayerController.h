@@ -35,6 +35,9 @@ class POSISONFROG_API ACPlayerController : public APlayerController
 public:
     ACPlayerController();
 
+    void SetMouseSensitivity(float InSensitivity);
+    FORCEINLINE float GetMouseSensitivity() const { return MouseSensitivity; }
+
 protected:
     virtual void BeginPlay() override;
     virtual void SetupInputComponent() override;
@@ -127,6 +130,7 @@ private:
     bool bGamepadMappingActive = false;
     bool bPauseMappingActive = false;
     bool bPauseSoundMixActive = false;
+    float MouseSensitivity = 1.0f;
     
     FTimerHandle PauseSoundMixTimerHandle;
     

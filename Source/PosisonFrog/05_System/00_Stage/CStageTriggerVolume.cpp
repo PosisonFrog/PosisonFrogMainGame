@@ -20,12 +20,7 @@ void ACStageTriggerVolume::BeginPlay()
 	
 	if (!IsValid(StageManager))
 	{
-		TArray<AActor*> Managers;
-		UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACStageManager::StaticClass(), Managers);
-		if (Managers.Num() > 0)
-		{
-			StageManager = Cast<ACStageManager>(Managers[0]);
-		}
+		StageManager = Cast<ACStageManager>(UGameplayStatics::GetActorOfClass(GetWorld(), ACStageManager::StaticClass()));
 	}
 }
 

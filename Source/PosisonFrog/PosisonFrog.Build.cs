@@ -9,6 +9,8 @@ public class PosisonFrog : ModuleRules
 		PublicIncludePaths.Add(ModuleDirectory);
 
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
+		IWYUSupport = IWYUSupport.Full;
+		bLegacyPublicIncludePaths = false;
 
 		PublicDependencyModuleNames.AddRange(new string[]
 		{
