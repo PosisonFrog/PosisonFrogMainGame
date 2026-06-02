@@ -2,16 +2,14 @@
 청강문화산업대학교 학기작으로 제작한 Unreal Engine 기반 3D 액션 게임 프로젝트입니다.<br/>
 해머를 사용하는 플레이어 캐릭터를 중심으로 기본 공격, 대시, 회전 공격, 띄우기-내려찍기 커맨드 스킬, 콤보 랭크, 궁극기, 스테이지 진행, 튜토리얼, 보스전 시스템을 구현했습니다.
 
-
 ## Project Info
+<img src="https://github.com/user-attachments/assets/ba5d382b-97f0-44d2-a199-ee83d3ca143a" width="378" height="504"/><br/>
 - 프로젝트명: JO:E
 - 제작 기간: 2026.09.01 ~ 2026.11.27
 - 제작 구분: 청강문화산업대학교 학기작
 - 전시 이력: 청강대 주최 크로니클, 네오위즈 사옥 전시
 - 엔진: Unreal Engine 5.3
-- 플랫폼: Windows / Desktop
-
-<img src="https://github.com/user-attachments/assets/ba5d382b-97f0-44d2-a199-ee83d3ca143a" width="378" height="504"/>
+- 플랫폼: Windows / Desktop 
 
 ## Game Features
 - 해머 기반 3D 근접 액션 전투
