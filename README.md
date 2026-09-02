@@ -5,7 +5,7 @@
 ## Project Info
 <img src="https://github.com/user-attachments/assets/ba5d382b-97f0-44d2-a199-ee83d3ca143a" width="378" height="504"/><br/>
 - 프로젝트명: JO:E
-- 제작 기간: 2026.09.01 ~ 2026.11.27
+- 제작 기간: 2025.09.01 ~ 2025.11.27
 - 제작 구분: 청강문화산업대학교 학기작
 - 전시 이력: 청강대 주최 크로니클, 네오위즈 사옥 전시
 - 엔진: Unreal Engine 5.3
